@@ -1,6 +1,9 @@
 param(
     [string]$PythonExe = (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
     [switch]$AutoFlattenExisting,
+    # Without it, positions left in the account that are not registered multi-day positions are closed before the
+    # session (owner 2026-10-23); with it, any leftover blocks the run as before.
+    [switch]$BlockOnLeftovers,
     [int]$MaxOrders = 6,
     [double]$MinScore = 7.0,
     [double]$NotionalPerTrade = 250.0,
@@ -64,6 +67,11 @@ $preflightArgs = @(
 if ($AutoFlattenExisting) {
     $preflightArgs += "--auto-flatten"
 }
+elseif (-not $BlockOnLeftovers) {
+    # Registered multi-day positions (data\paper_positions.json) stay open for their own monitor; the rest - a
+    # position nobody watches, like the four Miltos entries of 2026-10-22 - is closed at the session's start.
+    $preflightArgs += @("--auto-flatten", "--keep-registered", "data\paper_positions.json")
+}
 
 Write-Host "[PREFLIGHT] Starting Alpaca account preflight..."
 $preflightExit = Run-Python -Arguments $preflightArgs -StdoutLog $preflightOut -StderrLog $preflightErr
@@ -72,6 +80,7 @@ if ($preflightExit -ne 0) {
     exit $preflightExit
 }
 Write-Host "[PREFLIGHT] OK"
+& "$projectRoot\start_multi_day_monitor_today.ps1" -PythonExe $PythonExe
 
 $effectiveMaxTotalNotional = $MaxTotalNotional
 if ($effectiveMaxTotalNotional -le 0) {
@@ -178,13 +187,17 @@ foreach ($trader in $traders) {
     Write-Host ("[TRADER] {0} submitted={1}" -f $trader.Name, $submitted)
 }
 
+# Monitors also when only Miltos will enter: on 2026-10-22 all six approvals went through Miltos, nothing was sent
+# directly, so no monitor started and his four fills were left open overnight. A monitor re-reads the opening
+# reports every cycle and picks up Miltos's fills as they come.
+$miltosWillEnter = (-not $NoStartMiltos) -and ($approvedIntentCount -gt 0)
 $monitorsStarted = $false
-if ($submittedTotal -gt 0) {
+if (($submittedTotal -gt 0) -or $miltosWillEnter) {
     Write-Host "[MONITORS] Starting position monitors..."
     & "$projectRoot\start_trader_position_monitors_today.ps1" -PythonExe $PythonExe -StopLossPct $StopLossPct -TakeProfitPct $TakeProfitPct -HoldingPeriodRule $HoldingPeriodRule
     $monitorsStarted = $true
 } else {
-    Write-Host "[MONITORS] No submitted orders; monitors not started."
+    Write-Host "[MONITORS] No submitted orders and no Miltos entries; monitors not started."
 }
 
 $miltosStarted = $false
@@ -230,6 +243,7 @@ $payload = [pscustomobject]@{
     run_id = $env:ECOSYSTEM_RUN_ID
     started_at = (Get-Date).ToString("o")
     auto_flatten_existing = [bool]$AutoFlattenExisting
+    block_on_leftovers = [bool]$BlockOnLeftovers
     max_orders = $MaxOrders
     min_score = $MinScore
     notional_per_trade = $NotionalPerTrade

@@ -111,8 +111,9 @@ policy).
 2. [ ] Owner decision on Step 2 (ATR limits for the nine daily strategies).
 3. [ ] After 4-6 weeks of evidence (shadow multi-day holds in the learning ledger, `holding_shadow.py`, from
        2026-10-16): owner decision between Option B and Option C.
-4. [ ] If C: preflight manage-not-block, Koulis total exposure, multi-session monitors, overnight-gap guard - each
-       with tests and the invariants guard.
+4. [x] Step 3 infrastructure built on the owner's request (2026-10-23), inactive until he gives a strategy a class:
+       preflight manage-not-block, Koulis total exposure, multi-session monitor with the market-shock guard (see
+       below). [ ] Owner decision: which strategies get which class (`paper_session.holding_classes`).
 
 Sources: Kaminski & Lo, "When do stop-loss rules stop losses?" (MIT DSpace); RSI(2) exit descriptions (LuxAlgo,
 FMZ/steemit, Alpha Algo Trading Research - secondary); chandelier exit definition and the StockCharts SystemTrader
@@ -137,3 +138,30 @@ ATR(14) against the position, or the market turns from calm to volatile, sends i
 years of the exit lab (80,445 signals, 26 shock sessions): no effect on day and week holds, +0.04 points on month
 holds and **+0.39 points per trade on quarter holds** (6 strategies better, 2 worse, 15 no clear difference). In
 execution (Step 3) the same guard would run intraday in the monitors for every open position.
+
+## Step 3: multi-day execution, built and switched off (owner's request 2026-10-23)
+
+Built the day after the session of 2026-10-22, when all six approvals went through Miltos, nothing was sent
+directly, no position monitor started and his four fills (INCY, ROKU, AMD, MIAX short) were left open overnight.
+
+* **Monitors also for Miltos entries.** `start_trader_paper_trading_today.ps1` starts the position monitors when
+  orders were sent *or* Miltos will enter; a monitor re-reads the opening reports and picks up his fills.
+* **Leftovers closed, not blocking.** By default the preflight closes, at the session's start, every position and
+  open order that is not a registered multi-day position (`--auto-flatten --keep-registered
+  data/paper_positions.json`); `-BlockOnLeftovers` restores the old block. A failed close still blocks the session.
+  On days without new orders the afternoon session does the same at 09:35 New York.
+* **Holding class per strategy:** `paper_session.holding_classes` in scanner_config.json (`agent:playbook:direction`
+  or `playbook` -> week / month / quarter). **Empty: every position is still a day position, flat by 15:55.**
+* **Registry** `data/paper_positions.json` (`positions_registry.py`): the day monitor hands a filled multi-day
+  position over instead of flattening it; one with unknown ATR(14) stays a day position (no stop can be set).
+* **Multi-day monitor** `alpaca_multi_day_monitor.py` (started by `start_multi_day_monitor_today.ps1` whenever the
+  registry has positions): the rules of `thesis_exit.py` live - widening stop 1.1 x ATR x sqrt(sessions), thesis
+  check once per new nightly run (a stock missing from the board is held), market shock from 15:45 New York (SPY
+  beyond 2 x ATR against the position, or calm -> volatile, with today's bar so far: the lab measured the close
+  and exited at the next open, so live exits come one overnight gap earlier), time stop on the class's last
+  session from 15:50. Closed positions go to `data/paper_positions_closed.jsonl` with the reason.
+* **Koulis:** held multi-day positions take order slots, count toward the notional and short limits and block their
+  tickers; an unknown held value blocks new orders (unknown stays unknown).
+
+Open: the session report and the ledger still read a position as one session; they learn multi-day positions when
+the first strategy gets a class.

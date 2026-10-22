@@ -3,7 +3,8 @@
 # 1. Pre-open check (09:00 New York): pre-market gap and new 8-Ks, candidate -> watch only (preopen_check.py).
 # 2. Paper orders only if today's nightly run completed, the traders' files come from it and no session started
 #    today: at 09:35 New York, start_trader_paper_trading_today.ps1 on the checked files (preflight, Koulis,
-#    Thymios, Alpaca market clock, traders, Miltos 15Min confirmation, position monitors, same-day flat).
+#    Thymios, Alpaca market clock, traders, Miltos 15Min confirmation, position monitors, same-day flat; leftovers
+#    closed, registered multi-day positions watched by alpaca_multi_day_monitor.py, also on days without orders).
 #    Limits are the launcher's defaults; paper account only.
 # 3. After the close (16:10 New York): paper_session_report.py and a notification with the day's result.
 # 4. Rest (owner's decision 2026-10-14): the computer is kept awake only while there is work. With nothing to
@@ -20,7 +21,7 @@ New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $log = Join-Path $logDir ("afternoon_session_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
 $python = Join-Path $projectRoot ".venv-next\Scripts\python.exe"
 # processes that must finish before the computer may rest (entry stalker, position monitors, exit manager)
-$sessionWorkers = "miltos_entry_stalker|alpaca_paper_position_monitor|alpaca_paper_exit_manager"
+$sessionWorkers = "miltos_entry_stalker|alpaca_paper_position_monitor|alpaca_paper_exit_manager|alpaca_multi_day_monitor"
 
 function Write-Log([string]$Text) {
     "$((Get-Date).ToString('s')) $Text" | Add-Content -LiteralPath $log -Encoding UTF8
@@ -164,7 +165,16 @@ try {
     if ($null -ne $reason) {
         Write-Log "No paper orders today: $reason"
         Show-Notice "Paper trading" "Xoris entoles simera: $reason"
-        Invoke-Rest "No paper orders today ($reason)"
+        # Positions in the account are still looked after without new orders (ADR-001 step 3, owner 2026-10-23):
+        # at the open, leftovers nobody watches are closed and the registered multi-day positions get their monitor.
+        if ($reason -ne "paper trading already started today") {
+            Wait-Eastern 9 35
+            $heldExit = Invoke-Logged { & $python -W ignore "alpaca_account_preflight.py" "--out-prefix" "output\alpaca_preflight" `
+                "--block-on-existing" "--auto-flatten" "--keep-registered" "data\paper_positions.json" }
+            Write-Log "Held positions preflight finished with exit code $heldExit."
+            $null = Invoke-Logged { & (Join-Path $projectRoot "start_multi_day_monitor_today.ps1") -PythonExe $python }
+        }
+        Invoke-Rest "No paper orders today ($reason)" $sessionWorkers
         exit 0
     }
 

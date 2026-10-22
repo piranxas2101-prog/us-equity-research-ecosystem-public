@@ -79,9 +79,12 @@ class SwitchTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.assertEqual(por.mode(root / "scanner_config.json"), "on")  # owner 2026-10-22: on from that day
         text = (root / "start_trader_afternoon_session.ps1").read_text(encoding="utf-8")
-        recheck, orders = text.index('"preopen_open_recheck.py"'), text.index("Wait-Eastern 9 35")
+        # the days without orders also wait for 09:35 (held positions, 2026-10-23): the order step's own wait counts
+        recheck = text.index('"preopen_open_recheck.py"')
+        orders = text.index(r'-File ".\start_trader_paper_trading_today.ps1"')
         self.assertLess(text.index("Wait-Eastern 9 32"), recheck)
-        self.assertLess(recheck, orders)
+        self.assertLess(recheck, text.index("Wait-Eastern 9 35", recheck))
+        self.assertLess(text.index("Wait-Eastern 9 35", recheck), orders)
 
 
 if __name__ == "__main__":

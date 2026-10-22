@@ -21,6 +21,7 @@ from alpaca_paper_exit_manager import (
     to_float,
 )
 from alpaca_paper_trader import render_markdown_report as render_opening_markdown_report
+import positions_registry
 
 
 ATHENS_TZ = ZoneInfo("Europe/Athens")
@@ -216,6 +217,7 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
     strategy_payload = load_json(Path(args.strategy))
     agent_name = str(open_report.get("agent_name") or args.agent_name or "agent")
     cutoff_minutes = parse_cutoff_minutes(args.eod_cutoff)
+    holding_map = positions_registry.policy()
     force_flat_now = bool(args.today_only_policy) and eod_cutoff_reached(cutoff_minutes)
 
     actions: list[dict[str, Any]] = []
@@ -299,6 +301,25 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
             continue
 
         current_row = best_current_row(strategy_payload, symbol)
+        holding_class = positions_registry.class_for(agent_name, str(opening.get("playbook_name") or ""),
+                                                     trade_direction, holding_map)
+        if holding_class != "day":
+            # ADR-001 step 3: a multi-day position belongs to alpaca_multi_day_monitor.py from its fill on (its own
+            # widening stop, thesis and time stop); no same-day stop, take-profit or 15:55 flat here.
+            def hand_over(entries, symbol=symbol, opening=opening, holding_class=holding_class, row=current_row):
+                return symbol in entries or positions_registry.register(
+                    entries, opening, agent=agent_name, holding_class=holding_class, today=now_eastern().date(),
+                    row=row)
+
+            handed = positions_registry.update(hand_over)
+            if handed:
+                opening["holding_class"] = holding_class
+                holds.append({"ticker": symbol, "trade_direction": trade_direction, "live_order_status": order_status,
+                              "holding_class": holding_class,
+                              "decision_reason": f"{agent_name} holds {symbol} for a {holding_class}: "
+                                                 "handed to the multi-day monitor."})
+                continue
+            opening["holding_class_fallback"] = "day_atr_unknown"
         should_close, decision_reason = exit_decision_reason(
             agent_name=agent_name,
             opening=opening,

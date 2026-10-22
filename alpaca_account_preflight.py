@@ -78,12 +78,16 @@ def close_position(symbol: str) -> dict[str, Any]:
     return alpaca_request("DELETE", f"/v2/positions/{urlparse.quote(symbol)}")
 
 
-def flatten_snapshot(snapshot: dict[str, Any], dry_run: bool) -> list[dict[str, Any]]:
+def flatten_snapshot(snapshot: dict[str, Any], dry_run: bool, keep: set[str] | frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    """Cancel open orders and close positions, except the symbols in ``keep`` (registered multi-day positions,
+    positions_registry.py): those stay open for their own monitor."""
     actions: list[dict[str, Any]] = []
     for order in snapshot.get("open_orders", []):
         order_id = str(order.get("id") or "").strip()
         status = str(order.get("status") or "").lower().strip()
         if not order_id or status not in CANCELABLE_ORDER_STATUSES:
+            continue
+        if str(order.get("symbol") or "").upper().strip() in keep:
             continue
         action = {
             "type": "cancel_order",
@@ -103,7 +107,7 @@ def flatten_snapshot(snapshot: dict[str, Any], dry_run: bool) -> list[dict[str, 
 
     for position in snapshot.get("positions", []):
         symbol = str(position.get("symbol") or "").upper().strip()
-        if not symbol:
+        if not symbol or symbol in keep:
             continue
         action = {
             "type": "close_position",
@@ -136,6 +140,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- Positions before: {payload.get('positions_before_count')}",
         f"- Open orders before: {payload.get('open_orders_before_count')}",
         f"- Actions: {payload.get('actions_count')}",
+        f"- Kept (registered multi-day): {', '.join(payload.get('kept_registered') or []) or 'none'}",
         f"- Block trader run: {payload.get('block_trader_run')}",
         "",
         "## Account",
@@ -195,11 +200,21 @@ def run(args: argparse.Namespace) -> int:
     open_orders_before_count = len(snapshot_before.get("open_orders", []))
     has_existing_exposure = positions_before_count > 0 or open_orders_before_count > 0
 
+    keep: set[str] = set()
+    if args.keep_registered:
+        import positions_registry
+
+        keep = set(positions_registry.load(Path(args.keep_registered)))
+    held = {str(item.get("symbol") or "").upper() for item in snapshot_before.get("positions", [])}
+    kept = sorted(keep & held)
+
     mode = "report_only"
     actions: list[dict[str, Any]] = []
     if args.auto_flatten:
         mode = "auto_flatten_dry_run" if args.dry_run else "auto_flatten_submit"
-        actions = flatten_snapshot(snapshot_before, dry_run=args.dry_run)
+        if args.keep_registered:
+            mode += "_keep_registered"
+        actions = flatten_snapshot(snapshot_before, dry_run=args.dry_run, keep=set(kept))
     elif args.block_on_existing:
         mode = "block_on_existing"
 
@@ -215,6 +230,9 @@ def run(args: argparse.Namespace) -> int:
         "positions_before_count": positions_before_count,
         "open_orders_before_count": open_orders_before_count,
         "has_existing_exposure": has_existing_exposure,
+        "kept_registered": kept,
+        "kept_positions": [item for item in snapshot_before.get("positions", [])
+                           if str(item.get("symbol") or "").upper() in kept],
         "actions_count": len(actions),
         "action_failures_count": len(action_failures),
         "block_trader_run": block_trader_run,
@@ -243,6 +261,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--block-on-existing", action="store_true", help="Return non-zero if existing positions/open orders are present.")
     parser.add_argument("--auto-flatten", action="store_true", help="Cancel open orders and close all existing paper positions before trading.")
     parser.add_argument("--dry-run", action="store_true", help="Preview auto-flatten actions without submitting them.")
+    parser.add_argument("--keep-registered", help="With --auto-flatten: keep the positions in this multi-day registry "
+                        "(data/paper_positions.json) and close only the leftovers.")
     return parser
 
 

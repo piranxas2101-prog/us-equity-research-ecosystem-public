@@ -44,6 +44,21 @@ def existing_exposure_symbols(preflight: dict[str, Any]) -> set[str]:
     return symbols
 
 
+def _float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def held_multi_day_positions(preflight: dict[str, Any]) -> list[dict[str, Any]]:
+    """Registered multi-day positions the preflight kept open (ADR-001 step 3). They are exposure like a new order:
+    each takes an order slot, its market value counts toward the notional limit and a short one toward the short
+    limit. Empty until the owner gives a strategy a multi-day class, so the limits work as before."""
+    return [item for item in preflight.get("kept_positions") or [] if isinstance(item, dict)]
+
+
 def prefilter_strategy_rows(payload: dict[str, Any], agent: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Keep research observations visible without misclassifying them as Koulis risk rejects."""
 
@@ -276,13 +291,18 @@ def build_gate(
         )
 
     approved: list[dict[str, Any]] = []
-    short_count = 0
-    used_notional = 0.0
+    held = held_multi_day_positions(preflight)
+    held_slots = len(held)
+    short_count = sum(1 for item in held if str(item.get("side") or "").lower() == "short")
+    held_values = [_float(item.get("market_value")) for item in held]
+    held_value_unknown = any(value is None for value in held_values)  # unknown stays unknown: no new orders
+    used_notional = sum(abs(value) for value in held_values if value is not None)
+    used_notional_held = used_notional
     per_strategy: dict[tuple[str, str], int] = {}
     for item in sorted(eligible, key=priority):
         reason = None
         strategy_key = (item["agent"], item["playbook_name"])
-        if len(approved) >= max(0, max_total_orders):
+        if len(approved) + held_slots >= max(0, max_total_orders):
             reason = "portfolio_order_limit"
         elif max_per_strategy > 0 and per_strategy.get(strategy_key, 0) >= max_per_strategy:
             reason = "portfolio_strategy_limit"
@@ -319,6 +339,10 @@ def build_gate(
         approved = []
         gate_status = "blocked"
         gate_reason = "alpaca_preflight_blocked"
+    elif held_value_unknown:
+        approved = []
+        gate_status = "blocked"
+        gate_reason = "held_position_value_unknown"
     elif run_mismatch:
         approved = []
         gate_status = "blocked"
@@ -356,6 +380,8 @@ def build_gate(
             "max_per_strategy": max_per_strategy,
         },
         "existing_exposure_symbols": sorted(exposure),
+        "held_multi_day_positions": [item.get("symbol") for item in held],
+        "held_multi_day_notional": None if held_value_unknown else round(used_notional_held, 2),
         "approved_count": len(approved),
         "approved_notional_usd": round(sum(item["notional_usd"] for item in approved), 2),
         "approved_intents": approved,

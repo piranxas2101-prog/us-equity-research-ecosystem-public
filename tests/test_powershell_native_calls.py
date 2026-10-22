@@ -17,7 +17,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 UNATTENDED = ("nightly_research.ps1", "start_trader_afternoon_session.ps1", "hibernate_after_run.ps1",
-              "hibernate_if_idle.ps1")
+              "hibernate_if_idle.ps1", "start_multi_day_monitor_today.ps1")
 REDIRECT = re.compile(r"(\*>&1|2>&1)")
 ALLOWED = "& $Block *>&1"
 POWERSHELL = shutil.which("powershell.exe") or shutil.which("powershell")

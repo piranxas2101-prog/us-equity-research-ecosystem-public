@@ -5,7 +5,8 @@
     "hibernate_after_afternoon": true
   },
   "paper_session": {
-    "wait_for_late_run_date": "2026-10-14"
+    "wait_for_late_run_date": "2026-10-14",
+    "holding_classes": {}
   },
   "preopen": {
     "recheck_at_open": "on"

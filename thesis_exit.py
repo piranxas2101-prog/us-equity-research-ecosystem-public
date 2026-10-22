@@ -16,7 +16,8 @@ Every class also has a disaster stop that widens with time: 1.1 x ATR(14) x sqrt
 ``STOP_FLOOR``-``STOP_CAP`` (a 3% stop suits a day, not a quarter), and its time stop (5 / 20 / 60 sessions).
 A thesis break decided at night exits at the next session's open; a session opening beyond the stop exits at the
 open. A stock missing from a night's board is unknown, not a signal: the position is held. Starting values with a
-documented rationale; they change only with the owner's approval. Research only: no order path reads this.
+documented rationale; they change only with the owner's approval. Since 2026-10-23 (ADR-001 step 3)
+alpaca_multi_day_monitor.py applies these same rules to the paper positions held for a week, a month or a quarter.
 
 ``backtest`` replays every candidate of the archived runs with three rules - ``fixed`` (hold to the class's last
 close), ``scaled_stop`` (the widening stop alone) and ``thesis`` (stop + thesis exit) - so the thesis effect is

@@ -1,0 +1,6 @@
+{
+  "schema": "ecosystem.architecture_upgrade_watchlist.v1",
+  "purpose": "research-only architecture extension sample",
+  "count": 5,
+  "tickers": ["ASM", "BTG", "ANNA", "ABEV", "ATCH"]
+}

@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(.venv-next/Scripts/python.exe -m unittest:*)",
+      "Bash(.venv-next/Scripts/python.exe -m py_compile:*)",
+      "Bash(.venv-next/Scripts/python.exe -m ruff:*)",
+      "Bash(.venv-next/Scripts/python.exe agent_personality_practical_exam.py:*)",
+      "Bash(.venv-next/Scripts/python.exe agent_assimilation.py verify:*)",
+      "PowerShell(.\\.venv-next\\Scripts\\python.exe -m unittest:*)",
+      "PowerShell(git status:*)",
+      "PowerShell(git diff:*)",
+      "PowerShell(git log:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "PowerShell(git push:*)",
+      "PowerShell(git commit:*)",
+      "Bash(*alpaca_*:*)",
+      "Bash(*start_trader_*:*)",
+      "Bash(*resume_trader_*:*)",
+      "Bash(*start_*.ps1:*)",
+      "PowerShell(*alpaca_*:*)",
+      "PowerShell(*start_*:*)",
+      "PowerShell(*resume_*:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(cat .env:*)",
+      "Bash(*cat*.env)",
+      "PowerShell(Get-Content*.env*)"
+    ]
+  }
+}

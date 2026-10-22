@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "status": "advisory_v1",
+  "purpose": "Classify why a security deserves attention now without treating materiality as automatically bullish.",
+  "scoring": {
+    "components": {
+      "category_materiality": 0.45,
+      "evidence_confidence": 0.25,
+      "recency": 0.20,
+      "specificity": 0.10
+    },
+    "priority_thresholds": {
+      "critical": 80,
+      "high": 65,
+      "medium": 50,
+      "low": 35,
+      "monitor": 0
+    },
+    "source_confidence": {
+      "sec_item": 5,
+      "sec_form": 4,
+      "regulator_primary": 5,
+      "company_primary": 4,
+      "market_news": 2,
+      "unknown": 1
+    },
+    "specificity": {
+      "sec_item": 5,
+      "sec_form": 3,
+      "keyword_primary": 4,
+      "keyword_news": 2,
+      "unknown": 1
+    },
+    "recency_bands": [
+      {"max_age_days": 3, "score": 5},
+      {"max_age_days": 7, "score": 4},
+      {"max_age_days": 14, "score": 3},
+      {"max_age_days": 30, "score": 2},
+      {"max_age_days": 36500, "score": 1}
+    ]
+  },
+  "trade_lens_scoring": {
+    "status": "advisory_only_no_auto_execution",
+    "description": "Long and short scores measure catalyst support for each thesis. They are not trade instructions and do not replace valuation, technical, liquidity, borrow, or risk controls.",
+    "direction_alignment": {
+      "positive": {"long": 1.0, "short": 0.0},
+      "negative": {"long": 0.0, "short": 1.0},
+      "mixed": {"long": 0.3, "short": 0.3},
+      "unknown": {"long": 0.0, "short": 0.0}
+    },
+    "confidence_multiplier": {
+      "high": 1.0,
+      "medium": 0.75,
+      "low": 0.45
+    },
+    "aggregation": {
+      "highest_child_weight": 1.0,
+      "second_child_weight": 0.2,
+      "third_child_weight": 0.1,
+      "maximum_score": 100
+    },
+    "bias_minimum_score": 55,
+    "bias_minimum_gap": 15
+  },
+  "categories": {
+    "earnings_guidance": {
+      "label": "Earnings & Guidance",
+      "reader_question": "Did reported results, guidance, KPIs, or accounting information change the earnings path?",
+      "description": "Reported financial results, preannouncements, guidance changes, KPI disclosures, restatements, or material accounting updates.",
+      "base_materiality": 4,
+      "long_relevance": 5,
+      "short_relevance": 5,
+      "default_direction": "mixed",
+      "legacy_bucket": "Pre-Earnings",
+      "keywords": ["earnings", "financial results", "quarterly results", "annual results", "guidance", "revenue", "profit", "loss", "restatement", "preliminary results"],
+      "positive_keywords": ["raises guidance", "beats", "record revenue", "profitability"],
+      "negative_keywords": ["cuts guidance", "misses", "restatement", "material weakness", "going concern"]
+    },
+    "commercial_customer": {
+      "label": "Commercial, Customer & Partnership",
+      "reader_question": "Is there a contract, customer, partnership, backlog, or commercialization event with economic substance?",
+      "description": "Material agreements, customer wins, contracts, partnerships, backlog changes, go-lives, or channel developments.",
+      "base_materiality": 4,
+      "long_relevance": 4,
+      "short_relevance": 4,
+      "default_direction": "mixed",
+      "legacy_bucket": "Contract / Partnership",
+      "keywords": ["contract", "customer", "partnership", "strategic agreement", "purchase order", "backlog", "commercial agreement", "award"],
+      "positive_keywords": ["awarded", "new customer", "multi-year contract", "expands partnership"],
+      "negative_keywords": ["terminated", "canceled", "lost customer", "contract dispute"]
+    },
+    "product_technology": {
+      "label": "Product & Technology",
+      "reader_question": "Did a launch, product milestone, certification, or technology change monetization visibility?",
+      "description": "Product launches, technical milestones, certifications, demos, adoption, or manufacturing ramps.",
+      "base_materiality": 3,
+      "long_relevance": 3,
+      "short_relevance": 3,
+      "default_direction": "mixed",
+      "legacy_bucket": "Certification / Approval",
+      "keywords": ["product launch", "launches", "technology milestone", "certification", "commercial launch", "production ramp", "patent"],
+      "positive_keywords": ["approved", "certified", "successful launch", "commercial availability"],
+      "negative_keywords": ["delay", "recall", "failed", "defect"]
+    },
+    "clinical_healthcare": {
+      "label": "Clinical & Healthcare",
+      "reader_question": "Can a trial, FDA decision, reimbursement event, or clinical milestone change regulatory viability?",
+      "description": "Clinical data, enrollment, FDA or other health-regulator decisions, PDUFA, labels, safety, and reimbursement.",
+      "base_materiality": 5,
+      "long_relevance": 5,
+      "short_relevance": 5,
+      "default_direction": "mixed",
+      "legacy_bucket": "Certification / Approval",
+      "keywords": ["clinical trial", "topline data", "phase 1", "phase 2", "phase 3", "fda", "pdufa", "advisory committee", "clearance", "reimbursement"],
+      "positive_keywords": ["met primary endpoint", "approval", "clearance", "positive topline"],
+      "negative_keywords": ["failed endpoint", "clinical hold", "complete response letter", "safety signal"]
+    },
+    "regulatory_legal": {
+      "label": "Regulatory, Policy & Legal",
+      "reader_question": "Can a regulator, court, permit, policy, or legal action change the company's ability to operate?",
+      "description": "Non-clinical regulatory decisions, permits, investigations, litigation, settlements, tariffs, and policy actions.",
+      "base_materiality": 4,
+      "long_relevance": 4,
+      "short_relevance": 4,
+      "default_direction": "mixed",
+      "legacy_bucket": "Certification / Approval",
+      "keywords": ["regulatory", "permit", "lawsuit", "litigation", "settlement", "investigation", "court", "antitrust", "tariff"],
+      "positive_keywords": ["permit granted", "settlement approved", "dismissed"],
+      "negative_keywords": ["investigation", "subpoena", "lawsuit", "penalty", "injunction"]
+    },
+    "financing_liquidity": {
+      "label": "Financing & Liquidity",
+      "reader_question": "Did debt, refinancing, covenant, cash runway, or financing availability change survival risk?",
+      "description": "Debt issuance or repayment, refinancing, covenants, liquidity facilities, defaults, and going-concern events.",
+      "base_materiality": 5,
+      "long_relevance": 4,
+      "short_relevance": 5,
+      "default_direction": "mixed",
+      "legacy_bucket": "Financing Relief / Balance-Sheet Event",
+      "keywords": ["financing", "refinancing", "credit facility", "loan", "debt", "covenant", "liquidity", "going concern", "default"],
+      "positive_keywords": ["refinanced", "debt repaid", "covenant waiver", "extends maturity"],
+      "negative_keywords": ["default", "going concern", "liquidity shortfall", "covenant breach"]
+    },
+    "dilution_capital_structure": {
+      "label": "Dilution & Capital Structure",
+      "reader_question": "Can an offering, ATM, convert, warrant, reverse split, or share-count change impair holders?",
+      "description": "Equity offerings, shelf registrations, ATM programs, convertibles, warrants, buybacks, splits, and float changes.",
+      "base_materiality": 5,
+      "long_relevance": 2,
+      "short_relevance": 5,
+      "default_direction": "negative",
+      "legacy_bucket": "Financing Relief / Balance-Sheet Event",
+      "keywords": ["public offering", "registered direct", "private placement", "atm", "shelf registration", "convertible", "warrant", "reverse split", "share repurchase", "buyback"],
+      "positive_keywords": ["buyback", "share repurchase", "warrant cancellation"],
+      "negative_keywords": ["offering", "registered direct", "private placement", "atm", "convertible", "warrant exercise", "reverse split"]
+    },
+    "m_and_a_strategic": {
+      "label": "M&A, Activism & Strategic Actions",
+      "reader_question": "Can a merger, acquisition, divestiture, spin, activism, or strategic review change enterprise value?",
+      "description": "Mergers, acquisitions, asset sales, strategic alternatives, activism, tender offers, spins, and control changes.",
+      "base_materiality": 5,
+      "long_relevance": 5,
+      "short_relevance": 3,
+      "default_direction": "mixed",
+      "legacy_bucket": "Contract / Partnership",
+      "keywords": ["merger", "acquisition", "acquires", "divestiture", "asset sale", "strategic alternatives", "tender offer", "activist", "spin-off", "change of control"],
+      "positive_keywords": ["premium", "strategic acquisition", "value creation"],
+      "negative_keywords": ["deal terminated", "break fee", "hostile", "antitrust challenge"]
+    },
+    "listing_compliance": {
+      "label": "Listing & Compliance",
+      "reader_question": "Is exchange listing, reporting compliance, or continued eligibility at risk?",
+      "description": "Delisting notices, minimum-bid compliance, late filings, trading suspensions, and exchange eligibility.",
+      "base_materiality": 5,
+      "long_relevance": 1,
+      "short_relevance": 5,
+      "default_direction": "negative",
+      "legacy_bucket": "Financing Relief / Balance-Sheet Event",
+      "keywords": ["delisting", "nasdaq compliance", "minimum bid", "late filing", "trading suspension", "listing deficiency"],
+      "positive_keywords": ["regained compliance", "listing approved"],
+      "negative_keywords": ["delisting", "deficiency", "late filing", "suspension"]
+    },
+    "governance_management": {
+      "label": "Governance & Management",
+      "reader_question": "Did leadership, control, governance, auditor, or shareholder voting change execution risk?",
+      "description": "Executive or director changes, auditor matters, governance changes, shareholder votes, and control issues.",
+      "base_materiality": 3,
+      "long_relevance": 3,
+      "short_relevance": 3,
+      "default_direction": "mixed",
+      "legacy_bucket": "UNKNOWN",
+      "keywords": ["chief executive officer", "chief financial officer", "director", "auditor", "resignation", "appointment", "shareholder vote", "governance"],
+      "positive_keywords": ["appoints", "independent director"],
+      "negative_keywords": ["resigns", "terminated for cause", "auditor resignation", "internal control weakness"]
+    },
+    "investor_events": {
+      "label": "Investor Events & Disclosure",
+      "reader_question": "Is there an investor event likely to provide new decision-relevant disclosure?",
+      "description": "Investor days, conferences, firesides, roadshows, presentations, and Regulation FD disclosures.",
+      "base_materiality": 2,
+      "long_relevance": 2,
+      "short_relevance": 2,
+      "default_direction": "unknown",
+      "legacy_bucket": "UNKNOWN",
+      "keywords": ["investor day", "conference", "fireside chat", "roadshow", "investor presentation", "regulation fd"],
+      "positive_keywords": [],
+      "negative_keywords": []
+    },
+    "technical_market_structure": {
+      "label": "Technical & Market Structure",
+      "reader_question": "Can index, float, ownership, lockup, borrow, or flow mechanics affect tradability or price formation?",
+      "description": "Index changes, lockups, passive flows, float changes, ownership disclosures, borrow, short interest, and squeeze mechanics.",
+      "base_materiality": 3,
+      "long_relevance": 3,
+      "short_relevance": 3,
+      "default_direction": "mixed",
+      "legacy_bucket": "Squeeze / Low-Float Flow",
+      "keywords": ["index inclusion", "index deletion", "lockup", "short interest", "low float", "passive flow", "beneficial ownership", "13d", "13g"],
+      "positive_keywords": ["index inclusion", "stake increased"],
+      "negative_keywords": ["index deletion", "lockup expiration", "stake reduced"]
+    },
+    "macro_sector": {
+      "label": "Macro, Sector & Commodity",
+      "reader_question": "Is there a source-backed macro, policy, rate, FX, commodity, or peer event with direct company exposure?",
+      "description": "Macro, rates, FX, commodity, policy, or peer events only when a direct issuer exposure is established.",
+      "base_materiality": 3,
+      "long_relevance": 3,
+      "short_relevance": 3,
+      "default_direction": "mixed",
+      "legacy_bucket": "UNKNOWN",
+      "keywords": ["interest rate", "inflation", "commodity", "oil price", "gold price", "sector demand", "tariff", "government spending"],
+      "positive_keywords": ["tailwind", "demand increase"],
+      "negative_keywords": ["headwind", "demand decline"]
+    },
+    "unknown": {
+      "label": "Unclassified / Insufficient Evidence",
+      "reader_question": "What evidence is missing before this event can be treated as a real catalyst?",
+      "description": "An event exists or attention is visible, but the available evidence is insufficient for a specific catalyst classification.",
+      "base_materiality": 1,
+      "long_relevance": 0,
+      "short_relevance": 0,
+      "default_direction": "unknown",
+      "legacy_bucket": "UNKNOWN",
+      "keywords": [],
+      "positive_keywords": [],
+      "negative_keywords": []
+    }
+  },
+  "sec_form_rules": {
+    "10-K": {"category_id": "earnings_guidance", "event_name": "Annual financial report filed", "direction": "mixed", "materiality": 4},
+    "10-Q": {"category_id": "earnings_guidance", "event_name": "Quarterly financial report filed", "direction": "mixed", "materiality": 4},
+    "20-F": {"category_id": "earnings_guidance", "event_name": "Annual financial report filed", "direction": "mixed", "materiality": 4},
+    "6-K": {"category_id": "unknown", "event_name": "Foreign issuer report filed; content review required", "direction": "unknown", "materiality": 2},
+    "8-K": {"category_id": "unknown", "event_name": "Current report filed; SEC item or content review required", "direction": "unknown", "materiality": 2},
+    "8-K/A": {"category_id": "unknown", "event_name": "Amended current report filed; content review required", "direction": "unknown", "materiality": 2},
+    "S-1*": {"category_id": "dilution_capital_structure", "event_name": "Securities registration filed", "direction": "negative", "materiality": 5},
+    "S-3*": {"category_id": "dilution_capital_structure", "event_name": "Shelf registration filed", "direction": "negative", "materiality": 5},
+    "424B*": {"category_id": "dilution_capital_structure", "event_name": "Offering prospectus filed", "direction": "negative", "materiality": 5},
+    "EFFECT": {"category_id": "dilution_capital_structure", "event_name": "Registration statement declared effective", "direction": "negative", "materiality": 5},
+    "DEF 14A": {"category_id": "governance_management", "event_name": "Definitive proxy statement filed", "direction": "mixed", "materiality": 3},
+    "PREM14A": {"category_id": "m_and_a_strategic", "event_name": "Preliminary merger proxy filed", "direction": "mixed", "materiality": 5},
+    "DEFM14A": {"category_id": "m_and_a_strategic", "event_name": "Definitive merger proxy filed", "direction": "mixed", "materiality": 5},
+    "SC 13D*": {"category_id": "m_and_a_strategic", "event_name": "Active beneficial ownership filing", "direction": "mixed", "materiality": 4},
+    "SC 13G*": {"category_id": "technical_market_structure", "event_name": "Beneficial ownership filing", "direction": "mixed", "materiality": 3},
+    "4": {"category_id": "technical_market_structure", "event_name": "Insider ownership transaction filed", "direction": "mixed", "materiality": 3},
+    "NT 10-K": {"category_id": "listing_compliance", "event_name": "Late annual report notice filed", "direction": "negative", "materiality": 4},
+    "NT 10-Q": {"category_id": "listing_compliance", "event_name": "Late quarterly report notice filed", "direction": "negative", "materiality": 4},
+    "25-NSE": {"category_id": "listing_compliance", "event_name": "Exchange delisting notification filed", "direction": "negative", "materiality": 5}
+  },
+  "sec_item_rules": {
+    "1.01": {"category_id": "commercial_customer", "event_name": "Material definitive agreement", "direction": "mixed", "materiality": 4},
+    "1.02": {"category_id": "commercial_customer", "event_name": "Termination of a material definitive agreement", "direction": "negative", "materiality": 4},
+    "2.01": {"category_id": "m_and_a_strategic", "event_name": "Acquisition or disposition completed", "direction": "mixed", "materiality": 5},
+    "2.02": {"category_id": "earnings_guidance", "event_name": "Results of operations or financial condition disclosed", "direction": "mixed", "materiality": 4},
+    "2.03": {"category_id": "financing_liquidity", "event_name": "Material financial obligation created", "direction": "mixed", "materiality": 4},
+    "2.04": {"category_id": "financing_liquidity", "event_name": "Triggering event for a financial obligation", "direction": "negative", "materiality": 5},
+    "2.05": {"category_id": "m_and_a_strategic", "event_name": "Exit or disposal plan announced", "direction": "mixed", "materiality": 4},
+    "2.06": {"category_id": "earnings_guidance", "event_name": "Material impairment disclosed", "direction": "negative", "materiality": 4},
+    "3.01": {"category_id": "listing_compliance", "event_name": "Delisting or listing-rule notice", "direction": "negative", "materiality": 5},
+    "3.02": {"category_id": "dilution_capital_structure", "event_name": "Unregistered sale of equity securities", "direction": "negative", "materiality": 5},
+    "3.03": {"category_id": "dilution_capital_structure", "event_name": "Material modification to security-holder rights", "direction": "mixed", "materiality": 4},
+    "5.01": {"category_id": "m_and_a_strategic", "event_name": "Change in control", "direction": "mixed", "materiality": 5},
+    "5.02": {"category_id": "governance_management", "event_name": "Director or executive change", "direction": "mixed", "materiality": 3},
+    "5.03": {"category_id": "governance_management", "event_name": "Articles or bylaws amended", "direction": "mixed", "materiality": 3},
+    "5.07": {"category_id": "governance_management", "event_name": "Shareholder vote results", "direction": "mixed", "materiality": 3},
+    "7.01": {"category_id": "investor_events", "event_name": "Regulation FD disclosure", "direction": "unknown", "materiality": 2},
+    "8.01": {"category_id": "unknown", "event_name": "Other event; content review required", "direction": "unknown", "materiality": 2},
+    "9.01": {"category_id": "unknown", "event_name": "Financial statements or exhibits attached", "direction": "unknown", "materiality": 1, "supporting_only": true}
+  }
+}

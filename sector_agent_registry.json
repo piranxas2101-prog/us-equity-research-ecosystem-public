@@ -1,0 +1,147 @@
+{
+  "schema": "ecosystem.sector_agent_registry.v1",
+  "version": "1.1.0",
+  "classification_authority": "babis",
+  "financial_analysis_authority": "giannis",
+  "synthesis_authority": "future_research_synthesizer",
+  "principles": {
+    "one_agent_per_top_level_sector": true,
+    "subcategory_frameworks_live_inside_sector_agent": true,
+    "technical_analysis_allowed": false,
+    "trading_authority": false,
+    "classification_writes_allowed": false,
+    "unknowns_are_explicit": true,
+    "source_provenance_required": true,
+    "same_run_handoffs_required": true
+  },
+  "common_sector_packet": {
+    "schema": "ecosystem.sector_context_packet.v1",
+    "required_fields": [
+      "packet_id", "run_id", "snapshot_id", "symbol", "venue_code",
+      "classification_id", "sector", "subcategory", "leaf_node",
+      "agent_id", "framework_id", "business_model", "value_chain_position",
+      "revenue_drivers", "cost_drivers", "peer_group", "competitive_position",
+      "sector_kpis", "industry_risks", "company_specific_risks", "catalysts",
+      "source_references", "unknown_fields", "evidence_gap_ids", "confidence",
+      "created_at"
+    ],
+    "confidence_values": ["high", "medium", "low", "insufficient"],
+    "evidence_labels": [
+      "fact_source_reported", "fact_provider_standardized", "derived_calculation",
+      "issuer_management_claim", "analyst_interpretation", "contradicted_source",
+      "missing_required_source", "unknown"
+    ]
+  },
+  "agents": {
+    "communication_services": {
+      "agent_id": "sector_communication_services",
+      "subcategories": {
+        "media": ["audience_reach", "content_cost", "advertising_mix", "subscriber_metrics"],
+        "platforms": ["active_users", "engagement", "monetization", "network_effects"],
+        "telecom": ["subscribers", "arpu", "churn", "network_coverage", "spectrum_position"]
+      }
+    },
+    "consumer_discretionary": {
+      "agent_id": "sector_consumer_discretionary",
+      "subcategories": {
+        "goods_retail": ["same_store_sales", "inventory", "pricing_power", "channel_mix"],
+        "mobility": ["units", "product_mix", "backlog", "capacity", "warranty_risk"],
+        "services_housing": ["traffic", "bookings", "occupancy", "average_ticket", "housing_cycle"]
+      }
+    },
+    "consumer_staples": {
+      "agent_id": "sector_consumer_staples",
+      "subcategories": {
+        "household_distribution": ["volume_price_mix", "distribution_reach", "private_label_risk", "input_costs"],
+        "products": ["brand_strength", "volume_price_mix", "commodity_exposure", "category_share"]
+      }
+    },
+    "energy": {
+      "agent_id": "sector_energy",
+      "subcategories": {
+        "hydrocarbons": ["production", "reserves", "realized_price", "breakeven", "refining_or_transport_utilization"],
+        "support_fuels": ["rig_or_fleet_activity", "service_intensity", "contract_backlog", "fuel_mix"]
+      }
+    },
+    "financials": {
+      "agent_id": "sector_financials",
+      "subcategories": {
+        "banking_credit": ["deposit_mix", "loan_mix", "net_interest_margin", "credit_quality", "capital_ratios"],
+        "insurance": ["premium_growth", "combined_ratio", "loss_reserves", "investment_income"],
+        "markets": ["assets_under_management", "net_flows", "take_rate", "transaction_volume", "client_assets"]
+      }
+    },
+    "healthcare": {
+      "agent_id": "sector_healthcare",
+      "subcategories": {
+        "care": ["procedure_volume", "reimbursement", "utilization", "installed_base", "regulatory_clearance"],
+        "therapeutics": ["pipeline_stage", "trial_design", "regulatory_milestones", "patent_exclusivity", "cash_runway_context"]
+      }
+    },
+    "industrials": {
+      "agent_id": "sector_industrials",
+      "subcategories": {
+        "business_services": ["contract_retention", "labor_intensity", "utilization", "backlog"],
+        "capital_goods": ["orders", "backlog", "book_to_bill", "capacity", "aftermarket_mix"],
+        "transport": ["volumes", "load_factor", "yield", "fleet_capacity", "fuel_exposure"]
+      }
+    },
+    "materials": {
+      "agent_id": "sector_materials",
+      "subcategories": {
+        "chemicals": ["volume_price_mix", "feedstock_cost", "utilization", "contract_structure"],
+        "forest_packaging": ["shipment_volume", "containerboard_or_pulp_price", "capacity", "fiber_cost"],
+        "resources": ["production_volume", "grade", "reserves", "cash_cost", "commodity_exposure"]
+      }
+    },
+    "real_estate": {
+      "agent_id": "sector_real_estate",
+      "subcategories": {
+        "development_services": ["project_pipeline", "bookings", "land_or_project_exposure", "completion_risk"],
+        "ownership": ["occupancy", "same_property_growth", "lease_duration", "tenant_concentration", "asset_quality"]
+      }
+    },
+    "technology": {
+      "agent_id": "sector_technology",
+      "subcategories": {
+        "hardware_services": ["installed_base", "unit_or_usage_growth", "service_mix", "customer_concentration", "product_cycle"],
+        "semiconductors": ["end_market_mix", "inventory", "utilization", "design_wins", "capacity_and_node_exposure"],
+        "software": ["arr_or_subscription_growth", "retention", "remaining_performance_obligations", "customer_acquisition", "stock_based_compensation_context"]
+      }
+    },
+    "utilities": {
+      "agent_id": "sector_utilities",
+      "subcategories": {
+        "generation": ["generation_mix", "capacity_factor", "contracted_output", "fuel_or_power_price_exposure"],
+        "networks": ["rate_base", "allowed_return", "capital_plan", "customer_growth", "regulatory_jurisdictions"]
+      }
+    }
+  },
+  "special_agents": {
+    "unresolved_classification": {
+      "agent_id": "sector_unresolved_classification",
+      "category": "unresolved_classification",
+      "module": "sector_agents.unresolved_classification",
+      "mission": "Build a source-backed company profile and classification proposal for symbols that do not yet have a usable sector.subcategory node.",
+      "output_schema": "ecosystem.unresolved_classification_packet.v1",
+      "handoff_to": "babis",
+      "boundaries": [
+        "no taxonomy writes",
+        "no official classification assignment",
+        "no technical analysis",
+        "no financial verdict",
+        "no trade instruction"
+      ],
+      "research_fields": [
+        "business_model",
+        "products_services",
+        "revenue_model",
+        "geography",
+        "value_chain_clues",
+        "peer_clues",
+        "sector_candidates",
+        "subcategory_candidates"
+      ]
+    }
+  }
+}

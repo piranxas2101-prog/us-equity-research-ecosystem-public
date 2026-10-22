@@ -1,0 +1,5 @@
+# Isolated runtime used by the background architecture-upgrade sample.
+dagster
+dagster-webserver
+edgartools
+docling

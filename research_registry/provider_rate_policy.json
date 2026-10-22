@@ -1,0 +1,68 @@
+{
+  "version": "2.0.0",
+  "policy_mode": "workspace_conservative_defaults",
+  "principles": {
+    "shared_across_runs": true,
+    "retry_on_429": false,
+    "utc_daily_budgets": true,
+    "provider_plan_override_required_for_higher_limits": true,
+    "cache_before_network": true,
+    "credential_values_persisted": false
+  },
+  "providers": {
+    "sec": {
+      "minimum_interval_seconds": 0.25,
+      "maximum_requests_per_minute": 240,
+      "maximum_requests_per_utc_day": 100000,
+      "cooldown_seconds_after_429": 900
+    },
+    "fmp": {
+      "minimum_interval_seconds": 1.1,
+      "maximum_requests_per_minute": 50,
+      "maximum_requests_per_utc_day": 225,
+      "cooldown_seconds_after_429": 86400
+    },
+    "polygon": {
+      "minimum_interval_seconds": 12.5,
+      "maximum_requests_per_minute": 5,
+      "maximum_requests_per_utc_day": 5000,
+      "cooldown_seconds_after_429": 3600
+    },
+    "alpaca": {
+      "minimum_interval_seconds": 0.35,
+      "maximum_requests_per_minute": 180,
+      "maximum_requests_per_utc_day": 50000,
+      "cooldown_seconds_after_429": 900
+    },
+    "benzinga": {
+      "minimum_interval_seconds": 3.1,
+      "maximum_requests_per_minute": 18,
+      "maximum_requests_per_utc_day": 900,
+      "cooldown_seconds_after_429": 3600
+    },
+    "fred": {
+      "minimum_interval_seconds": 0.6,
+      "maximum_requests_per_minute": 90,
+      "maximum_requests_per_utc_day": 10000,
+      "cooldown_seconds_after_429": 900
+    },
+    "eia": {
+      "minimum_interval_seconds": 0.6,
+      "maximum_requests_per_minute": 90,
+      "maximum_requests_per_utc_day": 10000,
+      "cooldown_seconds_after_429": 900
+    },
+    "imf": {
+      "minimum_interval_seconds": 1.1,
+      "maximum_requests_per_minute": 50,
+      "maximum_requests_per_utc_day": 5000,
+      "cooldown_seconds_after_429": 900
+    },
+    "yahoo": {
+      "minimum_interval_seconds": 2.1,
+      "maximum_requests_per_minute": 25,
+      "maximum_requests_per_utc_day": 2000,
+      "cooldown_seconds_after_429": 3600
+    }
+  }
+}

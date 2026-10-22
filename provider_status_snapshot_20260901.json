@@ -1,0 +1,20 @@
+{
+  "schema": "ecosystem.provider_status_snapshot.v1",
+  "retrieved_at": "2026-09-01T18:47:18.133664+00:00",
+  "mode": "read_only_status",
+  "credentials_exposed": false,
+  "sources": {
+    "sec_edgar": {"status": "ok"},
+    "alpaca_market_data": {"status": "ok", "http_status": 200},
+    "polygon": {"status": "ok", "http_status": 200},
+    "fmp": {"status": "ok", "quote_status": "ok", "profile_status": "ok"},
+    "fred": {"status": "ok", "http_status": 200},
+    "eia": {"status": "ok", "http_status": 200},
+    "benzinga": {"status": "auth_failed", "http_status": 401},
+    "ollama": {"status": "ok", "note": "not_a_factual_data_source"},
+    "imf": {"status": "missing_configuration"},
+    "openbb_yfinance": {"status": "configured_legacy_adapter", "note": "not_probed_by_status_tool"},
+    "issuer_ir": {"status": "route_defined", "note": "issuer_specific"},
+    "broker_account_snapshot": {"status": "not_queried", "note": "excluded_from_market_source_status_check"}
+  }
+}

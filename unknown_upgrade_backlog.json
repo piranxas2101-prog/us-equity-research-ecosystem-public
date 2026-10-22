@@ -1,0 +1,108 @@
+{
+  "schema": "ecosystem.unknown_upgrade_backlog.v1",
+  "version": "1.0.0",
+  "items": [
+    {
+      "id": "UNK-001",
+      "status": "implemented",
+      "priority": "must_fix",
+      "title": "Reason-coded UNKNOWN envelope",
+      "problem": "A flat unknown_fields list cannot distinguish legitimate absence from recoverable failure.",
+      "upgrade": "Attach versioned unknown_events with reason, provenance, retry, coverage and decision impact.",
+      "measurement": "100% of contracted UNKNOWN values have a valid reason code.",
+      "risk": "low"
+    },
+    {
+      "id": "UNK-002",
+      "status": "implemented",
+      "priority": "must_fix",
+      "title": "Correct coverage denominator",
+      "problem": "not_applicable and diagnostic-only fields can be treated like missing decision evidence.",
+      "upgrade": "Exclude not_applicable and diagnostic_only from coverage and penalties.",
+      "measurement": "Regression fixtures prove no coverage or penalty change from not_applicable fields.",
+      "risk": "medium"
+    },
+    {
+      "id": "UNK-003",
+      "status": "implemented",
+      "priority": "must_fix",
+      "title": "Preserve UNKNOWN provenance across handoffs",
+      "problem": "Downstream agents receive unknown_fields but not the cause or attempted fallbacks.",
+      "upgrade": "Carry upstream_unknown_events through Giannis, ledger and the frozen fundamental packet.",
+      "measurement": "Same-run source event IDs are visible downstream without mutation.",
+      "risk": "low"
+    },
+    {
+      "id": "UNK-004",
+      "status": "pilot_pass_raw_fact_coverage_not_promoted",
+      "priority": "pilot",
+      "title": "SEC XBRL field adapter",
+      "problem": "Fundamental fields currently depend heavily on supplementary normalized data.",
+      "upgrade": "Pilot direct point-in-time SEC Companyfacts/XBRL extraction for cash, debt, revenue, income and cash flow with issuer-specific fact mapping.",
+      "measurement": "Frozen issuer sample coverage, conflict rate and freshness versus current adapter.",
+      "risk": "medium",
+      "license_and_cost": "official public SEC data; implementation and taxonomy maintenance cost"
+    },
+    {
+      "id": "UNK-005",
+      "status": "defer_public_use_license_blocked_shadow_coverage_measured",
+      "priority": "pilot",
+      "title": "FMP supplementary fundamentals route",
+      "problem": "FMP is configured and healthy but is not the current field-level fallback in the scan path.",
+      "upgrade": "Use FMP only as a supplementary fallback and preserve SEC precedence on conflicts.",
+      "measurement": "Incremental coverage, conflicts, latency, quotas and cost on frozen data.",
+      "risk": "medium",
+      "license_and_cost": "plan and redistribution rights must be verified before public release"
+    },
+    {
+      "id": "UNK-006",
+      "status": "synthetic_labelled_benchmark_pass_real_filing_labels_pending",
+      "priority": "must_fix",
+      "title": "Catalyst content-review queue",
+      "problem": "Foreign issuer reports and generic filings remain category/direction UNKNOWN even when source links exist.",
+      "upgrade": "Route insufficient_source_detail filings to a bounded content review queue with source hash and immutable result.",
+      "measurement": "Classification precision and unresolved rate on a labelled filing fixture set.",
+      "risk": "medium"
+    },
+    {
+      "id": "UNK-007",
+      "status": "implemented_fail_closed",
+      "priority": "must_fix",
+      "title": "Symbol/CIK/share-class identity gate",
+      "problem": "Provider and filing gaps can originate from ticker identity mismatches.",
+      "upgrade": "Resolve ticker, CIK, exchange, share class and instrument type before collection and quarantine conflicts.",
+      "measurement": "Zero silent cross-issuer joins in identity regression fixtures.",
+      "risk": "high"
+    },
+    {
+      "id": "UNK-008",
+      "status": "failure_injection_pass_field_level_runtime_integration_pending",
+      "priority": "pilot",
+      "title": "Field-level bounded retries and cache",
+      "problem": "Temporary outages and true no-coverage states are not consistently separated.",
+      "upgrade": "Apply retry/backoff/cache policies only to retryable reason codes and record every attempt.",
+      "measurement": "Recovery rate, latency and quota cost under injected 429/timeout failures.",
+      "risk": "medium"
+    },
+    {
+      "id": "UNK-009",
+      "status": "deferred_auth_failed",
+      "priority": "defer",
+      "title": "Benzinga fallback",
+      "problem": "The configured Benzinga source currently returns 401.",
+      "upgrade": "Keep disabled until authentication and data rights are deliberately reviewed.",
+      "measurement": "Successful read-only status and documented licensing before pilot.",
+      "risk": "low"
+    },
+    {
+      "id": "UNK-010",
+      "status": "rejected_by_contract",
+      "priority": "reject",
+      "title": "LLM value imputation",
+      "problem": "A language model could make UNKNOWN counts look better by inventing plausible values.",
+      "upgrade": "Do not implement. LLMs may classify evidence or request review but never fabricate factual numeric fields.",
+      "measurement": "No generated value can enter a factual field without source identity.",
+      "risk": "critical"
+    }
+  ]
+}

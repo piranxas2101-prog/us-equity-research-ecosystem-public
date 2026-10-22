@@ -1,0 +1,44 @@
+{
+  "schema": "ecosystem.research_information_taxonomy.v1",
+  "version": "1.1.0",
+  "principles": {
+    "single_owner_per_category": true,
+    "upstream_records_are_immutable": true,
+    "same_run_lineage_required": true,
+    "technical_analysis_allowed": false,
+    "missing_is_never_zero": true
+  },
+  "categories": [
+    {"id":"security_identity","owner":"babis","layer":"classification","description":"Ticker, venue, issuer identity, CIK and instrument type."},
+    {"id":"sector_classification","owner":"babis","layer":"classification","description":"Versioned sector, subcategory and leaf taxonomy assignment."},
+    {"id":"business_model","owner":"sector_agent","layer":"sector_context","description":"How the company creates, delivers and captures value."},
+    {"id":"value_chain_position","owner":"sector_agent","layer":"sector_context","description":"Position in the sector value chain and dependencies."},
+    {"id":"market_structure","owner":"sector_agent","layer":"sector_context","description":"Market maturity, cyclicality, regulation and structural growth."},
+    {"id":"competitive_position","owner":"sector_agent","layer":"sector_context","description":"Peers, differentiation, switching costs and competitive weaknesses."},
+    {"id":"operating_drivers","owner":"sector_agent","layer":"sector_context","description":"Revenue, cost and capacity drivers expressed in sector terms."},
+    {"id":"sector_kpis","owner":"sector_agent","layer":"sector_context","description":"Subcategory-specific operating KPIs and definitions."},
+    {"id":"industry_risks","owner":"sector_agent","layer":"sector_context","description":"Sector, regulatory, supply-chain and business-model risks."},
+    {"id":"company_catalysts","owner":"sector_agent","layer":"sector_context","description":"Evidence-backed company and industry developments without trade direction."},
+    {"id":"normalized_financials","owner":"giannis","layer":"financial_analysis","description":"Period, units, currency, source and comparability-normalized statements."},
+    {"id":"growth_and_margins","owner":"giannis","layer":"financial_analysis","description":"Revenue growth, mix, margins and operating leverage."},
+    {"id":"earnings_quality","owner":"giannis","layer":"financial_analysis","description":"Reported versus adjusted earnings, recurring quality and accounting flags."},
+    {"id":"cash_flow_quality","owner":"giannis","layer":"financial_analysis","description":"Operating cash flow, free cash flow, conversion and working capital."},
+    {"id":"balance_sheet_liquidity","owner":"giannis","layer":"financial_analysis","description":"Cash, debt, maturities, liquidity and solvency."},
+    {"id":"capital_intensity_reinvestment","owner":"giannis","layer":"financial_analysis","description":"Capital requirements, reinvestment and return on capital."},
+    {"id":"capital_allocation","owner":"giannis","layer":"financial_analysis","description":"Buybacks, dividends, acquisitions and financing choices."},
+    {"id":"dilution_share_count","owner":"giannis","layer":"financial_analysis","description":"Share-count evolution, issuance and stock-based compensation."},
+    {"id":"financial_fragility","owner":"giannis","layer":"financial_analysis","description":"Runway, refinancing dependence and downside financial resilience."},
+    {"id":"sector_financial_reconciliation","owner":"giannis","layer":"financial_analysis","description":"Consistency between sector KPIs, narrative and reported financials."},
+    {"id":"source_provenance","owner":"shared_registry","layer":"evidence_control","description":"Source identity, evidence label, timestamps and hashes."},
+    {"id":"evidence_gaps","owner":"shared_registry","layer":"evidence_control","description":"Missing, stale, conflicting or provider-blocked evidence and next action."},
+    {"id":"unresolved_company_profile","owner":"sector_unresolved_classification","layer":"classification_resolution","description":"Source-backed business, product, revenue, geography, value-chain and peer clues for an unresolved symbol."},
+    {"id":"classification_resolution_candidate","owner":"sector_unresolved_classification","layer":"classification_resolution","description":"Evidence-linked sector and subcategory candidates returned to Babis for review; never an automatic taxonomy write."}
+  ],
+  "handoffs": [
+    {"from":"babis","to":"sector_agent","artifact":"classification_record"},
+    {"from":"babis","to":"sector_unresolved_classification","artifact":"unresolved_classification_record"},
+    {"from":"sector_unresolved_classification","to":"babis","artifact":"unresolved_classification_packet.v1"},
+    {"from":"sector_agent","to":"giannis","artifact":"sector_context_packet.v1"},
+    {"from":"giannis","to":"future_research_synthesizer","artifact":"financial_analysis_packet.v1"}
+  ]
+}

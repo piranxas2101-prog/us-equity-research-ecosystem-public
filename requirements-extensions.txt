@@ -1,0 +1,11 @@
+# Optional architecture extensions.  The core ecosystem does not import these
+# packages unless their corresponding adapter is explicitly invoked.
+dagster
+dagster-webserver
+edgartools
+docling
+
+# Reserved for the controlled synthesis and on-demand research phases.
+pydantic-ai
+langgraph
+langfuse

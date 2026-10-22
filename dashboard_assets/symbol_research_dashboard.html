@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; img-src data:; base-uri 'none'; form-action 'none'">
+  <title>Έρευνα ανά σύμβολο · Τοπικό dashboard</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f5f7fb; --surface:#fff; --text:#172235; --muted:#536174; --line:#d8e0e9; --accent:#174ea6; --soft:#eaf1fc; --warn:#91510a; --warn-bg:#fff3dc; --good:#12613f; --good-bg:#e6f4eb; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#101720; --surface:#182331; --text:#edf3f9; --muted:#aebdce; --line:#334456; --accent:#9cc3ff; --soft:#233a58; --warn:#ffd18b; --warn-bg:#4b3822; --good:#a1e6bd; --good-bg:#234634; } }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:24px 20px 56px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:1.7rem; margin-bottom:4px; }
+    h2 { font-size:1.2rem; }
+    h3 { font-size:1.02rem; margin-bottom:10px; }
+    .muted { color:var(--muted); }
+    .small { font-size:.88rem; }
+    .topline { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
+    .badge { display:inline-block; border-radius:999px; padding:3px 10px; background:var(--soft); color:var(--accent); font-size:.82rem; font-weight:600; overflow-wrap:anywhere; }
+    .badge.warn { background:var(--warn-bg); color:var(--warn); }
+    .badge.good { background:var(--good-bg); color:var(--good); }
+    .toolbar { display:grid; grid-template-columns:minmax(180px,1fr) minmax(220px,2fr); gap:12px; align-items:end; margin:26px 0 20px; }
+    label { display:block; font-weight:600; margin-bottom:5px; }
+    input,select { width:100%; min-height:42px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; padding:8px 10px; }
+    input:focus,select:focus,summary:focus { outline:2px solid var(--accent); outline-offset:2px; }
+    .cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:0 0 22px; }
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:15px; min-width:0; }
+    .card .label { display:block; color:var(--muted); font-size:.85rem; margin-bottom:5px; }
+    .card strong { overflow-wrap:anywhere; }
+    .intro { border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:18px; }
+    .intro h2 { font-size:1.45rem; margin-bottom:3px; }
+    .stack { display:grid; gap:12px; }
+    details { background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:0 16px; }
+    summary { cursor:pointer; font-size:1.05rem; font-weight:650; padding:14px 0; }
+    .details-body { border-top:1px solid var(--line); padding:15px 0 17px; }
+    .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 24px; }
+    dl { margin:0; }
+    dt { color:var(--muted); font-size:.85rem; }
+    dd { margin:1px 0 10px; overflow-wrap:anywhere; }
+    ul { margin:4px 0 15px; padding-left:22px; }
+    li { margin-bottom:4px; overflow-wrap:anywhere; }
+    .subhead { margin:16px 0 5px; font-weight:650; }
+    .notice { padding:12px 14px; border-left:3px solid var(--accent); background:var(--soft); border-radius:5px; }
+    .coverage { background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:13px 16px; margin:16px 0; }
+    .source-list { font-size:.85rem; color:var(--muted); }
+    .empty { color:var(--muted); font-style:italic; }
+    .footer { border-top:1px solid var(--line); margin-top:24px; padding-top:16px; color:var(--muted); font-size:.85rem; }
+    [hidden] { display:none !important; }
+    @media (max-width:760px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); } .detail-grid { grid-template-columns:1fr; } }
+    @media (max-width:500px) { main { padding:18px 12px 40px; } .toolbar,.cards { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topline">
+      <div><h1>Έρευνα ανά σύμβολο</h1><p class="muted">Αποτελέσματα των agents από ένα συγκεκριμένο, αποθηκευμένο run.</p></div>
+      <span class="badge" id="audit-status"></span>
+    </div>
+    <p class="small muted" id="run-meta"></p>
+    <div class="coverage" id="coverage-summary"></div>
+    <div class="toolbar">
+      <div><label for="symbol-filter">Αναζήτηση</label><input id="symbol-filter" type="search" placeholder="Σύμβολο ή εταιρεία" autocomplete="off"></div>
+      <div><label for="symbol-select">Σύμβολο</label><select id="symbol-select" aria-label="Επιλογή συμβόλου"></select></div>
+    </div>
+    <p class="small muted" id="match-count" aria-live="polite"></p>
+    <div id="no-match" class="notice" hidden>Δεν βρέθηκε σύμβολο για αυτή την αναζήτηση.</div>
+    <div id="selected-view">
+      <div class="intro"><h2 id="company-title"></h2><p class="muted" id="company-meta"></p></div>
+      <div class="cards" id="status-cards"></div>
+      <div class="stack" id="agent-sections"></div>
+    </div>
+    <div class="footer" id="footer"></div>
+  </main>
+  <script type="application/json" id="dashboard-data">__DASHBOARD_DATA__</script>
+  <script>
+  (() => {
+    "use strict";
+    const data = JSON.parse(document.getElementById("dashboard-data").textContent);
+    const symbols = data.symbols || [];
+    const researchByTicker = new Map(symbols.map(row => [row.ticker, row]));
+    const catalog = (data.catalog || []).slice().sort((a, b) =>
+      Number(researchByTicker.has(b.ticker)) - Number(researchByTicker.has(a.ticker)) || a.ticker.localeCompare(b.ticker));
+    const $ = id => document.getElementById(id);
+    const number = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 2 });
+    let current = symbols.length ? symbols[0].ticker : (catalog[0]?.ticker || null);
+    const names = {
+      rank:"Θέση shortlist",
+      classification_status:"Ταξινόμηση", classification_confidence:"Βεβαιότητα ταξινόμησης",
+      fundamental_attention_score:"Βαθμός προσοχής", fundamental_coverage:"Κάλυψη θεμελιωδών (%)",
+      instrument_type:"Τύπος τίτλου", main_catalyst:"Κύριο γεγονός", fresh_primary_data:"Πρόσφατα πρωτογενή στοιχεία",
+      revenue_ttm:"Έσοδα TTM", net_income_ttm:"Καθαρά κέρδη TTM", cash:"Ταμείο", debt:"Χρέος",
+      cash_burn_proxy_fcf:"Εκτίμηση FCF", cash_burn_proxy_ocf:"Εκτίμηση λειτουργικής ροής",
+      giannis_tier:"Κατηγορία Γιάννη", score_final:"Βαθμός ερευνητικής προτεραιότητας", net_cash:"Καθαρό ταμείο",
+      risk_level:"Επίπεδο κινδύνου", confidence:"Βεβαιότητα", periods:"Περίοδοι SEC", currency:"Νόμισμα",
+      petros_verdict:"Συμπέρασμα Πέτρου", petros_score:"Βαθμός Πέτρου", priced_in_status:"Εκτίμηση προσδοκιών",
+      priced_in_confidence:"Βεβαιότητα εκτίμησης", company_thesis_status:"Κατάσταση εταιρικής θέσης",
+      security_thesis_readiness:"Ετοιμότητα αξιολόγησης τίτλου", readiness_status:"Σήμανση πακέτου (όχι εντολή)",
+      primary_blocker:"Κύριο εμπόδιο", valuation_status:"Κατάσταση αποτίμησης",
+      business_model:"Επιχειρηματικό μοντέλο", revenue_drivers:"Οδηγοί εσόδων", cost_drivers:"Οδηγοί κόστους",
+      competitive_position:"Ανταγωνιστική θέση", sector_kpis:"Κλαδικοί δείκτες", company_specific_risks:"Εταιρικοί κίνδυνοι",
+      industry_risks:"Κλαδικοί κίνδυνοι", signal_verdict:"Ιστορικό συμπέρασμα", fundamental_gate_status:"Θεμελιώδες φίλτρο",
+      playbook_name:"Playbook", technical_timing:"Τεχνική κατάσταση", trade_direction:"Κατεύθυνση"
+      ,research_status:"Κατάσταση βαθιάς έρευνας", pending_research:"Εκκρεμείς ενότητες"
+    };
+    function format(value) {
+      if (value === null || value === undefined || value === "") return "Άγνωστο";
+      if (typeof value === "boolean") return value ? "Ναι" : "Όχι";
+      if (typeof value === "number") return number.format(value);
+      if (Array.isArray(value)) return value.map(format).join(", ") || "Άγνωστο";
+      if (typeof value === "object") return Object.entries(value).map(([key,val]) => `${key}: ${format(val)}`).join(" · ") || "Άγνωστο";
+      return String(value);
+    }
+    function node(tag, className, text) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined) element.textContent = text;
+      return element;
+    }
+    function fieldList(parent, pairs) {
+      const dl = node("dl");
+      for (const [label,value] of pairs) {
+        if (value === undefined || value === null || value === "") continue;
+        dl.append(node("dt", "", label), node("dd", "", format(value)));
+      }
+      if (dl.children.length) parent.append(dl);
+    }
+    function namedFields(parent, object) {
+      fieldList(parent, Object.entries(object || {}).map(([key,value]) => [names[key] || key, value]));
+    }
+    function bulletList(parent, title, values) {
+      if (!values || !values.length) return;
+      parent.append(node("div", "subhead", title));
+      const list = node("ul");
+      values.forEach(value => list.append(node("li", "", String(value))));
+      parent.append(list);
+    }
+    function sourceList(parent, values) {
+      if (!values || !values.length) return;
+      parent.append(node("div", "subhead", "Πηγές και περίοδοι"));
+      const list = node("ul", "source-list");
+      values.forEach(source => {
+        const parts = [source.provider, source.field || source.concept, source.period_end || source.as_of,
+          source.filed ? `κατάθεση ${source.filed}` : null, source.accession ? `accession ${source.accession}` : null];
+        list.append(node("li", "", parts.filter(Boolean).join(" · ")));
+      });
+      parent.append(list);
+    }
+    function section(title, open = true) {
+      const details = node("details");
+      details.open = open;
+      details.append(node("summary", "", title));
+      const body = node("div", "details-body");
+      details.append(body);
+      $("agent-sections").append(details);
+      return body;
+    }
+    function message(parent, text) { parent.append(node("p", "empty", text)); }
+    function statusCard(label, value, status) {
+      const card = node("div", "card");
+      card.append(node("span", "label", label), node("strong", "", format(value)));
+      if (status) card.append(node("div", "small muted", status));
+      $("status-cards").append(card);
+    }
+    const statusLabels = { classified:"Ταξινομημένο", review_required:"Χρειάζεται έλεγχο", completed:"Ολοκληρώθηκε",
+      blocked:"Μπλοκαρισμένο", candidate:"Υποψήφιο", ready:"Ερευνητικά έτοιμο", not_in_run:"Εκτός run", unroutable:"Χωρίς κλάδο" };
+    function displayStatus(value) { return statusLabels[value] || value; }
+    function render(listing) {
+      const record = researchByTicker.get(listing.ticker);
+      $("company-title").textContent = `${listing.ticker} · ${record?.company || listing.name || listing.ticker}`;
+      $("company-meta").textContent = [listing.venue, listing.instrument_type, record?.sector || listing.sector,
+        record?.industry].filter(Boolean).join(" · ") || "Ταξινόμηση άγνωστη";
+      $("status-cards").replaceChildren();
+      $("agent-sections").replaceChildren();
+      if (!record) {
+        statusCard("Κατάλογος", "Καταγεγραμμένο", listing.venue || "Χρηματιστήριο άγνωστο");
+        statusCard("Είδος τίτλου", listing.instrument_type || "Άγνωστο");
+        statusCard("Research route", listing.research_route || "Χρειάζεται ταξινόμηση");
+        statusCard("Κατάσταση run", listing.workflow_status || "Δεν προκρίθηκε για εταιρική ανάλυση",
+          listing.observed_close == null ? "Χωρίς αποθηκευμένη τιμή" : `Τιμή ${format(listing.observed_close)} · ${listing.market_data_provider || "πάροχος άγνωστος"}`);
+        $("agent-sections").append(node("p", "notice",
+          "Το σύμβολο παραμένει ορατό στον πλήρη κατάλογο. Η εταιρική θεμελιώδης ανάλυση εκτελείται μόνο για κατάλληλους εταιρικούς τίτλους· οι υπόλοιποι καταγράφονται στη δική τους λωρίδα παρατήρησης."));
+        return;
+      }
+      statusCard("Μπάμπης", displayStatus(record.babis.classification_status || "Άγνωστο"), `Θέση ${record.babis.rank ?? "—"}`);
+      statusCard("Τομεακός agent", displayStatus(record.sector_context.status), record.sector_context.packet_available ? "Πακέτο διαθέσιμο" : "Χωρίς αναλυτικό πακέτο");
+      statusCard("Γιάννης · SEC", displayStatus(record.giannis.control_status), record.giannis.sec_analysis_available ? "Ανάλυση διαθέσιμη" : "Χωρίς λεπτομερή ανάλυση");
+      statusCard("Πέτρος", displayStatus(record.petros.petros_verdict || "Δεν υπάρχει"), displayStatus(record.petros.security_thesis_readiness || ""));
+
+      let body = section("Μπάμπης · ταυτότητα και αρχική έρευνα", false);
+      const bgrid = node("div", "detail-grid");
+      const bleft = node("div"), bright = node("div");
+      namedFields(bleft, Object.fromEntries(Object.entries(record.babis).filter(([key]) => names[key])));
+      bright.append(node("h3", "", "Οικονομικά στοιχεία στο shortlist"));
+      namedFields(bright, record.babis.facts);
+      bgrid.append(bleft, bright); body.append(bgrid);
+      bulletList(body, "Άγνωστα πεδία", record.babis.unknown_fields);
+
+      body = section("Τομεακός agent · επιχειρηματικό πλαίσιο", false);
+      if (!record.sector_context.packet_available) message(body, "Δεν υπάρχει διαθέσιμο λεπτομερές τομεακό πακέτο για αυτό το σύμβολο και run.");
+      else {
+        namedFields(body, Object.fromEntries(Object.entries(record.sector_context).filter(([key]) => names[key])));
+        bulletList(body, "Άγνωστα ή ανεπαρκώς τεκμηριωμένα", record.sector_context.unknown_fields);
+        sourceList(body, record.sector_context.sources);
+      }
+
+      body = section("Γιάννης · χρηματοοικονομική ανάλυση", false);
+      namedFields(body, Object.fromEntries(Object.entries(record.giannis).filter(([key]) => names[key])));
+      bulletList(body, "Αιτίες αποκλεισμού", record.giannis.financial_blockers);
+      if (record.giannis.sec_analysis_available) {
+        body.append(node("h3", "", "Ανάλυση από στοιχεία SEC"));
+        const a = record.giannis.sec_analysis;
+        fieldList(body, [["Περίοδος", a.periods], ["Νόμισμα", a.currency], ["Βεβαιότητα", a.confidence],
+          ["Έσοδα", a.growth_analysis?.revenue], ["Καθαρό περιθώριο", typeof a.margin_analysis?.reported_net_margin === "number" ? `${number.format(a.margin_analysis.reported_net_margin * 100)}%` : null],
+          ["Ταμείο", a.balance_sheet_analysis?.cash], ["Χρέος", a.balance_sheet_analysis?.debt],
+          ["Καθαρό ταμείο", a.balance_sheet_analysis?.net_cash], ["Λειτουργική ταμειακή ροή", a.cash_flow_analysis?.operating_cash_flow],
+          ["Κατάσταση ανάπτυξης", a.growth_analysis?.status], ["Κεφαλαιακή κατανομή", a.capital_allocation?.status]]);
+        sourceList(body, record.giannis.sec_sources);
+      } else message(body, "Δεν παρήχθη λεπτομερής ανάλυση SEC για αυτό το σύμβολο στο επιλεγμένο run.");
+      bulletList(body, "Άγνωστα πεδία", record.giannis.unknown_fields);
+
+      body = section("Πέτρος · θεμελιώδης σύνθεση");
+      namedFields(body, Object.fromEntries(Object.entries(record.petros).filter(([key]) => names[key])));
+      namedFields(body, record.petros.fundamental_summary);
+      if (record.petros.deterministic_valuation?.status === "assessed") {
+        fieldList(body, [["DCF χαμηλό", record.petros.valuation_range?.low], ["DCF βασικό", record.petros.valuation_range?.base], ["DCF υψηλό", record.petros.valuation_range?.high]]);
+      } else if (record.petros.deterministic_valuation) {
+        fieldList(body, [["DCF", "Δεν αξιολογήθηκε"], ["Αιτία", record.petros.deterministic_valuation.reason], ["Ελλείψεις", record.petros.deterministic_valuation.missing]]);
+      }
+      bulletList(body, "Αιτιολόγηση", record.petros.rationale);
+      bulletList(body, "Τι θα ενίσχυε τη θέση", record.petros.prove_criteria);
+      bulletList(body, "Τι θα την ακύρωνε", record.petros.kill_criteria);
+      bulletList(body, "Επόμενη έρευνα", record.petros.next_diligence);
+      bulletList(body, "Εμπόδια απόφασης", record.petros.decision_blockers);
+      if (!record.petros.petros_verdict) message(body, "Δεν υπάρχει αποτέλεσμα Πέτρου στο επιλεγμένο run.");
+
+      body = section("Βαθιά εταιρική έρευνα · επτά έλεγχοι", false);
+      if (!record.deep_research?.research_status) {
+        message(body, "Το σύμβολο δεν επιλέχθηκε για βαθιά έρευνα ή το επιλεγμένο run προϋπήρχε της αναβάθμισης.");
+      } else {
+        namedFields(body, {research_status: record.deep_research.research_status,
+          pending_research: record.deep_research.pending_research});
+        const modules = record.deep_research.modules || {};
+        for (const [key,label] of [["reverse_dcf","Reverse DCF"],["growth_drivers","Οδηγοί ανάπτυξης"],
+          ["margin_durability","Αντοχή περιθωρίων"],["kpi_registry","Εταιρικά KPI"],
+          ["insider_form4","Συναλλαγές Form 4"],["thesis_tracker","Κριτήρια θέσης"],
+          ["valuation_zones","Ζώνες αποτίμησης"]]) {
+          if (!modules[key]) continue;
+          body.append(node("div", "subhead", label));
+          namedFields(body, modules[key]);
+        }
+      }
+
+      body = section("Μακροοικονομικό πλαίσιο", false);
+      if (!data.macro_context) message(body, "Δεν ενσωματώθηκε μακροοικονομικό πακέτο σε αυτό το run. Η σύνδεσή του με τη θεμελιώδη ανάλυση είναι προγραμματισμένη.");
+      else { fieldList(body, [["Πάροχος", data.macro_context.provider], ["Ημερομηνία", data.macro_context.as_of]]); namedFields(body, data.macro_context.regime_assessment); namedFields(body, data.macro_context.series); }
+
+      body = section("Άλλες υπάρχουσες αναλύσεις · μόνο ανάγνωση", false);
+      for (const [name,label] of [["yankos","Γιάγκος"],["periklis","Περικλής"]]) {
+        const rows = record.other_agents[name] || [];
+        body.append(node("h3", "", label));
+        if (!rows.length) { message(body, "Δεν υπάρχει ανάλυση αυτού του agent για το σύμβολο στο run."); continue; }
+        rows.forEach((row, index) => {
+          body.append(node("div", "subhead", `${index + 1}. ${row.trade_direction || "Εκτίμηση"}`));
+          namedFields(body, Object.fromEntries(Object.entries(row).filter(([key]) => names[key])));
+          bulletList(body, "Αιτιολόγηση", row.rationale);
+          bulletList(body, "Αρχικές παρατηρήσεις", row.plan_rationale);
+        });
+      }
+      body.append(node("p", "small muted", `Σωκράτης: ${record.other_agents.sokratis_link_count} σύνδεσμοι απόφασης. Δεν παράγεται ξεχωριστή εταιρική ανάλυση εδώ.`));
+      body.append(node("p", "notice", "Αυτά είναι ιστορικά ερευνητικά artifacts. Το dashboard δεν δίνει εντολές και δεν επικοινωνεί με broker."));
+    }
+    function options(term) {
+      const needle = term.trim().toLocaleLowerCase("el-GR");
+      const visible = catalog.filter(row => `${row.ticker} ${row.name}`.toLocaleLowerCase("el-GR").includes(needle));
+      if (needle) {
+        const relevance = row => {
+          const ticker = row.ticker.toLocaleLowerCase("el-GR");
+          return ticker === needle ? 0 : ticker.startsWith(needle) ? 1 : ticker.includes(needle) ? 2 : 3;
+        };
+        visible.sort((a, b) => relevance(a) - relevance(b) ||
+          Number(researchByTicker.has(b.ticker)) - Number(researchByTicker.has(a.ticker)) ||
+          a.ticker.localeCompare(b.ticker));
+      }
+      const shown = visible.slice(0, 150);
+      const select = $("symbol-select");
+      select.replaceChildren();
+      shown.forEach(row => { const option = node("option", "", `${row.ticker} · ${row.name}`); option.value = row.ticker; select.append(option); });
+      $("match-count").textContent = `${visible.length} από ${catalog.length} σύμβολα${visible.length > shown.length ? " · δείχνονται τα πρώτα 150, γράψε πιο συγκεκριμένο σύμβολο" : ""}`;
+      $("no-match").hidden = visible.length > 0;
+      $("selected-view").hidden = visible.length === 0;
+      select.disabled = visible.length === 0;
+      if (!visible.length) return;
+      if (!shown.some(row => row.ticker === current)) current = shown[0].ticker;
+      select.value = current;
+      render(shown.find(row => row.ticker === current));
+    }
+    $("symbol-filter").addEventListener("input", event => options(event.target.value));
+    $("symbol-select").addEventListener("change", event => { current = event.target.value; render(catalog.find(row => row.ticker === current)); });
+    $("run-meta").textContent = `Run ${data.run_id} · αποθήκευση ${data.captured_at || "άγνωστη"} · ${data.verified_artifacts.length} επαληθευμένα artifacts`;
+    const coverage = data.run_coverage || {};
+    const catalogDescription = data.catalog_metadata ?
+      `Κατάλογος ${number.format(data.catalog_metadata.listings)} εισηγμένων τίτλων (στιγμιότυπο ${data.catalog_metadata.source_date || "άγνωστης ημερομηνίας"})${data.catalog_metadata.run_only_symbols ? ` + ${number.format(data.catalog_metadata.run_only_symbols)} σύμβολο νεότερου run` : ""}` :
+      "Δεν υπάρχει εξαγωγή πλήρους καταλόγου";
+    const priceDescription = coverage.max_price == null ? "χωρίς όριο τιμής" : `ιστορικό φίλτρο τιμής έως $${number.format(coverage.max_price)}`;
+    $("coverage-summary").textContent = `${catalogDescription} · στο συγκεκριμένο run δρομολογήθηκαν ${number.format(coverage.processed_symbols ?? coverage.eligible_universe ?? 0)} σύμβολα: ${number.format(coverage.company_fundamental_symbols ?? 0)} στην εταιρική λωρίδα και ${number.format(coverage.instrument_observation_symbols ?? 0)} σε λωρίδες τίτλων. Ολοκληρώθηκαν ${number.format(coverage.instrument_observations_completed ?? 0)} παρατηρήσεις μη εταιρικών τίτλων και υπάρχουν ${number.format(coverage.shortlisted_symbols ?? symbols.length)} αναλύσεις εταιρειών · ${priceDescription}.`;
+    $("audit-status").textContent = ["pass", "passed"].includes(data.audit_status) ? "Έλεγχος agents: πέρασε" : "Έλεγχος agents: μη διαθέσιμος";
+    $("audit-status").classList.add(["pass", "passed"].includes(data.audit_status) ? "good" : "warn");
+    $("footer").textContent = `Στατικό τοπικό στιγμιότυπο · δημιουργήθηκε ${data.generated_at} · ${data.control_db_available ? "λεπτομέρειες από την τοπική βάση μόνο για ανάγνωση" : "χωρίς διαθέσιμη βάση λεπτομερειών"}. Δεν ανανεώνεται αυτόματα.`;
+    options("");
+  })();
+  </script>
+</body>
+</html>

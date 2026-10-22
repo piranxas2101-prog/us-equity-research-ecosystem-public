@@ -1,0 +1,23 @@
+{
+  "from_version": "2.0.0-draft.1",
+  "to_version": "2.1.0",
+  "date": "2026-09-16",
+  "policy": "Existing node IDs retain their meaning unless listed below. Historical rows remain on the old version; new decisions use 2.1.0.",
+  "label_changes": {
+    "financials.banking_credit.lending.mortgage": {
+      "old": "Στεγαστική χρηματοδότηση και mortgage REITs",
+      "new": "Στεγαστική χρηματοδότηση",
+      "reason": "Mortgage REITs now have a dedicated real-estate industry."
+    }
+  },
+  "new_nodes": [
+    "real_estate.ownership.mortgage_reits",
+    "real_estate.ownership.mortgage_reits.residential_agency",
+    "real_estate.ownership.mortgage_reits.commercial",
+    "real_estate.ownership.mortgage_reits.hybrid"
+  ],
+  "automatic_reclassifications": [],
+  "review_required": [
+    "Every existing SIC 6798 record must be classified from business-model evidence before using a mortgage/equity REIT leaf."
+  ]
+}

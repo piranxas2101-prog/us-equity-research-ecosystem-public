@@ -1,0 +1,15 @@
+{
+  "schema": "ecosystem.agent_learning_objectives.v1",
+  "agents": {
+    "babis": {"task": "discovery", "objective": "downstream evidence quality and candidate precision", "rows_key": "shortlist"},
+    "giannis": {"task": "fundamental_quality", "objective": "thesis completeness and calibrated fundamental outcome", "rows_key": "results"},
+    "petros": {"task": "fundamental_synthesis", "objective": "synthesis calibration and market outcome", "rows_key": "results"},
+    "yankos": {"task": "strategy_setup", "objective": "strategy outcome by horizon and regime", "rows_key": "results"},
+    "periklis": {"task": "strategy_setup", "objective": "strategy outcome by horizon and regime", "rows_key": "results"},
+    "sokratis": {"task": "lesson_quality", "objective": "forward improvement after an accepted lesson", "rows_key": "decision_links"},
+    "miltos": {"task": "trigger_detection", "objective": "trigger precision, recall and lead time", "rows_key": "results"},
+    "koulis": {"task": "risk_gate", "objective": "drawdown control and false-block rate", "rows_key": "decisions"},
+    "thymios": {"task": "execution_validation", "objective": "defect detection and false-positive rate", "rows_key": "decisions"}
+  },
+  "sector_subagents": {"task": "sector_context", "objective": "sector evidence completeness and downstream usefulness", "model_policy": "shared_hierarchical_until_minimum_sample"}
+}

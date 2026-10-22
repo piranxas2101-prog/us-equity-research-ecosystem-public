@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-01T00:00:00+03:00",
+  "policy": "Only approved institutional or regulatory educational sources are allowed.",
+  "research_framework": {
+    "math_sources_doc": "strategy_library/math_research_sources.md",
+    "intake_doc": "strategy_library/strategy_research_intake.md",
+    "math_strategy_taxonomy_doc": "strategy_library/math_strategy_taxonomy.md",
+    "trader_math_curriculum_doc": "strategy_library/trader_math_skill_curriculum.md",
+    "strategy_teacher_doc": "strategy_library/sokratis_strategy_teacher.md",
+    "promotion_path": [
+      "research_note",
+      "training_only",
+      "paper_candidate",
+      "active_paper_playbook",
+      "specialist_agent_candidate",
+      "paused_or_retired"
+    ]
+  },
+  "analysis_template": [
+    "distance_from_local_lows",
+    "fundamental_improvement",
+    "volume_confirmation",
+    "sector_wake_up",
+    "clear_support",
+    "dilution_or_structural_risk"
+  ],
+  "strategies": [
+    {
+      "name": "support_bounce_swing",
+      "owner_agent": "yankos",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/support_bounce_swing.md",
+      "source_mode": "direct_plus_house_rules"
+    },
+    {
+      "name": "controlled_breakout_swing",
+      "owner_agent": "yankos",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/controlled_breakout_swing.md",
+      "source_mode": "direct_plus_house_rules"
+    },
+    {
+      "name": "early_accumulation_swing",
+      "owner_agent": "periklis",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/early_accumulation_swing.md",
+      "source_mode": "house_synthesis_from_approved_sources"
+    },
+    {
+      "name": "pre_run_breakout_confirmation",
+      "owner_agent": "periklis",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/pre_run_breakout_confirmation.md",
+      "source_mode": "house_synthesis_from_approved_sources"
+    },
+    {
+      "name": "failed_breakdown_reclaim",
+      "owner_agent": "future_candidate",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/failed_breakdown_reclaim.md",
+      "source_mode": "house_synthesis_from_approved_sources"
+    },
+    {
+      "name": "vwap_reclaim_rejection",
+      "owner_agent": "training_candidate",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/vwap_reclaim_rejection.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "opening_range_breakout_breakdown",
+      "owner_agent": "training_candidate",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/opening_range_breakout_breakdown.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "pullback_to_vwap_continuation",
+      "owner_agent": "training_candidate",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/pullback_to_vwap_continuation.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "breakout_retest_failed_breakout",
+      "owner_agent": "training_candidate",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/breakout_retest_failed_breakout.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "mean_reversion_fade_overextended",
+      "owner_agent": "training_candidate",
+      "style": "short_side_risk_management",
+      "library_doc": "strategy_library/mean_reversion_fade_overextended.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "gap_go_gap_fade_decision_tree",
+      "owner_agent": "training_candidate",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/gap_go_gap_fade_decision_tree.md",
+      "source_mode": "house_synthesis_from_approved_sources",
+      "status": "training_only"
+    },
+    {
+      "name": "sokratis_volatility_adjusted_vwap_reclaim",
+      "owner_agent": "sokratis",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/sokratis_volatility_adjusted_vwap_reclaim.md",
+      "backtest_plan_doc": "strategy_library/sokratis_backtest_plan.md",
+      "backtest_priority": 1,
+      "source_mode": "sokratis_math_synthesis_from_approved_sources",
+      "status": "research_note"
+    },
+    {
+      "name": "sokratis_volatility_compression_breakout",
+      "owner_agent": "sokratis",
+      "style": "intraday_swing_setup_filter",
+      "library_doc": "strategy_library/sokratis_volatility_compression_breakout.md",
+      "backtest_plan_doc": "strategy_library/sokratis_backtest_plan.md",
+      "backtest_priority": 2,
+      "source_mode": "sokratis_math_synthesis_from_approved_sources",
+      "status": "research_note"
+    }
+  ]
+}

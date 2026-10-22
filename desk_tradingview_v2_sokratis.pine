@@ -1,0 +1,619 @@
+//@version=6
+// DESK v2.3 — mathematical review with Sokratis.
+// Indicator only. "Evidence strength" is not a probability of profit.
+indicator("DESK v2.3 - Continuous Data + Session Categories", overlay=true, max_lines_count=500, max_labels_count=300)
+
+// ==========================
+// INPUTS
+// ==========================
+string G_TREND = "Trend"
+string G_SR    = "Support / Resistance"
+string G_LIQ   = "Liquidity"
+string G_VWAP  = "VWAP"
+string G_OF    = "Order-flow proxies"
+string G_SCORE = "Score / Signals"
+string G_QUANT = "Quant / Risk"
+string G_PM    = "Pre-market"
+string G_SESSION = "Continuous trading day"
+string G_VIEW  = "Display"
+
+ema20Len  = input.int(20, "EMA20", minval=1, group=G_TREND)
+ema50Len  = input.int(50, "EMA50", minval=1, group=G_TREND)
+ema200Len = input.int(200, "EMA200", minval=1, group=G_TREND)
+
+showFixedMAs = input.bool(true, "Show EMA snapshot levels", group=G_TREND, tooltip="Horizontal snapshots of the latest EMA values; they are not historical EMA curves.")
+
+pivotSide      = input.int(10, "Pivot bars on each side", minval=2, maxval=50, group=G_SR, tooltip="A pivot is confirmed this many bars after the pivot bar. With 10, the full pattern spans 21 bars.")
+srMergeATR     = input.float(0.20, "Merge threshold (ATR)", minval=0.01, step=0.01, group=G_SR)
+maxSRLevels    = input.int(12, "Max zones kept per side", minval=4, maxval=50, group=G_SR)
+useStructureGate = input.bool(true, "Require room to opposing S/R", group=G_SR)
+minRoomATR       = input.float(1.0, "Minimum room (ATR)", minval=0.0, step=0.1, group=G_SR)
+unknownRoomPolicy = input.string("Allow", "When no opposing S/R is known", options=["Allow", "Block"], group=G_SR)
+showNearestSR    = input.bool(true, "Plot nearest S/R", group=G_SR)
+
+atrLen    = input.int(14, "ATR length", minval=1, group=G_SCORE)
+volAvgLen = input.int(20, "Average volume length", minval=5, group=G_SCORE)
+rsiLen    = input.int(14, "RSI length", minval=1, group=G_SCORE)
+
+liqMode = input.string("Stable (Prev Day)", "Liquidity mode", options=["Stable (Prev Day)", "Live (Current Day)"], group=G_LIQ, tooltip="Stable uses the last confirmed daily bar. Live changes during the session and can differ after reload on intraday history.")
+
+useVWAP      = input.bool(true, "Use anchored VWAP", group=G_VWAP)
+showVWAPLine = input.bool(false, "Plot VWAP", group=G_VWAP)
+vwapReset    = input.string("Daily", "Reset", options=["None", "Daily", "Weekly", "Monthly"], group=G_VWAP, tooltip="Daily resets at the start of the custom continuous trading day.")
+vwapSrcOpt   = input.string("HLC3", "Source", options=["HLC3", "Close"], group=G_VWAP)
+
+ofMode      = input.string("Both", "Order flow (bar-data proxies)", options=["Off", "TickDelta/CVD", "ADL/CMF", "Both", "Absorption", "All"], group=G_OF)
+ofReset     = input.string("Daily", "CVD/ADL reset", options=["None", "Daily"], group=G_OF)
+cvdLookback = input.int(20, "CVD impulse lookback", minval=2, maxval=200, group=G_OF)
+cmfLen      = input.int(20, "CMF length", minval=2, maxval=200, group=G_OF)
+absRVOL     = input.float(1.5, "Absorption RVOL >=", step=0.1, group=G_OF)
+absRangeATR = input.float(0.55, "Absorption Range/ATR <=", step=0.05, group=G_OF)
+
+scoreLongThreshold  = input.int(4, "LONG score threshold", minval=1, maxval=10, group=G_SCORE)
+scoreShortThreshold = input.int(4, "SHORT score threshold", minval=1, maxval=10, group=G_SCORE)
+autoTFAdjustScore   = input.bool(true, "Adjust thresholds by timeframe", group=G_SCORE)
+useRegimeLock       = input.bool(true, "Regime lock", group=G_SCORE)
+regimeLockMode      = input.string("Soft", "Regime lock mode", options=["Soft", "Strict"], group=G_SCORE)
+hysteresisBuffer    = input.int(1, "Signal hysteresis", minval=0, maxval=5, group=G_SCORE)
+confirmOnClose      = input.bool(true, "Confirm signals on bar close", group=G_SCORE)
+
+quantMode          = input.bool(true, "Use normalized confirmation", group=G_QUANT)
+quantNormLookback  = input.int(100, "Normalization lookback", minval=20, maxval=500, group=G_QUANT)
+quantWarmupBars    = input.int(120, "Warmup bars", minval=20, maxval=1000, group=G_QUANT)
+quantConfirmZ      = input.float(0.50, "Directional Z confirmation", minval=0.0, maxval=3.0, step=0.05, group=G_QUANT)
+baseRiskPct        = input.float(1.0, "Base risk budget %", minval=0.1, maxval=5.0, step=0.1, group=G_QUANT)
+maxRiskPct         = input.float(2.0, "Hard maximum risk %", minval=0.1, maxval=10.0, step=0.1, group=G_QUANT)
+stopATR            = input.float(1.0, "Stop distance (ATR)", minval=0.2, maxval=10.0, step=0.1, group=G_QUANT)
+targetATR          = input.float(2.0, "Target distance (ATR)", minval=0.2, maxval=20.0, step=0.1, group=G_QUANT)
+minRR              = input.float(1.5, "Minimum planned R/R", minval=0.5, maxval=5.0, step=0.1, group=G_QUANT)
+
+showPremarket      = input.bool(true, "Show pre-market information", group=G_PM, tooltip="Intraday charts only. Extended Hours must be enabled on the chart.")
+plotPremarketLevels = input.bool(true, "Plot pre-market high/low", group=G_PM)
+
+deskSessionInput = input.session("1100-0230", "Continuous day (Athens)", group=G_SESSION, tooltip="One continuous trading day from 11:00 until 02:30 the next calendar day.")
+deskSessionDays  = input.string("23456", "Session start days", group=G_SESSION, tooltip="1=Sunday, 2=Monday, ... 7=Saturday. 23456 means Monday-Friday starts.")
+deskTimezone     = input.string("Europe/Athens", "Session timezone", options=["Europe/Athens", "America/New_York", "Etc/UTC"], group=G_SESSION)
+requireExtendedChart = input.bool(true, "Require Extended Hours for signals", group=G_SESSION, tooltip="Blocks signals when the chart is not using the extended session, because pre/post-market bars would be missing.")
+shadeOutsideDeskSession = input.bool(false, "Shade bars outside continuous day", group=G_SESSION)
+
+showSignalMarkers = input.bool(true, "Show signal markers", group=G_VIEW)
+showDeskTable     = input.bool(true, "Show desk table", group=G_VIEW)
+tablePos          = input.string("Top Right", "Table position", options=["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group=G_VIEW)
+
+// ==========================
+// HELPERS
+// ==========================
+fmt(float x)  => na(x) ? "—" : str.tostring(x, format.mintick)
+fmt2(float x) => na(x) ? "—" : str.tostring(x, "#.##")
+fmt0(float x) => na(x) ? "—" : str.tostring(int(math.round(x)))
+
+findMergeIndex(float lvl, float[] arr, float tol) =>
+    int idx = -1
+    float bestDist = 1e20
+    int sz = array.size(arr)
+    if sz > 0
+        for i = 0 to sz - 1
+            float dist = math.abs(array.get(arr, i) - lvl)
+            if dist <= tol and dist < bestDist
+                bestDist := dist
+                idx := i
+    idx
+
+getWeakestIdx(int[] touchArr, int[] lastArr) =>
+    int idx = 0
+    int weakestTouches = 1000000000
+    int oldestBar = 1000000000
+    int sz = array.size(touchArr)
+    if sz > 0
+        for i = 0 to sz - 1
+            int touches = array.get(touchArr, i)
+            int lastSeen = array.get(lastArr, i)
+            if touches < weakestTouches or (touches == weakestTouches and lastSeen < oldestBar)
+                weakestTouches := touches
+                oldestBar := lastSeen
+                idx := i
+    idx
+
+updateZone(float lvl, float[] lvlArr, int[] touchArr, int[] lastArr, float tol, int currBar, int maxKeep) =>
+    if not na(lvl)
+        int idx = findMergeIndex(lvl, lvlArr, tol)
+        if idx >= 0
+            int oldTouches = array.get(touchArr, idx)
+            float oldLvl = array.get(lvlArr, idx)
+            int newTouches = oldTouches + 1
+            array.set(lvlArr, idx, (oldLvl * oldTouches + lvl) / newTouches)
+            array.set(touchArr, idx, newTouches)
+            array.set(lastArr, idx, currBar)
+        else
+            array.push(lvlArr, lvl)
+            array.push(touchArr, 1)
+            array.push(lastArr, currBar)
+        if array.size(lvlArr) > maxKeep
+            int weakIdx = getWeakestIdx(touchArr, lastArr)
+            array.remove(lvlArr, weakIdx)
+            array.remove(touchArr, weakIdx)
+            array.remove(lastArr, weakIdx)
+    0
+
+// ==========================
+// CONTINUOUS TRADING DAY + CORE
+// ==========================
+deskSessionString = deskSessionInput + ":" + deskSessionDays
+inDeskSession = timeframe.isintraday and not na(time(timeframe.period, deskSessionString, deskTimezone))
+chartBarMs = timeframe.isintraday ? timeframe.in_seconds() * 1000.0 : na
+largeTimeGap = timeframe.isintraday and bar_index > 0 and not na(chartBarMs) and time - time[1] > chartBarMs * 2.0
+newDeskDay = inDeskSession and (barstate.isfirst or not inDeskSession[1] or largeTimeGap)
+extendedSessionOk = not timeframe.isintraday or syminfo.session == session.extended
+signalSessionOk = not timeframe.isintraday or inDeskSession
+extendedDataOk = not timeframe.isintraday or not requireExtendedChart or extendedSessionOk
+continuousDataOk = signalSessionOk and extendedDataOk
+
+// Never mask the source series with the custom session. The 15-minute chart is
+// the decision horizon; the 11:00-02:30 window controls session resets/signals.
+// Keeping raw OHLCV here prevents EMA/ATR/RSI/volume history from becoming na.
+deskOpen = open
+deskHigh = high
+deskLow = low
+deskClose = close
+deskVolume = volume
+deskHlc3 = hlc3
+
+prevDeskClose = close[1]
+deskTR = ta.tr(true)
+ema20  = ta.ema(deskClose, ema20Len)
+ema50  = ta.ema(deskClose, ema50Len)
+ema200 = ta.ema(deskClose, ema200Len)
+atr    = ta.atr(atrLen)
+rsi    = ta.rsi(deskClose, rsiLen)
+avgVol = ta.sma(deskVolume, volAvgLen)
+rvol   = avgVol > 0 and not na(deskVolume) ? deskVolume / avgVol : na
+bgcolor(shadeOutsideDeskSession and timeframe.isintraday and not inDeskSession ? color.new(color.gray, 92) : na, title="Outside continuous trading day")
+
+// ==========================
+// PRE-MARKET — informational only, excluded from directional score
+// ==========================
+isPremarket = timeframe.isintraday and session.ispremarket
+isRegular = timeframe.isintraday and session.ismarket
+isPostmarket = timeframe.isintraday and session.ispostmarket
+newPremarket = isPremarket and not isPremarket[1]
+
+var float pmHigh = na
+var float pmLow = na
+var float pmVolume = 0.0
+var float pmLast = na
+
+if newDeskDay
+    pmHigh := na
+    pmLow := na
+    pmVolume := 0.0
+    pmLast := na
+
+if newPremarket
+    pmHigh := high
+    pmLow := low
+    pmVolume := volume
+    pmLast := close
+else if isPremarket
+    pmHigh := na(pmHigh) ? high : math.max(pmHigh, high)
+    pmLow := na(pmLow) ? low : math.min(pmLow, low)
+    pmVolume += volume
+    pmLast := close
+
+prevCloseConfirmed = request.security(syminfo.tickerid, "1D", close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+pmGapPct = not na(pmLast) and prevCloseConfirmed > 0 ? (pmLast - prevCloseConfirmed) / prevCloseConfirmed * 100.0 : na
+pmRangeATR = not na(pmHigh) and not na(pmLow) and atr > 0 ? (pmHigh - pmLow) / atr : na
+pmDataReady = timeframe.isintraday and not na(pmHigh) and not na(pmLow)
+barSessionTxt = not timeframe.isintraday ? "NON-INTRADAY" : isPremarket ? "PRE" : isRegular ? "RTH" : isPostmarket ? "POST" : "CLOSED/OTHER"
+pmDataTxt = not timeframe.isintraday ? "N/A" : pmDataReady ? "READY" : "NO DATA"
+continuousDayTxt = not timeframe.isintraday ? "N/A - USE 15m" : inDeskSession ? "IN 11:00-02:30" : "OUTSIDE"
+
+plot(showPremarket and plotPremarketLevels and pmDataReady ? pmHigh : na, "Pre-market high", color=color.new(color.aqua, 0), linewidth=2, style=plot.style_stepline)
+plot(showPremarket and plotPremarketLevels and pmDataReady ? pmLow : na, "Pre-market low", color=color.new(color.fuchsia, 0), linewidth=2, style=plot.style_stepline)
+
+// ==========================
+// LIQUIDITY — quality/gate only, never directional score
+// ==========================
+liveDollarVol = request.security(syminfo.tickerid, "1D", volume * close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+prevDollarVol = request.security(syminfo.tickerid, "1D", (volume * close)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+avg20PrevDollarVol = request.security(syminfo.tickerid, "1D", ta.sma(volume * close, 20)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+
+dDollarVol = liqMode == "Stable (Prev Day)" ? prevDollarVol : liveDollarVol
+dAvgDollarVol = avg20PrevDollarVol
+dLiqRatio = dAvgDollarVol > 0 ? dDollarVol / dAvgDollarVol : na
+// Some cash indices expose volume as zero instead of na. Treat both cases as
+// price-only data, while allowing a zero-volume bar when prior volume exists.
+volumeSeriesAvailable = not na(volume)
+volumeDataAvailable = volumeSeriesAvailable and (volume > 0 or nz(avgVol, 0.0) > 0 or nz(dAvgDollarVol, 0.0) > 0)
+liquidityDataReady = volumeDataAvailable and not na(dAvgDollarVol) and dAvgDollarVol > 0
+dataFeedTxt = volumeDataAvailable ? "PRICE + VOLUME" : "PRICE ONLY"
+continuityTxt = not timeframe.isintraday ? dataFeedTxt : (extendedSessionOk ? "EXTENDED OK" : "ENABLE EXTENDED") + " / " + dataFeedTxt
+dataContinuityOk = volumeDataAvailable and extendedDataOk
+
+liqAbsQuality  = not na(dAvgDollarVol) ? (dAvgDollarVol >= 20000000 ? 2 : dAvgDollarVol >= 5000000 ? 1 : 0) : 0
+liqPartQuality = not na(dLiqRatio) ? (dLiqRatio >= 1.20 ? 2 : dLiqRatio >= 0.70 ? 1 : 0) : 0
+liqRvolQuality = not na(rvol) ? (rvol >= 1.20 ? 1 : rvol >= 0.70 ? 0 : -1) : 0
+liqComposite = liqAbsQuality + liqPartQuality + liqRvolQuality
+liqTxt = not volumeDataAvailable ? "NO_VOLUME" : not liquidityDataReady ? "WARMUP" : liqComposite >= 4 ? "GOOD" : liqComposite >= 2 ? "OK" : "THIN"
+riskGateOk = liquidityDataReady and (liqTxt == "GOOD" or liqTxt == "OK")
+
+// ==========================
+// EMA SNAPSHOT LEVELS
+// ==========================
+var line lE20 = na
+var line lE50 = na
+var line lE200 = na
+
+if barstate.islast
+    if showFixedMAs
+        if na(lE20)
+            lE20 := line.new(bar_index, ema20, bar_index + 1, ema20, extend=extend.right, color=color.lime, width=2)
+        else
+            line.set_xy1(lE20, bar_index, ema20)
+            line.set_xy2(lE20, bar_index + 1, ema20)
+        if na(lE50)
+            lE50 := line.new(bar_index, ema50, bar_index + 1, ema50, extend=extend.right, color=color.red, width=2)
+        else
+            line.set_xy1(lE50, bar_index, ema50)
+            line.set_xy2(lE50, bar_index + 1, ema50)
+        if na(lE200)
+            lE200 := line.new(bar_index, ema200, bar_index + 1, ema200, extend=extend.right, color=color.blue, width=2)
+        else
+            line.set_xy1(lE200, bar_index, ema200)
+            line.set_xy2(lE200, bar_index + 1, ema200)
+    else
+        if not na(lE20)
+            line.delete(lE20)
+            lE20 := na
+        if not na(lE50)
+            line.delete(lE50)
+            lE50 := na
+        if not na(lE200)
+            line.delete(lE200)
+            lE200 := na
+
+// ==========================
+// CONFIRMED PIVOTS + S/R
+// ==========================
+ph = ta.pivothigh(deskHigh, pivotSide, pivotSide)
+pl = ta.pivotlow(deskLow, pivotSide, pivotSide)
+
+var float lastPivotHigh = na
+var float lastPivotLow = na
+var int lastPivotHighBar = na
+var int lastPivotLowBar = na
+
+if not na(ph)
+    lastPivotHigh := ph
+    lastPivotHighBar := bar_index - pivotSide
+if not na(pl)
+    lastPivotLow := pl
+    lastPivotLowBar := bar_index - pivotSide
+
+var float[] resLvls = array.new_float()
+var int[] resTouch = array.new_int()
+var int[] resLastBar = array.new_int()
+var float[] supLvls = array.new_float()
+var int[] supTouch = array.new_int()
+var int[] supLastBar = array.new_int()
+
+pivotAtr = atr[pivotSide]
+srTolAtPivot = na(pivotAtr) ? syminfo.mintick * 5 : math.max(syminfo.mintick * 5, pivotAtr * srMergeATR)
+if not na(ph)
+    updateZone(ph, resLvls, resTouch, resLastBar, srTolAtPivot, bar_index - pivotSide, maxSRLevels)
+if not na(pl)
+    updateZone(pl, supLvls, supTouch, supLastBar, srTolAtPivot, bar_index - pivotSide, maxSRLevels)
+
+float nearestRes = na
+float nearestSup = na
+float nearestResTouches = na
+float nearestSupTouches = na
+if array.size(resLvls) > 0
+    for i = 0 to array.size(resLvls) - 1
+        float v = array.get(resLvls, i)
+        if v > deskClose and (na(nearestRes) or v < nearestRes)
+            nearestRes := v
+            nearestResTouches := array.get(resTouch, i)
+if array.size(supLvls) > 0
+    for i = 0 to array.size(supLvls) - 1
+        float v = array.get(supLvls, i)
+        if v < deskClose and (na(nearestSup) or v > nearestSup)
+            nearestSup := v
+            nearestSupTouches := array.get(supTouch, i)
+
+resDistATR = not na(nearestRes) and atr > 0 ? (nearestRes - deskClose) / atr : na
+supDistATR = not na(nearestSup) and atr > 0 ? (deskClose - nearestSup) / atr : na
+unknownRoomAllowed = unknownRoomPolicy == "Allow"
+longRoomOk = not useStructureGate or (na(resDistATR) ? unknownRoomAllowed : resDistATR >= minRoomATR)
+shortRoomOk = not useStructureGate or (na(supDistATR) ? unknownRoomAllowed : supDistATR >= minRoomATR)
+
+plot(showNearestSR ? nearestRes : na, "Nearest resistance", color=color.new(color.red, 35), linewidth=2, style=plot.style_stepline)
+plot(showNearestSR ? nearestSup : na, "Nearest support", color=color.new(color.green, 35), linewidth=2, style=plot.style_stepline)
+
+// ==========================
+// ANCHORED VWAP
+// ==========================
+srcVWAP = vwapSrcOpt == "Close" ? deskClose : deskHlc3
+dailySessionReset = timeframe.isintraday ? newDeskDay : ta.change(time("D")) != 0
+vwapCalcBar = not timeframe.isintraday or inDeskSession
+bool isNewVWAP = false
+if vwapReset == "Daily"
+    isNewVWAP := dailySessionReset
+else if vwapReset == "Weekly"
+    isNewVWAP := ta.change(time("W")) != 0
+else if vwapReset == "Monthly"
+    isNewVWAP := ta.change(time("M")) != 0
+
+var float cumPV = 0.0
+var float cumV = 0.0
+float vwap = na
+if useVWAP and vwapCalcBar and volumeDataAvailable
+    if barstate.isfirst or isNewVWAP
+        cumPV := deskVolume * srcVWAP
+        cumV := deskVolume
+    else
+        cumPV := nz(cumPV[1]) + deskVolume * srcVWAP
+        cumV := nz(cumV[1]) + deskVolume
+    vwap := cumV > 0 ? cumPV / cumV : na
+else if useVWAP
+    vwap := cumV > 0 ? cumPV / cumV : na
+vwapDistATR = not na(vwap) and atr > 0 and not na(deskClose) ? (deskClose - vwap) / atr : na
+plot(showVWAPLine ? vwap : na, "VWAP", color=color.gray, linewidth=2)
+
+// ==========================
+// ORDER-FLOW PROXIES
+// ==========================
+useCVD = ofMode == "TickDelta/CVD" or ofMode == "Both" or ofMode == "All"
+useCMF = ofMode == "ADL/CMF" or ofMode == "Both" or ofMode == "All"
+useAbsorption = ofMode == "Absorption" or ofMode == "All"
+
+barRange = deskHigh - deskLow
+barRangeATR = atr > 0 ? barRange / atr : na
+closePos = barRange > 0 ? (deskClose - deskLow) / barRange : na
+upperWickPct = barRange > 0 ? (deskHigh - math.max(deskOpen, deskClose)) / barRange : na
+lowerWickPct = barRange > 0 ? (math.min(deskOpen, deskClose) - deskLow) / barRange : na
+evr = not na(rvol) and not na(barRangeATR) and barRangeATR > 0 ? rvol / barRangeATR : na
+
+// This is a candle-weighted volume proxy, not exchange bid/ask delta.
+tickDeltaRaw = barRange > 0 ? deskVolume * (deskClose - deskOpen) / barRange : 0.0
+mfm = barRange > 0 ? ((deskClose - deskLow) - (deskHigh - deskClose)) / barRange : 0.0
+mfv = mfm * deskVolume
+
+var float cvd = na
+var float adl = na
+float tickDelta = na
+float cmf = na
+if useCVD and volumeDataAvailable
+    tickDelta := tickDeltaRaw
+    float cvdBase = ofReset == "Daily" and dailySessionReset ? 0.0 : nz(cvd[1], 0.0)
+    cvd := cvdBase + tickDeltaRaw
+if useCMF and volumeDataAvailable
+    float adlBase = ofReset == "Daily" and dailySessionReset ? 0.0 : nz(adl[1], 0.0)
+    adl := adlBase + mfv
+    float volSum = math.sum(deskVolume, cmfLen)
+    cmf := volSum > 0 ? math.sum(mfv, cmfLen) / volSum : na
+
+barsSinceDay = nz(ta.barssince(dailySessionReset), bar_index)
+cvdImpulse = useCVD ? (ofReset == "Daily" and barsSinceDay < cvdLookback ? cvd : cvd - nz(cvd[cvdLookback])) : na
+deltaVolRaw = math.sum(deskVolume, cvdLookback)
+deltaVolSum = not na(deltaVolRaw) ? math.max(deltaVolRaw, 1.0) : na
+deltaImbalance = volumeDataAvailable and not na(deltaVolSum) ? math.sum(tickDeltaRaw, cvdLookback) / deltaVolSum : na
+
+buyAbsorpRaw = not na(rvol) and not na(barRangeATR) and not na(lowerWickPct) and not na(closePos) and rvol >= absRVOL and barRangeATR <= absRangeATR and lowerWickPct >= 0.35 and closePos >= 0.55 and (na(vwapDistATR) or math.abs(vwapDistATR) <= 1.0)
+sellAbsorpRaw = not na(rvol) and not na(barRangeATR) and not na(upperWickPct) and not na(closePos) and rvol >= absRVOL and barRangeATR <= absRangeATR and upperWickPct >= 0.35 and closePos <= 0.45 and (na(vwapDistATR) or math.abs(vwapDistATR) <= 1.0)
+buyAbsorp = useAbsorption and buyAbsorpRaw
+sellAbsorp = useAbsorption and sellAbsorpRaw
+absorp = buyAbsorp or sellAbsorp
+
+// ==========================
+// BALANCED DIRECTIONAL SCORE
+// ==========================
+trendUpStrict = deskClose > ema20 and ema20 >= ema50 and ema50 >= ema200
+trendDownStrict = deskClose < ema20 and ema20 <= ema50 and ema50 <= ema200
+trendUpSoft = deskClose > ema20 and ema20 >= ema50
+trendDownSoft = deskClose < ema20 and ema20 <= ema50
+
+trendScore = trendUpStrict ? 3 : trendDownStrict ? -3 : trendUpSoft ? 2 : trendDownSoft ? -2 : 0
+cvdScore = useCVD and not na(deltaImbalance) ? (deltaImbalance > 0 ? 1 : deltaImbalance < 0 ? -1 : 0) : 0
+cmfScore = useCMF and not na(cmf) ? (cmf > 0 ? 1 : cmf < 0 ? -1 : 0) : 0
+absScore = buyAbsorp ? 1 : sellAbsorp ? -1 : 0
+ofComponentCount = (useCVD ? 1 : 0) + (useCMF ? 1 : 0) + (useAbsorption ? 1 : 0)
+ofScore = ofComponentCount > 0 ? (cvdScore + cmfScore + absScore) / ofComponentCount : 0.0
+vwapScore = useVWAP and not na(vwapDistATR) ? (vwapDistATR > 0 ? 1 : vwapDistATR < 0 ? -1 : 0) : 0
+rsiScore = rsi > 55 ? 1 : rsi < 45 ? -1 : 0
+
+// Liquidity is deliberately excluded: it is tradeability, not direction.
+setupScore = trendScore + ofScore + vwapScore + rsiScore
+
+tfSeconds = timeframe.in_seconds()
+tfMin = not na(tfSeconds) ? tfSeconds / 60.0 : 60.0
+tfAdj = tfMin <= 5 ? 0.75 : tfMin <= 15 ? 0.9 : tfMin <= 60 ? 1.0 : tfMin <= 240 ? 1.1 : tfMin <= 1440 ? 1.2 : 1.3
+int effLongThreshold = autoTFAdjustScore ? int(math.round(scoreLongThreshold * tfAdj)) : scoreLongThreshold
+int effShortThreshold = autoTFAdjustScore ? int(math.round(scoreShortThreshold * tfAdj)) : scoreShortThreshold
+effLongThreshold := math.max(1, effLongThreshold)
+effShortThreshold := math.max(1, effShortThreshold)
+
+hystLongOn = effLongThreshold + hysteresisBuffer
+hystLongOff = math.max(1, effLongThreshold - hysteresisBuffer)
+hystShortOn = effShortThreshold + hysteresisBuffer
+hystShortOff = math.max(1, effShortThreshold - hysteresisBuffer)
+
+var string bias = "NO_TRADE"
+if bias == "LONG_BIAS"
+    bias := setupScore < hystLongOff ? "NO_TRADE" : "LONG_BIAS"
+else if bias == "SHORT_BIAS"
+    bias := setupScore > -hystShortOff ? "NO_TRADE" : "SHORT_BIAS"
+else
+    bias := setupScore >= hystLongOn ? "LONG_BIAS" : setupScore <= -hystShortOn ? "SHORT_BIAS" : "NO_TRADE"
+
+regimeLongOk = not useRegimeLock or (regimeLockMode == "Strict" ? trendUpStrict : trendUpSoft)
+regimeShortOk = not useRegimeLock or (regimeLockMode == "Strict" ? trendDownStrict : trendDownSoft)
+if bias == "LONG_BIAS" and not regimeLongOk
+    bias := "NO_TRADE"
+if bias == "SHORT_BIAS" and not regimeShortOk
+    bias := "NO_TRADE"
+
+// ==========================
+// NORMALIZATION + RISK GATES
+// ==========================
+scoreMean = ta.sma(setupScore[1], quantNormLookback)
+scoreStd = ta.stdev(setupScore[1], quantNormLookback)
+scoreRms = math.sqrt(ta.sma(setupScore * setupScore, quantNormLookback))
+scoreScale = not na(scoreRms) ? math.max(1.0, scoreRms) : 1.0
+
+// Directional Z preserves the sign of the thesis. Surprise Z only describes deviation from recent regime.
+directionalZ = setupScore / scoreScale
+surpriseScale = not na(scoreStd) ? math.max(1.0, scoreStd) : 1.0
+surpriseZ = not na(scoreMean) ? (setupScore - scoreMean) / surpriseScale : 0.0
+requiredWarmup = math.max(quantWarmupBars, quantNormLookback - 1)
+quantReady = bar_index >= requiredWarmup and not na(scoreMean) and not na(scoreStd) and not na(scoreRms)
+
+thresholdRef = math.max(effLongThreshold, effShortThreshold)
+setupStrength = math.min(1.0, math.abs(setupScore) / math.max(1.0, thresholdRef + 2.0))
+zStrength = math.min(1.0, math.abs(directionalZ) / 2.5)
+evidenceStrength = math.min(1.0, 0.7 * zStrength + 0.3 * setupStrength)
+evidenceStrengthPct = evidenceStrength * 100.0
+
+rr = stopATR > 0 ? targetATR / stopATR : na
+effectiveTargetLongATR = useStructureGate and not na(resDistATR) ? math.min(targetATR, resDistATR) : targetATR
+effectiveTargetShortATR = useStructureGate and not na(supDistATR) ? math.min(targetATR, supDistATR) : targetATR
+effectiveRRLong = stopATR > 0 ? effectiveTargetLongATR / stopATR : na
+effectiveRRShort = stopATR > 0 ? effectiveTargetShortATR / stopATR : na
+rrLongOk = not na(effectiveRRLong) and effectiveRRLong >= minRR
+rrShortOk = not na(effectiveRRShort) and effectiveRRShort >= minRR
+activeRR = bias == "LONG_BIAS" ? effectiveRRLong : bias == "SHORT_BIAS" ? effectiveRRShort : rr
+breakEvenWinRatePct = not na(activeRR) ? 100.0 / (1.0 + activeRR) : na
+signalReady = not confirmOnClose or barstate.isconfirmed
+liquidityTfOk = not na(tfSeconds) and tfSeconds <= 86400
+flowReady = (not useCVD or not na(deltaImbalance)) and (not useCMF or not na(cmf))
+coreReady = continuousDataOk and liquidityTfOk and not na(ema200) and not na(atr) and atr > 0 and not na(rsi) and liquidityDataReady and flowReady
+
+longQuantOk = not quantMode or (quantReady and directionalZ >= quantConfirmZ)
+shortQuantOk = not quantMode or (quantReady and directionalZ <= -quantConfirmZ)
+longSetup = coreReady and signalReady and bias == "LONG_BIAS" and riskGateOk and rrLongOk and longRoomOk and longQuantOk
+shortSetup = coreReady and signalReady and bias == "SHORT_BIAS" and riskGateOk and rrShortOk and shortRoomOk and shortQuantOk
+
+riskFloor = math.min(baseRiskPct, maxRiskPct)
+liqRiskMult = liqTxt == "GOOD" ? 1.0 : liqTxt == "OK" ? 0.75 : 0.0
+// Without out-of-sample calibration, evidence strength must not increase risk. Liquidity can only reduce it.
+riskBudgetRaw = riskFloor * liqRiskMult
+riskBudgetPct = quantMode and (longSetup or shortSetup) ? riskBudgetRaw : 0.0
+
+activeRrOk = bias == "LONG_BIAS" ? rrLongOk : bias == "SHORT_BIAS" ? rrShortOk : true
+quantAction = not quantMode ? "DISABLED" : not volumeDataAvailable ? "NO_VOLUME" : not quantReady ? "WARMUP" : not coreReady ? "NOT_READY" : not riskGateOk ? "NO_LIQ" : not activeRrOk ? "NO_RR" : bias == "LONG_BIAS" and not longRoomOk ? "NO_ROOM" : bias == "SHORT_BIAS" and not shortRoomOk ? "NO_ROOM" : longSetup ? "LONG" : shortSetup ? "SHORT" : "NO_TRADE"
+
+longTrigger = longSetup and not longSetup[1]
+shortTrigger = shortSetup and not shortSetup[1]
+alertcondition(longTrigger, "DESK v2 NEW LONG", "DESK v2 new LONG")
+alertcondition(shortTrigger, "DESK v2 NEW SHORT", "DESK v2 new SHORT")
+plotshape(showSignalMarkers and longTrigger, "LONG marker", shape.labelup, location.belowbar, color=color.green, text="LONG", textcolor=color.white, size=size.tiny)
+plotshape(showSignalMarkers and shortTrigger, "SHORT marker", shape.labeldown, location.abovebar, color=color.red, text="SHORT", textcolor=color.white, size=size.tiny)
+
+signalCode = longSetup ? 1 : shortSetup ? -1 : 0
+plot(setupScore, "HOVER Setup Score", display=display.status_line)
+plot(signalCode, "HOVER Signal Code (1/-1/0)", display=display.status_line)
+
+// ==========================
+// DESK TABLE
+// ==========================
+pos = tablePos == "Top Left" ? position.top_left : tablePos == "Bottom Right" ? position.bottom_right : tablePos == "Bottom Left" ? position.bottom_left : position.top_right
+var table t = table.new(pos, 2, 26, border_width=1)
+if barstate.islast
+    table.clear(t, 0, 0, 1, 25)
+    if showDeskTable
+        trendTxt = trendUpStrict ? "UP" : trendDownStrict ? "DOWN" : trendUpSoft ? "SOFT_UP" : trendDownSoft ? "SOFT_DOWN" : "NEUTRAL"
+        hdrBg = trendTxt == "UP" ? color.green : trendTxt == "DOWN" ? color.red : trendTxt == "SOFT_UP" ? color.new(color.green, 35) : trendTxt == "SOFT_DOWN" ? color.new(color.red, 35) : color.orange
+
+        table.cell(t, 0, 0, "STATE", text_color=color.white, bgcolor=hdrBg)
+        table.cell(t, 1, 0, trendTxt, text_color=color.white, bgcolor=hdrBg)
+        table.cell(t, 0, 1, "BIAS / SCORE", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 1, bias + " / " + fmt2(setupScore) + " (L" + str.tostring(effLongThreshold) + "/S" + str.tostring(effShortThreshold) + ")", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 2, "Signal", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 2, longSetup ? "LONG" : shortSetup ? "SHORT" : "NO_TRADE", text_color=color.white, bgcolor=longSetup ? color.green : shortSetup ? color.red : color.new(color.gray, 60))
+        table.cell(t, 0, 3, "Trend/OF/VWAP/RSI", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 3, str.tostring(trendScore) + " / " + fmt2(ofScore) + " / " + str.tostring(vwapScore) + " / " + str.tostring(rsiScore), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 4, "EMA20/50/200", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 4, fmt(ema20) + " / " + fmt(ema50) + " / " + fmt(ema200), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 5, "ATR / RSI / RVOL", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 5, fmt(atr) + " / " + fmt2(rsi) + " / " + fmt2(rvol) + "x", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 6, "Liquidity", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 6, liqTxt + " | " + fmt2(dLiqRatio) + "x | Q" + str.tostring(liqComposite), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 7, "Nearest RES/SUP", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 7, fmt(nearestRes) + " (" + fmt0(nearestResTouches) + ") / " + fmt(nearestSup) + " (" + fmt0(nearestSupTouches) + ")", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 8, "Room RES/SUP (ATR)", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 8, fmt2(resDistATR) + " / " + fmt2(supDistATR), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 9, "VWAP / Dist", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 9, fmt(vwap) + " / " + fmt2(vwapDistATR) + " ATR", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 10, "CVD Impulse", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 10, fmt(cvdImpulse), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 11, "CMF / EVR", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 11, fmt2(cmf) + " / " + fmt2(evr), text_color=color.white, bgcolor=color.black)
+        absTxt = buyAbsorp ? "BUY" : sellAbsorp ? "SELL" : "NO"
+        table.cell(t, 0, 12, "Absorption", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 12, absTxt, text_color=color.white, bgcolor=buyAbsorp ? color.new(color.green, 45) : sellAbsorp ? color.new(color.red, 45) : color.black)
+        table.cell(t, 0, 13, "Liquidity Gate", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 13, riskGateOk ? "OK" : "BLOCK", text_color=color.white, bgcolor=riskGateOk ? color.new(color.green, 40) : color.red)
+        table.cell(t, 0, 14, "Room / Eff RR L/S", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 14, (longRoomOk ? "OK " : "BLOCK ") + fmt2(effectiveRRLong) + " / " + (shortRoomOk ? "OK " : "BLOCK ") + fmt2(effectiveRRShort), text_color=color.white, bgcolor=color.black)
+        newerHigh = not na(lastPivotHighBar) and (na(lastPivotLowBar) or lastPivotHighBar >= lastPivotLowBar)
+        newerLow = not na(lastPivotLowBar) and (na(lastPivotHighBar) or lastPivotLowBar > lastPivotHighBar)
+        lastPivotTxt = newerHigh ? "PH " + fmt(lastPivotHigh) : newerLow ? "PL " + fmt(lastPivotLow) : "—"
+        table.cell(t, 0, 15, "Last Pivot", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 15, lastPivotTxt, text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 16, "Dir Z / Surprise Z", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 16, fmt2(directionalZ) + " / " + fmt2(surpriseZ), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 17, "Evidence strength", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 17, fmt2(evidenceStrengthPct) + "% (not probability)", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 18, "Action / Risk / RR", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 18, quantAction + " / " + fmt2(riskBudgetPct) + "% / " + fmt2(activeRR), text_color=color.white, bgcolor=longSetup ? color.new(color.green, 65) : shortSetup ? color.new(color.red, 65) : color.new(color.gray, 75))
+        table.cell(t, 0, 19, "BE win* / Close confirm", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 19, fmt2(breakEvenWinRatePct) + "% / " + (confirmOnClose ? "ON" : "OFF"), text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 20, "Bar Session / PM Data", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 20, barSessionTxt + " / " + pmDataTxt, text_color=color.white, bgcolor=pmDataReady ? color.new(color.blue, 65) : color.new(color.gray, 75))
+        table.cell(t, 0, 21, "PreMkt High / Low", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 21, showPremarket ? fmt(pmHigh) + " / " + fmt(pmLow) : "DISABLED", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 22, "PreMkt Last / Gap", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 22, showPremarket ? fmt(pmLast) + " / " + fmt2(pmGapPct) + "%" : "DISABLED", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 23, "PreMkt Vol / Range", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 23, showPremarket ? fmt0(pmVolume) + " / " + fmt2(pmRangeATR) + " ATR" : "DISABLED", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 0, 24, "Continuous Day", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 24, continuousDayTxt + " ATH", text_color=color.white, bgcolor=inDeskSession ? color.new(color.green, 65) : color.new(color.gray, 75))
+        table.cell(t, 0, 25, "Data Continuity", text_color=color.white, bgcolor=color.black)
+        table.cell(t, 1, 25, continuityTxt, text_color=color.white, bgcolor=dataContinuityOk ? color.new(color.green, 65) : color.new(color.red, 25))
+
+// ==========================
+// STATUS-LINE VALUES
+// ==========================
+plot(ema20, "HOVER EMA20", display=display.status_line)
+plot(ema50, "HOVER EMA50", display=display.status_line)
+plot(ema200, "HOVER EMA200", display=display.status_line)
+plot(atr, "HOVER ATR", display=display.status_line)
+plot(rsi, "HOVER RSI", display=display.status_line)
+plot(rvol, "HOVER RVOL", display=display.status_line)
+plot(dDollarVol, "HOVER Daily $Vol", display=display.status_line)
+plot(dAvgDollarVol, "HOVER Confirmed $VolAvg20", display=display.status_line)
+plot(dLiqRatio, "HOVER Liquidity Ratio", display=display.status_line)
+plot(nearestRes, "HOVER Nearest RES", display=display.status_line)
+plot(nearestSup, "HOVER Nearest SUP", display=display.status_line)
+plot(vwap, "HOVER VWAP", display=display.status_line)
+plot(vwapDistATR, "HOVER VWAP Dist ATR", display=display.status_line)
+plot(tickDelta, "HOVER Delta Proxy", display=display.status_line)
+plot(cvd, "HOVER CVD Proxy", display=display.status_line)
+plot(cvdImpulse, "HOVER CVD Impulse", display=display.status_line)
+plot(deltaImbalance, "HOVER Delta Imbalance", display=display.status_line)
+plot(cmf, "HOVER CMF", display=display.status_line)
+plot(evr, "HOVER EVR", display=display.status_line)
+plot(barRangeATR, "HOVER Range ATR", display=display.status_line)
+plot(absorp ? 1 : 0, "HOVER Absorption", display=display.status_line)
+plot(directionalZ, "HOVER Directional Z", display=display.status_line)
+plot(surpriseZ, "HOVER Surprise Z", display=display.status_line)
+plot(evidenceStrengthPct, "HOVER Evidence Strength %", display=display.status_line)
+plot(riskBudgetPct, "HOVER Risk Budget %", display=display.status_line)
+plot(rr, "HOVER Planned RR", display=display.status_line)
+plot(effectiveRRLong, "HOVER Effective RR Long", display=display.status_line)
+plot(effectiveRRShort, "HOVER Effective RR Short", display=display.status_line)
+plot(breakEvenWinRatePct, "HOVER Break-even Win Rate %", display=display.status_line)
+plot(pmHigh, "HOVER Pre-market High", display=display.status_line)
+plot(pmLow, "HOVER Pre-market Low", display=display.status_line)
+plot(pmLast, "HOVER Pre-market Last", display=display.status_line)
+plot(pmGapPct, "HOVER Pre-market Gap %", display=display.status_line)
+plot(pmVolume, "HOVER Pre-market Volume", display=display.status_line)

@@ -1,0 +1,134 @@
+{
+  "schema": "ecosystem.unknown_data_contract.v1",
+  "version": "1.1.0",
+  "principles": [
+    "UNKNOWN is a safe value, never an invitation to estimate or fabricate evidence.",
+    "Every UNKNOWN has a reason code, owner, decision impact, source route and resolution state.",
+    "not_applicable and diagnostic_only fields do not reduce coverage or add score penalties.",
+    "Operational failures remain separate from legitimate non-disclosure.",
+    "Execution-boundary UNKNOWN states remain fail-closed.",
+    "Provider limits are shared evidence-gap facts; downstream agents consume the same gap and never retry independently."
+  ],
+  "reason_codes": {
+    "not_applicable": {"retryable": false, "coverage_included": false, "default_action": "exclude_from_denominator"},
+    "not_disclosed": {"retryable": false, "coverage_included": true, "default_action": "wait_for_new_primary_disclosure"},
+    "insufficient_source_detail": {"retryable": false, "coverage_included": true, "default_action": "content_review_or_manual_review"},
+    "provider_no_coverage": {"retryable": true, "coverage_included": true, "default_action": "approved_fallback"},
+    "temporarily_unavailable": {"retryable": true, "coverage_included": true, "default_action": "bounded_retry"},
+    "provider_rate_limited": {"retryable": false, "coverage_included": true, "default_action": "respect_shared_cooldown_then_targeted_retry"},
+    "provider_daily_budget_exhausted": {"retryable": false, "coverage_included": true, "default_action": "wait_for_utc_budget_reset"},
+    "stale": {"retryable": true, "coverage_included": true, "default_action": "refresh_or_block_by_stage"},
+    "symbol_mapping_error": {"retryable": true, "coverage_included": true, "default_action": "identity_repair_queue"},
+    "parse_or_schema_error": {"retryable": true, "coverage_included": true, "default_action": "quarantine_and_reprocess"},
+    "conflicting_sources": {"retryable": false, "coverage_included": true, "default_action": "preserve_both_and_review"},
+    "contract_mismatch": {"retryable": false, "coverage_included": true, "default_action": "fail_closed_and_fix_contract"},
+    "unnecessary_requirement": {"retryable": false, "coverage_included": false, "default_action": "remove_or_demote_requirement"}
+  },
+  "providers": {
+    "sec_edgar": {"authority": "primary_company_disclosure", "capabilities": ["filings", "company_identity", "xbrl_facts"], "fallbacks": []},
+    "alpaca_market_data": {"authority": "market_data_observation", "capabilities": ["latest_bars", "historical_bars"], "fallbacks": ["polygon", "openbb_yfinance"]},
+    "polygon": {"authority": "market_data_cross_check", "capabilities": ["snapshots", "aggregate_bars"], "fallbacks": ["alpaca_market_data", "openbb_yfinance"]},
+    "fmp": {"authority": "supplementary_company_data", "capabilities": ["quotes", "profiles", "statements", "fundamentals"], "fallbacks": ["sec_edgar", "openbb_yfinance"]},
+    "openbb_yfinance": {"authority": "supplementary_legacy_adapter", "capabilities": ["profiles", "fundamentals", "ownership", "market_history"], "fallbacks": ["fmp", "sec_edgar"]},
+    "fred": {"authority": "primary_us_macro_distributor", "capabilities": ["rates", "inflation", "labor", "volatility"], "fallbacks": []},
+    "eia": {"authority": "primary_us_energy_statistics", "capabilities": ["petroleum", "natural_gas", "electricity"], "fallbacks": []},
+    "benzinga": {"authority": "secondary_news_context", "capabilities": ["company_news"], "fallbacks": ["sec_edgar", "issuer_ir"]},
+    "issuer_ir": {"authority": "primary_issuer_context", "capabilities": ["earnings_releases", "presentations", "press_releases"], "fallbacks": ["sec_edgar"]},
+    "broker_account_snapshot": {"authority": "paper_account_state", "capabilities": ["buying_power", "positions", "exposure"], "fallbacks": []}
+  },
+  "agents": {
+    "babis": {
+      "fields": {
+        "share_price": {"requirement": "required", "provider_route": ["alpaca_market_data", "polygon", "openbb_yfinance"], "decision_impact": "eligibility_and_attention", "on_missing": "exclude_or_retry"},
+        "market_cap": {"requirement": "required", "provider_route": ["fmp", "openbb_yfinance", "sec_edgar"], "decision_impact": "eligibility_and_attention", "on_missing": "confidence_reduce"},
+        "cash": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "balance_sheet_context", "on_missing": "confidence_reduce"},
+        "debt": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "balance_sheet_context", "on_missing": "confidence_reduce"},
+        "sector_id": {"requirement": "conditional", "provider_route": ["fmp", "openbb_yfinance"], "decision_impact": "sector_comparison", "on_missing": "classification_review"},
+        "industry_id": {"requirement": "optional", "provider_route": ["fmp", "openbb_yfinance"], "decision_impact": "industry_comparison", "on_missing": "classification_review"},
+        "catalyst_category_id": {"requirement": "conditional", "provider_route": ["sec_edgar", "issuer_ir"], "decision_impact": "attention_not_direction", "on_missing": "content_review"},
+        "catalyst_direction": {"requirement": "conditional", "provider_route": ["sec_edgar", "issuer_ir"], "decision_impact": "long_short_context_only", "on_missing": "retain_neutral_unknown"},
+        "atm_shelf_warrants_convertibles": {"requirement": "conditional", "provider_route": ["sec_edgar"], "decision_impact": "dilution_risk", "on_missing": "content_review"},
+        "concentration_risk": {"requirement": "diagnostic_only", "provider_route": ["sec_edgar", "issuer_ir"], "decision_impact": "manual_diligence", "on_missing": "no_score_penalty"}
+      }
+    },
+    "giannis": {
+      "fields": {
+        "revenue_growth": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "quality_score", "on_missing": "confidence_reduce"},
+        "earnings_growth": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "quality_score", "on_missing": "confidence_reduce"},
+        "gross_margin": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "quality_score", "on_missing": "confidence_reduce"},
+        "profit_margin": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "quality_score", "on_missing": "confidence_reduce"},
+        "roe": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "quality_score", "on_missing": "confidence_reduce"},
+        "debt_to_equity": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "structural_risk", "on_missing": "confidence_reduce"},
+        "current_ratio": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "liquidity_quality", "on_missing": "confidence_reduce"},
+        "forward_pe": {"requirement": "conditional", "provider_route": ["fmp", "openbb_yfinance"], "decision_impact": "valuation_context", "on_missing": "manual_valuation_review"},
+        "cash": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "liquidity_quality", "on_missing": "confidence_reduce"},
+        "debt": {"requirement": "conditional", "provider_route": ["sec_edgar", "fmp", "openbb_yfinance"], "decision_impact": "liquidity_quality", "on_missing": "confidence_reduce"},
+        "fresh_primary_data": {"requirement": "required", "must_be_true": true, "provider_route": ["sec_edgar"], "decision_impact": "evidence_freshness", "on_missing": "tier_downgrade"}
+      }
+    },
+    "petros": {
+      "fields": {
+        "fresh_primary_data": {"requirement": "required", "must_be_true": true, "provider_route": ["sec_edgar"], "decision_impact": "thesis_readiness", "on_missing": "manual_review"},
+        "fundamental_coverage": {"requirement": "required", "provider_route": ["upstream_contract"], "decision_impact": "thesis_confidence", "on_missing": "manual_review"},
+        "forward_pe": {"requirement": "conditional", "provider_route": ["fmp", "openbb_yfinance"], "decision_impact": "security_valuation", "on_missing": "execution_not_ready"},
+        "priced_in_status": {"requirement": "required", "missing_values": ["not_assessed"], "provider_route": ["petros_analysis"], "decision_impact": "security_readiness", "on_missing": "execution_not_ready"},
+        "unknown_events": {"requirement": "required", "provider_route": ["upstream_contract"], "decision_impact": "traceability", "on_missing": "contract_review"}
+      }
+    },
+    "yankos": {
+      "fields": {
+        "fundamental_packet_hash": {"requirement": "required", "provider_route": ["fundamental_packet"], "decision_impact": "source_identity", "on_missing": "block"},
+        "current_session_15m_bars": {"requirement": "conditional", "applicability": "active_playbook", "provider_route": ["alpaca_market_data", "polygon"], "decision_impact": "technical_confirmation", "on_missing": "flat_or_needs_data"},
+        "volume_ratio_20": {"requirement": "conditional", "applicability": "playbook_declared", "provider_route": ["alpaca_market_data", "polygon"], "decision_impact": "setup_quality", "on_missing": "flat_or_needs_data"},
+        "trigger": {"requirement": "required", "provider_route": ["trader_plan"], "decision_impact": "entry_confirmation", "on_missing": "flat"},
+        "invalidator": {"requirement": "required", "provider_route": ["trader_plan"], "decision_impact": "risk_definition", "on_missing": "block"}
+      }
+    },
+    "periklis": {
+      "fields": {
+        "fundamental_packet_hash": {"requirement": "required", "provider_route": ["fundamental_packet"], "decision_impact": "source_identity", "on_missing": "block"},
+        "current_session_15m_bars": {"requirement": "conditional", "applicability": "active_playbook", "provider_route": ["alpaca_market_data", "polygon"], "decision_impact": "phase_confirmation", "on_missing": "watch_or_needs_data"},
+        "volume_ratio_20": {"requirement": "conditional", "applicability": "playbook_declared", "provider_route": ["alpaca_market_data", "polygon"], "decision_impact": "effort_result", "on_missing": "watch_or_needs_data"},
+        "trigger": {"requirement": "required", "provider_route": ["trader_plan"], "decision_impact": "entry_confirmation", "on_missing": "watch"},
+        "invalidator": {"requirement": "required", "provider_route": ["trader_plan"], "decision_impact": "risk_definition", "on_missing": "block"}
+      }
+    },
+    "sokratis": {
+      "fields": {
+        "hypothesis": {"requirement": "required", "provider_route": ["strategy_manifest"], "decision_impact": "research_validity", "on_missing": "training_only"},
+        "mechanism": {"requirement": "required", "provider_route": ["strategy_manifest"], "decision_impact": "research_validity", "on_missing": "training_only"},
+        "sample_definition": {"requirement": "required", "provider_route": ["strategy_manifest"], "decision_impact": "research_validity", "on_missing": "training_only"},
+        "falsifier": {"requirement": "required", "provider_route": ["strategy_manifest"], "decision_impact": "promotion_gate", "on_missing": "no_promotion"},
+        "source_hashes": {"requirement": "required", "provider_route": ["run_manifest"], "decision_impact": "reproducibility", "on_missing": "no_promotion"}
+      }
+    },
+    "miltos": {
+      "fields": {
+        "run_id": {"requirement": "required", "provider_route": ["approved_intent"], "decision_impact": "identity", "on_missing": "blocked"},
+        "trigger": {"requirement": "required", "provider_route": ["frozen_trade_plan"], "decision_impact": "confirmation", "on_missing": "waiting"},
+        "latest_15m_bar": {"requirement": "required", "provider_route": ["alpaca_market_data", "polygon"], "decision_impact": "confirmation", "on_missing": "waiting"},
+        "bar_fresh": {"requirement": "required", "must_be_true": true, "provider_route": ["market_clock"], "decision_impact": "confirmation_safety", "on_missing": "blocked"},
+        "approved_intent_id": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "identity", "on_missing": "blocked"}
+      }
+    },
+    "koulis": {
+      "fields": {
+        "run_id": {"requirement": "required", "provider_route": ["trader_intent"], "decision_impact": "identity", "on_missing": "blocked"},
+        "account_snapshot_as_of": {"requirement": "required", "provider_route": ["broker_account_snapshot"], "decision_impact": "portfolio_freshness", "on_missing": "blocked"},
+        "buying_power": {"requirement": "required", "provider_route": ["broker_account_snapshot"], "decision_impact": "sizing", "on_missing": "blocked"},
+        "existing_positions": {"requirement": "required", "provider_route": ["broker_account_snapshot"], "decision_impact": "exposure_and_conflict", "on_missing": "blocked"},
+        "notional": {"requirement": "required", "provider_route": ["trader_intent"], "decision_impact": "portfolio_limits", "on_missing": "blocked"}
+      }
+    },
+    "thymios": {
+      "fields": {
+        "run_id": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "identity", "on_missing": "reject"},
+        "intent_id": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "idempotency", "on_missing": "reject"},
+        "gate_status": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "approval_invariant", "on_missing": "reject"},
+        "ticker": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "contract_identity", "on_missing": "reject"},
+        "direction": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "contract_identity", "on_missing": "reject"},
+        "notional": {"requirement": "required", "provider_route": ["koulis_contract"], "decision_impact": "contract_limit", "on_missing": "reject"}
+      }
+    }
+  }
+}

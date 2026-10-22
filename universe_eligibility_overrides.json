@@ -1,0 +1,13 @@
+{
+  "schema": "ecosystem.universe_eligibility_overrides.v1",
+  "exclusions": [
+    {
+      "ticker": "SVA",
+      "reason_code": "trading_halt",
+      "reviewed_at": "2026-09-20",
+      "valid_until": "2026-10-20",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1084201/000119312526258534/sva-20251231.htm",
+      "evidence": "The issuer's 2025 Form 20-F says Nasdaq trading had remained halted since 2019; the September 2026 scan had no bars from any configured provider. Recheck before expiry."
+    }
+  ]
+}

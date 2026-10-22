@@ -1,0 +1,56 @@
+{
+  "schema": "ecosystem.information_architecture.v1",
+  "version": "1.0.0",
+  "domains": [
+    {"id": "issuer", "label": "Issuer research", "description": "Company identity, business, filings, financials, catalysts and thesis evidence."},
+    {"id": "security", "label": "Security master", "description": "Tradable instruments, listings, venues, share classes and identifiers."},
+    {"id": "sector", "label": "Sector research", "description": "Industry structure, value chains, peer groups, sector KPIs and risks."},
+    {"id": "market", "label": "Market data", "description": "Prices, liquidity, market structure and market-wide observations."},
+    {"id": "macro", "label": "Macroeconomics", "description": "Macroeconomic series, policy, rates, inflation and economic regimes."},
+    {"id": "portfolio", "label": "Portfolio", "description": "Positions, exposures, risk, decisions and outcome tracking."},
+    {"id": "execution", "label": "Execution", "description": "Order intents, broker acknowledgements, fills and reconciliations."},
+    {"id": "governance", "label": "Governance", "description": "Taxonomies, contracts, lineage, quality, usage and system controls."}
+  ],
+  "object_types": [
+    "observation", "document", "document_element", "entity", "relationship",
+    "claim", "metric", "event", "packet", "thesis", "decision", "run"
+  ],
+  "relationship_types": [
+    "derived_from", "contains", "about", "supports", "contradicts", "context_for",
+    "supersedes", "classified_as", "produced_by", "depends_on", "affects",
+    "peer_of", "member_of"
+  ],
+  "verification_states": [
+    "observed", "provisional", "supported", "disputed", "rejected", "unresolved", "superseded"
+  ],
+  "lifecycle_states": [
+    "raw", "normalized", "reviewed", "published", "stale", "archived"
+  ],
+  "lineage_event_types": ["START", "RUNNING", "COMPLETE", "FAIL", "ABORT"],
+  "packet_defaults": {
+    "document_evidence": {"domain_id": "issuer", "category_ids": ["source_provenance"]},
+    "sec_filing_catalog": {"domain_id": "issuer", "category_ids": ["source_provenance", "company_catalysts"]},
+    "company_profile": {"domain_id": "issuer", "category_ids": ["security_identity", "business_model"]},
+    "sector_context": {"domain_id": "sector", "category_ids": ["business_model", "value_chain_position", "market_structure", "competitive_position", "operating_drivers", "sector_kpis", "industry_risks", "company_catalysts"]},
+    "financial_evidence": {"domain_id": "issuer", "category_ids": ["normalized_financials", "growth_and_margins", "earnings_quality", "cash_flow_quality", "balance_sheet_liquidity", "capital_intensity_reinvestment", "capital_allocation", "dilution_share_count", "financial_fragility"]},
+    "fundamental_analysis": {"domain_id": "issuer", "category_ids": ["growth_and_margins", "earnings_quality", "cash_flow_quality", "balance_sheet_liquidity", "capital_intensity_reinvestment", "capital_allocation", "dilution_share_count", "financial_fragility", "sector_financial_reconciliation"]},
+    "fundamental_research_packet": {"domain_id": "issuer", "category_ids": ["source_provenance", "evidence_gaps"]}
+  },
+  "claim_category_defaults": {
+    "identity": "security_identity",
+    "classification": "sector_classification",
+    "business_model": "business_model",
+    "catalyst": "company_catalysts",
+    "financial": "normalized_financials",
+    "financial_coverage": "source_provenance",
+    "reported_margin": "growth_and_margins",
+    "balance_sheet": "balance_sheet_liquidity",
+    "growth": "growth_and_margins",
+    "earnings_quality": "earnings_quality",
+    "cash_flow": "cash_flow_quality",
+    "liquidity": "balance_sheet_liquidity",
+    "capital_allocation": "capital_allocation",
+    "dilution": "dilution_share_count",
+    "risk": "financial_fragility"
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "schema": "ecosystem.agent_methodology_registry.v1",
+  "version": "1.0.0",
+  "purpose": "Versioned public-methodology adapters for all ecosystem agents. Methodology affects reasoning structure, never agent authority or broker permissions.",
+  "shared_rules": [
+    "Transfer public, sourceable methods; never impersonate a person or claim access to private reasoning.",
+    "Personality controls communication style, methodology controls analysis, and the ecosystem contract controls authority.",
+    "Every methodology must expose required evidence, forbidden inferences, counterexamples, and abstention conditions.",
+    "A famous exemplar is not evidence of edge; every adapter must pass deterministic assimilation and shadow evaluation.",
+    "No methodology may bypass run identity, immutable evidence, Koulis, Thymios, or paper-only controls.",
+    "Yankos and Periklis must remain independent and preserve an explicit opposing or FLAT case."
+  ],
+  "agents": {
+    "babis": {
+      "methodology_id": "babis.discovery_evidence.v1",
+      "lead_exemplar": "Peter Lynch",
+      "counterweight": "Aswath Damodaran",
+      "public_method_summary": "Use understandable domain knowledge to generate research ideas, then separate the origin of an idea from the evidence required to promote it.",
+      "source_urls": [
+        "https://www.fidelity.com/viewpoints/active-investor/trading-guide-managing-investment-risks-and-opportunities",
+        "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/NNPreface.html"
+      ],
+      "required_evidence": ["idea provenance", "primary-source support", "freshness and coverage", "explicit traps and rejected candidates"],
+      "decision_steps": ["record why the symbol entered the scan", "separate familiarity from evidence strength", "test materiality and data completeness", "preserve unknown and rejection reasons"],
+      "forbidden_inferences": ["familiar product means good company", "interesting story means strong evidence", "ranking means final approval"],
+      "assimilation_checks": ["distinguish idea_source from evidence_strength", "retain traceable rejects", "abstain when primary evidence is missing"]
+    },
+    "giannis": {
+      "methodology_id": "giannis.narrative_numbers_quality.v1",
+      "lead_exemplar": "Aswath Damodaran",
+      "counterweight": "Michael Mauboussin",
+      "public_method_summary": "Translate every company narrative into measurable value drivers and test whether growth, margins, reinvestment and risk form a coherent economic story.",
+      "source_urls": [
+        "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/NNPreface.html",
+        "https://www.morganstanley.com/im/en-us/institutional-investor/insights/consilient-observer/bayes-and-base-rates-2.html"
+      ],
+      "required_evidence": ["revenue and growth quality", "margin and reinvestment logic", "cash, debt and dilution", "life-cycle and base-rate context"],
+      "decision_steps": ["state the economic narrative", "map it to observable drivers", "test cross-driver consistency", "penalize unknowns through confidence rather than invented values"],
+      "forbidden_inferences": ["score without an economic mechanism", "missing value equals zero", "catalyst materiality determines direction"],
+      "assimilation_checks": ["map a narrative to drivers", "identify inconsistent assumptions", "keep quality tier separate from trade direction"]
+    },
+    "petros": {
+      "methodology_id": "petros.expectations_synthesis.v1",
+      "lead_exemplar": "Michael Mauboussin",
+      "counterweight": "Aswath Damodaran",
+      "public_method_summary": "Separate company quality from security attractiveness by identifying price-implied expectations, relevant base rates, and the evidence that would prove or kill the thesis.",
+      "source_urls": [
+        "https://cup.columbia.edu/book/expectations-investing/9780231554848/",
+        "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/background/valintro.htm"
+      ],
+      "required_evidence": ["frozen fundamental packet", "valuation or priced-in state", "base-rate context", "prove and kill criteria"],
+      "decision_steps": ["freeze the company thesis", "infer what expectations the security price requires", "compare those expectations with evidence and base rates", "emit readiness blockers and falsifiers"],
+      "forbidden_inferences": ["good company means attractive security", "missing valuation is neutral", "technical evidence can rewrite the fundamental packet"],
+      "assimilation_checks": ["produce different readiness for different valuations", "state explicit prove and kill criteria", "request review when expectations cannot be estimated"]
+    },
+    "yankos": {
+      "methodology_id": "yankos.trend_contraction_swing.v1",
+      "lead_exemplar": "Mark Minervini",
+      "counterweight": "Linda Bradford Raschke",
+      "public_method_summary": "Require trend qualification, contraction quality, a precise pivot or support trigger, predefined violation, sizing and post-analysis while retaining SHORT and FLAT alternatives.",
+      "source_urls": [
+        "https://cdn.minervini.com/static/dist/mtp-review.1f8e8633.pdf",
+        "https://lindaraschke.net/wp-content/uploads/EBook_Updated.pdf"
+      ],
+      "required_evidence": ["qualified trend", "contraction or support structure", "entry confirmation", "initial invalidator and exit logic"],
+      "decision_steps": ["validate the frozen fundamental packet", "qualify the primary trend", "score contraction and trigger without double counting", "freeze LONG, SHORT and FLAT cases with invalidation"],
+      "forbidden_inferences": ["watch means entry", "breakout label without confirmation", "correlated indicators count as independent evidence"],
+      "assimilation_checks": ["distinguish valid setup from false breakout", "state the opposing case", "reject when the trend or trigger is incomplete"]
+    },
+    "periklis": {
+      "methodology_id": "periklis.supply_demand_phase.v1",
+      "lead_exemplar": "Richard D. Wyckoff",
+      "counterweight": "Mark Minervini",
+      "public_method_summary": "Treat accumulation or distribution as a testable phase hypothesis based on supply-demand and effort-versus-result evidence, never as a label inferred from compression alone.",
+      "source_urls": [
+        "https://cmtassociation.org/wp-content/uploads/2025/08/september2015.pdf",
+        "https://cdn.minervini.com/static/dist/mtp-review.1f8e8633.pdf"
+      ],
+      "required_evidence": ["range and phase context", "volume and price response", "failed moves or absorption evidence", "confirmation and alternative direction"],
+      "decision_steps": ["validate the frozen fundamental packet", "form a probabilistic phase hypothesis", "compare effort with result", "wait for confirmation and expose the competing interpretation"],
+      "forbidden_inferences": ["compression alone means accumulation", "small sample becomes a rule", "Yankos conclusion becomes shared truth"],
+      "assimilation_checks": ["separate accumulation, distribution and noise", "retain independent rationale", "stay watch or flat before confirmation"]
+    },
+    "sokratis": {
+      "methodology_id": "sokratis.backtest_governance.v1",
+      "lead_exemplar": "Marcos Lopez de Prado",
+      "counterweight": "Michael Mauboussin",
+      "public_method_summary": "Govern strategy research by recording every trial, controlling selection bias and leakage, requiring adequate samples and out-of-sample evidence before promotion.",
+      "source_urls": [
+        "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2308682",
+        "https://www.quantresearch.org/Software.htm"
+      ],
+      "required_evidence": ["predeclared hypothesis", "complete trial registry", "sample and regime coverage", "out-of-sample or forward-paper evidence"],
+      "decision_steps": ["register the idea before testing", "record all variants and failures", "check leakage, overfit and sample sufficiency", "promote only through reviewed research states"],
+      "forbidden_inferences": ["best backtest is expected edge", "failed trials can be omitted", "training note can modify production automatically"],
+      "assimilation_checks": ["reject a leaked or overfit backtest", "report trial count and sample limits", "keep lessons advisory until reviewed"]
+    },
+    "miltos": {
+      "methodology_id": "miltos.trigger_observation.v1",
+      "lead_exemplar": "Linda Bradford Raschke",
+      "counterweight": "Leslie Lamport",
+      "public_method_summary": "Observe a library of specific, predeclared patterns consistently and represent activation, invalidation, timeout and duplicate handling as explicit states.",
+      "source_urls": [
+        "https://lindaraschke.net/wp-content/uploads/2013/11/Discerning-trader.pdf",
+        "https://www.microsoft.com/en-us/research/publication/specifying-systems-the-tla-language-and-tools-for-hardware-and-software-engineers/"
+      ],
+      "required_evidence": ["frozen waiting setup", "fresh required bars", "exact trigger definition", "persistent activation state"],
+      "decision_steps": ["validate setup and intent identity", "check bar freshness and time window", "evaluate only the declared trigger", "persist confirmed, waiting, blocked or handled state"],
+      "forbidden_inferences": ["near miss counts as trigger", "new setup can be invented", "duplicate activation is harmless"],
+      "assimilation_checks": ["ignore near misses and stale bars", "activate exactly once", "never alter ticker, direction or strategy"]
+    },
+    "koulis": {
+      "methodology_id": "koulis.edge_portfolio_risk.v1",
+      "lead_exemplar": "Edward O. Thorp",
+      "counterweight": "Howard Marks",
+      "public_method_summary": "Constrain allocation using edge, odds and capital-survival logic, with conservative fractional sizing, exposure caps and fail-closed treatment of uncertain portfolio state.",
+      "source_urls": [
+        "https://www.edwardothorp.com/wp-content/uploads/2016/11/TheKellyCriterionAndTheStockMarket.pdf",
+        "https://www.oaktreecapital.com/docs/default-source/memos/2006-06-13-returns-absolute-returns-and-risk.pdf"
+      ],
+      "required_evidence": ["same-run intents", "account and exposure snapshot", "validated sizing inputs", "correlation, liquidity and short constraints"],
+      "decision_steps": ["validate identity and freshness", "reconcile conflicts and existing exposure", "apply conservative size and concentration caps", "create stable approved or blocked intent identities"],
+      "forbidden_inferences": ["strategy score is a calibrated probability", "risk gate improves a weak thesis", "unknown account state permits approval"],
+      "assimilation_checks": ["block conflicts and stale exposure", "cap correlated proposals", "preserve the originating agent rationale"]
+    },
+    "thymios": {
+      "methodology_id": "thymios.spec_invariant_validation.v1",
+      "lead_exemplar": "Leslie Lamport",
+      "counterweight": "Nancy Leveson",
+      "public_method_summary": "Validate broker-facing intent as an explicit state transition governed by invariants and safety constraints; reject malformed or unsafe interactions without silent repair.",
+      "source_urls": [
+        "https://www.microsoft.com/en-us/research/publication/specifying-systems-the-tla-language-and-tools-for-hardware-and-software-engineers/",
+        "https://sunnyday.mit.edu/STAMP-publications.html"
+      ],
+      "required_evidence": ["Koulis-approved same-session intent", "allowed transition", "stable identity", "aggregate safety constraints"],
+      "decision_steps": ["validate schema and state transition", "recompute identity and session invariants", "check duplicates and aggregate limits", "accept exact contract or fail closed with deterministic reason"],
+      "forbidden_inferences": ["validation means market approval", "malformed contract may be repaired", "safety is only component reliability"],
+      "assimilation_checks": ["reject replay and run mismatch", "reject mutated identity and boundary violations", "return deterministic errors without market opinion"]
+    }
+  }
+}

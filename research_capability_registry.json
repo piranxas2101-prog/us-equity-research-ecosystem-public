@@ -1,0 +1,26 @@
+{
+  "schema": "ecosystem.research_capability_registry.v1", "version": "1.0.0",
+  "credentials": {"storage": "environment_only", "env_file_supported": true, "never_persist_values": true},
+  "capabilities": {
+    "company_identity": {"primary": "sec", "fallbacks": ["polygon", "fmp"], "core": true, "consumers": ["babis", "company_profile_agent", "giannis"]},
+    "sec_filings": {"primary": "sec", "adapters": ["native_sec", "edgartools"], "fallbacks": [], "core": true, "consumers": ["company_profile_agent", "sector_agents", "giannis"]},
+    "company_facts": {"primary": "sec", "fallbacks": ["fmp"], "core": true, "consumers": ["giannis"]},
+    "company_profile": {"primary": "sec", "fallbacks": ["fmp", "polygon"], "core": true, "consumers": ["company_profile_agent", "sector_agents", "giannis"]},
+    "price_snapshot": {"primary": "alpaca", "fallbacks": ["polygon"], "core": false, "consumers": ["reports"]},
+    "company_news": {"primary": "benzinga", "fallbacks": [], "core": false, "consumers": ["sector_agents", "giannis"]},
+    "macro_data": {"primary": "fred", "fallbacks": ["eia", "imf"], "core": false, "consumers": ["sector_agents", "giannis"]},
+    "document_evidence": {"primary": "docling_local", "fallbacks": [], "core": false, "on_demand_only": true, "consumers": ["sector_agents", "giannis", "petros"]}
+  },
+  "providers": {
+    "sec": {"credential_env": ["SEC_USER_AGENT"], "read_only": true},
+    "alpaca": {"credential_env": ["ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"], "read_only": true},
+    "polygon": {"credential_env": ["POLYGON_API_KEY"], "read_only": true},
+    "fmp": {"credential_env": ["FMP_API_KEY"], "read_only": true},
+    "benzinga": {"credential_env": ["BENZINGA_API_KEY"], "read_only": true},
+    "fred": {"credential_env": ["FRED_API_KEY"], "read_only": true},
+    "eia": {"credential_env": ["EIA_API_KEY"], "read_only": true},
+    "imf": {"credential_env": ["IMF_API_KEY"], "read_only": true},
+    "edgartools": {"credential_env": ["SEC_USER_AGENT"], "read_only": true, "optional_local_adapter": true},
+    "docling_local": {"credential_env": [], "read_only": true, "optional_local_adapter": true}
+  }
+}

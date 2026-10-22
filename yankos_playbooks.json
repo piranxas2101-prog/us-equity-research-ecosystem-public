@@ -1,0 +1,177 @@
+{
+  "agent_name": "yankos",
+  "version": 2,
+  "updated_at": "2026-04-22T00:00:00+03:00",
+  "daily_strategies_enabled": true,
+  "catalog_file": "playbook_catalog_v2.json",
+  "portfolio_policy": "Evaluate the full catalog for perspective breadth; only specialized active playbooks can create executable candidates.",
+  "paper_sizing_policy": {
+    "schema": "ecosystem.trader_sizing_policy.v1",
+    "base_notional_usd": 500.0,
+    "min_notional_usd": 100.0,
+    "max_notional_usd": 1800.0,
+    "score_floor": 5.5,
+    "confidence_multipliers": {"Low": 0.50, "Medium": 1.00, "High": 1.40},
+    "risk_multipliers": {"Low": 1.20, "Medium": 0.90, "High": 0.0},
+    "direction_multipliers": {"long": 1.00, "short": 0.75, "flat": 0.0},
+    "stop_atr_multiple": 1.10,
+    "min_stop_pct": 0.015,
+    "max_stop_pct": 0.075,
+    "reward_to_risk": 1.75,
+    "min_take_profit_pct": 0.025,
+    "max_take_profit_pct": 0.12,
+    "holding_period_rule": "same_day_flat",
+    "same_day_flatten_cutoff_eastern": "15:55"
+  },
+  "playbook_portfolio": [
+    {"playbook_id": "support_bounce_swing", "status": "active", "weight": 1.30, "role": "tactical_reversal_core"},
+    {"playbook_id": "controlled_breakout_swing", "status": "active", "weight": 1.25, "role": "breakout_retest_core"},
+    {"playbook_id": "early_accumulation_swing", "status": "research", "weight": 0.70, "role": "alternative_patient_view"},
+    {"playbook_id": "pre_run_breakout_confirmation", "status": "shadow", "weight": 0.90, "role": "compression_confirmation"},
+    {"playbook_id": "failed_breakout_reversal", "status": "shadow", "weight": 1.20, "role": "short_reversal_specialty"},
+    {"playbook_id": "failed_breakdown_reclaim", "status": "shadow", "weight": 1.10, "role": "long_reclaim_specialty"},
+    {"playbook_id": "vwap_reclaim_rejection", "status": "shadow", "weight": 1.15, "role": "intraday_confirmation"},
+    {"playbook_id": "pullback_to_vwap_continuation", "status": "shadow", "weight": 1.00, "role": "continuation_timing"},
+    {"playbook_id": "opening_range_momentum", "status": "shadow", "weight": 1.15, "role": "opening_tactical"},
+    {"playbook_id": "gap_and_go_momentum", "status": "shadow", "weight": 1.20, "role": "gap_momentum_specialty"},
+    {"playbook_id": "gap_fade_reversal", "status": "shadow", "weight": 1.20, "role": "gap_reversal_specialty"},
+    {"playbook_id": "mean_reversion_overextension", "status": "shadow", "weight": 1.20, "role": "extension_fade_specialty"},
+    {"playbook_id": "catalyst_momentum", "status": "research", "weight": 0.85, "role": "event_overlay"},
+    {"playbook_id": "post_earnings_drift", "status": "research", "weight": 0.70, "role": "medium_horizon_overlay"},
+    {"playbook_id": "sector_relative_strength_weakness", "status": "research", "weight": 0.75, "role": "sector_overlay"},
+    {"playbook_id": "fundamental_revision_trend", "status": "research", "weight": 0.70, "role": "fundamental_overlay"},
+    {"playbook_id": "defensive_no_trade", "status": "shadow", "weight": 1.30, "role": "abstention_guard"}
+  ],
+  "playbooks": [
+    {
+      "name": "support_bounce_swing",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/support_bounce_swing.md",
+      "description": "Look for clean common-stock setups bouncing near support with manageable volatility, fresh primary data, and defined invalidation.",
+      "approved_sources": [
+        "https://www.schwab.com/learn/story/ins-and-outs-swing-trade",
+        "https://www.schwab.com/learn/story/identifying-trend-reversals-with-rsi",
+        "https://www.schwab.com/learn/story/trading-stocks-with-macd",
+        "https://international.schwab.com/story/average-true-range-indicator-and-volatility",
+        "https://www.interactivebrokers.com/campus/trading-course/cme-building-a-trade-plan/",
+        "https://www.sec.gov/about/reports-publications/investor-publications/day-trading-your-dollars-at-risk",
+        "https://www.cftc.gov/PressRoom/PressReleases/8854-24"
+      ],
+      "rules": {
+        "preferred_instrument_type": "common",
+        "max_risk_level": "Medium",
+        "require_fresh_primary_data": true,
+        "preferred_technical_timing": [
+          "near_lows_reversal",
+          "pullback_watch",
+          "neutral"
+        ],
+        "preferred_rsi_range": [28, 55],
+        "ideal_price_position_60d_pct_max": 40,
+        "ideal_distance_from_20d_low_pct_max": 12,
+        "max_atr_14_pct": 8,
+        "min_volume_ratio_soft": 0.8,
+        "min_volume_ratio_hard": 0.35,
+        "macd_histogram_floor": -0.15,
+        "forbidden_flags": [
+          "warrant_structure",
+          "unit_structure",
+          "rights_structure",
+          "fund_or_trust_structure",
+          "sub_1usd_price_instability_risk"
+        ]
+      }
+    },
+    {
+      "name": "controlled_breakout_swing",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/controlled_breakout_swing.md",
+      "description": "Look for controlled early breakouts with confirmation, but reject names that already look too stretched.",
+      "approved_sources": [
+        "https://www.schwab.com/learn/story/ins-and-outs-swing-trade",
+        "https://www.interactivebrokers.com/campus/trading-lessons/support-and-resistance/",
+        "https://www.schwab.com/learn/story/trading-stocks-with-macd",
+        "https://international.schwab.com/story/average-true-range-indicator-and-volatility",
+        "https://www.interactivebrokers.com/campus/trading-course/cme-building-a-trade-plan/",
+        "https://www.sec.gov/about/reports-publications/investor-publications/day-trading-your-dollars-at-risk"
+      ],
+      "rules": {
+        "preferred_instrument_type": "common",
+        "max_risk_level": "Medium",
+        "require_fresh_primary_data": true,
+        "preferred_technical_timing": [
+          "pre_run_watch",
+          "pullback_watch",
+          "early_accumulation",
+          "neutral"
+        ],
+        "preferred_rsi_min": 46,
+        "preferred_rsi_max": 68,
+        "preferred_price_position_20d_min": 54,
+        "preferred_price_position_20d_max": 92,
+        "preferred_price_position_60d_min": 32,
+        "preferred_price_position_60d_max": 82,
+        "early_zone_buffer_20d": 8,
+        "early_zone_buffer_60d": 6,
+        "hard_chase_price_position_20d_pct": 97,
+        "max_return_20d_pct": 18,
+        "hard_chase_return_20d_pct": 28,
+        "max_atr_14_pct": 8.5,
+        "min_volume_ratio_soft": 0.95,
+        "min_volume_ratio_strong": 1.2,
+        "macd_histogram_floor": -0.05,
+        "forbidden_flags": [
+          "warrant_structure",
+          "unit_structure",
+          "rights_structure",
+          "fund_or_trust_structure",
+          "sub_1usd_price_instability_risk"
+        ]
+      }
+    }
+  ],
+  "training_playbooks": [
+    {
+      "name": "vwap_reclaim_rejection",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/vwap_reclaim_rejection.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Improves entry timing for aggressive swing setups by forcing price to reclaim or reject VWAP before execution."
+    },
+    {
+      "name": "opening_range_breakout_breakdown",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/opening_range_breakout_breakdown.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Helps separate immediate tradable momentum from premature pre-market or early-session guesses."
+    },
+    {
+      "name": "pullback_to_vwap_continuation",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/pullback_to_vwap_continuation.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Adds patience after a strong move so he can avoid chasing and enter on controlled continuation."
+    },
+    {
+      "name": "breakout_retest_failed_breakout",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/breakout_retest_failed_breakout.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Builds a cleaner distinction between real breakout entries and failed-breakout fade or avoid signals."
+    },
+    {
+      "name": "mean_reversion_fade_overextended",
+      "style": "short_side_risk_management",
+      "library_doc": "strategy_library/mean_reversion_fade_overextended.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Improves short discipline by requiring confirmed exhaustion instead of shorting strength too early."
+    },
+    {
+      "name": "gap_go_gap_fade_decision_tree",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/gap_go_gap_fade_decision_tree.md",
+      "status": "training_only",
+      "why_yankos_should_learn_it": "Teaches him to classify gap behavior before choosing continuation, fade, or no trade."
+    }
+  ]
+}

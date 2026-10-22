@@ -1,0 +1,55 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+*.local
+*.local.*
+*_local.*
+
+# Python runtime
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+.architecture-venv/
+.security-venv/
+.venv-next/
+.venv-next.*/
+venv/
+env/
+
+# Local data, databases, and model/runtime state
+data/
+disabled_startup/
+models/*.pkl
+models/*.pickle
+models/*.joblib
+models/*.json
+
+# Generated pipeline artifacts
+output/
+logs/
+cache/
+
+# Local editor / OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+
+# Test/cache artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+.coverage
+
+# research environment for backtests (vectorbt, quantstats); see requirements-research-py312.txt
+.venv-research/

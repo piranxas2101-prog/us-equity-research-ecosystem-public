@@ -1,0 +1,46 @@
+{
+  "cik": 320193,
+  "entityName": "Frozen Example Issuer",
+  "facts": {
+    "us-gaap": {
+      "CashAndCashEquivalentsAtCarryingValue": {
+        "units": {
+          "USD": [
+            {"val": 100, "end": "2025-03-31", "filed": "2025-05-01", "form": "10-Q", "fy": 2025, "fp": "Q1", "accn": "0001"},
+            {"val": 150, "end": "2025-06-30", "filed": "2025-08-01", "form": "10-Q", "fy": 2025, "fp": "Q2", "accn": "0002"},
+            {"val": 999, "end": "2025-09-30", "filed": "2025-11-01", "form": "10-Q", "fy": 2025, "fp": "Q3", "accn": "0003"}
+          ]
+        }
+      },
+      "RevenueFromContractWithCustomerExcludingAssessedTax": {
+        "units": {
+          "USD": [
+            {"val": 400, "start": "2025-01-01", "end": "2025-03-31", "filed": "2025-05-01", "form": "10-Q", "fy": 2025, "fp": "Q1", "accn": "0001"},
+            {"val": 450, "start": "2025-04-01", "end": "2025-06-30", "filed": "2025-08-01", "form": "10-Q", "fy": 2025, "fp": "Q2", "accn": "0002"}
+          ]
+        }
+      },
+      "NetIncomeLoss": {
+        "units": {
+          "USD": [
+            {"val": 40, "start": "2025-04-01", "end": "2025-06-30", "filed": "2025-08-01", "form": "10-Q", "fy": 2025, "fp": "Q2", "accn": "0002"}
+          ]
+        }
+      },
+      "GrossProfit": {
+        "units": {
+          "USD": [
+            {"val": 180, "start": "2025-04-01", "end": "2025-06-30", "filed": "2025-08-01", "form": "10-Q", "fy": 2025, "fp": "Q2", "accn": "0002"}
+          ]
+        }
+      },
+      "NetCashProvidedByUsedInOperatingActivities": {
+        "units": {
+          "USD": [
+            {"val": 80, "start": "2025-01-01", "end": "2025-06-30", "filed": "2025-08-01", "form": "10-Q", "fy": 2025, "fp": "Q2", "accn": "0002"}
+          ]
+        }
+      }
+    }
+  }
+}

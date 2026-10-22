@@ -1,0 +1,257 @@
+{
+  "schema": "ecosystem.trader_playbook_exam.v1",
+  "version": "1.0.0",
+  "purpose": "Deterministic application exam for trader playbook assimilation. It never authorizes broker execution.",
+  "pass_threshold": 85.0,
+  "remediation_threshold": 75.0,
+  "required_domain_floors": {
+    "authority_status": 100.0,
+    "data_freshness": 90.0,
+    "short_gates": 90.0,
+    "entry_confirmation": 85.0,
+    "invalidators": 85.0,
+    "exit_horizon": 85.0,
+    "routing_side": 80.0,
+    "counterview": 80.0
+  },
+  "weights": {
+    "routing_side": 15,
+    "counterview": 10,
+    "data_freshness": 15,
+    "entry_confirmation": 12,
+    "invalidators": 10,
+    "exit_horizon": 10,
+    "short_gates": 10,
+    "no_trade_discipline": 8,
+    "authority_status": 8,
+    "fact_traceability": 2
+  },
+  "cases": [
+    {
+      "case_id": "support_waits_for_reclaim",
+      "title": "Support context without completed reclaim",
+      "candidate_playbooks": ["support_bounce_swing", "failed_breakdown_reclaim", "defensive_no_trade"],
+      "expected_playbooks": ["support_bounce_swing", "failed_breakdown_reclaim"],
+      "expected_sides": ["long"],
+      "expected_action": "watch",
+      "row": {
+        "ticker": "EXAM-A", "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": true,
+        "rsi_14": 33, "price_position_20d_pct": 18, "price_position_60d_pct": 24,
+        "return_20d_pct": -4, "atr_14_pct": 4.1, "macd_histogram": 0.04,
+        "volume_ratio_20": 1.05, "technical_timing": "near_lows_reversal",
+        "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "support_reclaim_confirmed",
+      "title": "Support reclaim with full confirmation",
+      "forced_playbook_id": "support_bounce_swing",
+      "expected_playbooks": ["support_bounce_swing"],
+      "expected_sides": ["long"],
+      "expected_action": "status_aware",
+      "active_specialization_case": true,
+      "row": {
+        "ticker": "EXAM-B", "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": true,
+        "rsi_14": 35, "price_position_20d_pct": 22, "price_position_60d_pct": 27,
+        "return_20d_pct": -2, "atr_14_pct": 3.8, "macd_histogram": 0.12,
+        "volume_ratio_20": 1.35, "technical_timing": "near_lows_reversal",
+        "confirmed_entry_conditions": ["current-session bullish rejection", "completed 15m reclaim of support or prior-bar high", "volume participation"]
+      }
+    },
+    {
+      "case_id": "breakout_chase_guard",
+      "title": "Overextended breakout must not be chased",
+      "forced_playbook_id": "defensive_no_trade",
+      "expected_playbooks": ["defensive_no_trade"],
+      "expected_sides": ["flat"],
+      "expected_action": "no_trade",
+      "must_abstain": true,
+      "row": {
+        "ticker": "EXAM-C", "instrument_type": "common", "risk_level": "High", "fresh_primary_data": true,
+        "rsi_14": 74, "price_position_20d_pct": 98, "price_position_60d_pct": 95,
+        "return_20d_pct": 31, "atr_14_pct": 8.8, "macd_histogram": 0.5,
+        "volume_ratio_20": 2.1, "technical_timing": "already_extended",
+        "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "compression_breakdown_short",
+      "title": "Confirmed compression breakdown with complete global SHORT gates",
+      "forced_playbook_id": "pre_run_breakout_confirmation",
+      "expected_playbooks": ["pre_run_breakout_confirmation"],
+      "expected_sides": ["short"],
+      "expected_action": "status_aware",
+      "active_specialization_case": true,
+      "row": {
+        "ticker": "EXAM-D", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": true,
+        "rsi_14": 42, "price_position_20d_pct": 30, "price_position_60d_pct": 38,
+        "return_20d_pct": -8, "atr_14_pct": 3.4, "macd_histogram": -0.28,
+        "bb_width_20_pct": 5.2, "volume_ratio_20": 1.45, "technical_timing": "pre_run_watch",
+        "shortable": true, "borrow_available": true, "borrow_fee_pct": 1.2, "squeeze_risk": "low",
+        "confirmed_entry_conditions": ["completed range break", "volume expansion", "current-session direction agrees"]
+      }
+    },
+    {
+      "case_id": "failed_breakout_not_shortable",
+      "title": "Failed breakout with shortability explicitly false",
+      "forced_playbook_id": "failed_breakout_reversal",
+      "expected_playbooks": ["failed_breakout_reversal"],
+      "expected_sides": ["short"],
+      "expected_action": "no_trade",
+      "must_abstain": true,
+      "row": {
+        "ticker": "EXAM-E", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": true,
+        "rsi_14": 73, "price_position_20d_pct": 94, "return_20d_pct": 17,
+        "atr_14_pct": 5.3, "macd_histogram": -0.18, "technical_timing": "already_extended",
+        "current_session_15m_bars": [{"close": 49.2}], "vwap": 50.1, "shortable": false,
+        "borrow_fee_pct": 2.0, "squeeze_risk": "medium",
+        "confirmed_entry_conditions": ["completed 15m close back below failed level", "VWAP rejection", "bearish candle confirmation"]
+      }
+    },
+    {
+      "case_id": "vwap_short_shadow_only",
+      "title": "Confirmed VWAP rejection remains non-executable shadow knowledge",
+      "forced_playbook_id": "vwap_reclaim_rejection",
+      "expected_playbooks": ["vwap_reclaim_rejection"],
+      "expected_sides": ["short"],
+      "expected_action": "perspective_only",
+      "row": {
+        "ticker": "EXAM-F", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": true,
+        "rsi_14": 48, "price_position_20d_pct": 45, "return_20d_pct": -6,
+        "atr_14_pct": 4.7, "macd_histogram": -0.22, "technical_timing": "neutral",
+        "current_session_15m_bars": [{"close": 28.4}, {"close": 28.1}], "vwap": 28.9,
+        "volume_ratio_20": 1.5, "shortable": true, "borrow_available": true,
+        "borrow_fee_pct": 0.9, "squeeze_risk": "low",
+        "confirmed_entry_conditions": ["two completed current-session bars", "VWAP reclaim/rejection", "directional candle and volume"]
+      }
+    },
+    {
+      "case_id": "opening_range_half_defined",
+      "title": "Opening range is incomplete when one boundary is missing",
+      "forced_playbook_id": "opening_range_momentum",
+      "expected_playbooks": ["opening_range_momentum"],
+      "expected_sides": ["long", "short"],
+      "expected_action": "needs_data",
+      "required_missing": ["opening_range"],
+      "row": {
+        "ticker": "EXAM-G", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": true,
+        "rsi_14": 55, "return_20d_pct": 6, "atr_14_pct": 4.2, "macd_histogram": 0.15,
+        "current_session_15m_bars": [{"close": 18.7}], "opening_range_high": 19.0,
+        "volume_ratio_20": 1.4, "technical_timing": "neutral", "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "unverified_gap_wait",
+      "title": "Unverified gap before opening structure resolves",
+      "forced_playbook_id": "gap_and_go_momentum",
+      "expected_playbooks": ["gap_and_go_momentum"],
+      "expected_sides": ["long", "short"],
+      "expected_action": "watch",
+      "row": {
+        "ticker": "EXAM-H", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": false,
+        "rsi_14": 60, "return_20d_pct": 4, "atr_14_pct": 7.0, "macd_histogram": 0.1,
+        "gap_pct": 11, "current_session_15m_bars": [{"close": 31.0}], "volume_ratio_20": 2.0,
+        "catalyst_category_id": "rumor_unverified", "technical_timing": "pre_run_watch",
+        "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "post_earnings_drift_long",
+      "title": "Fresh positive earnings revision and post-print hold",
+      "forced_playbook_id": "post_earnings_drift",
+      "expected_playbooks": ["post_earnings_drift"],
+      "expected_sides": ["long"],
+      "expected_action": "perspective_only",
+      "row": {
+        "ticker": "EXAM-I", "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": true,
+        "rsi_14": 59, "price_position_20d_pct": 72, "return_20d_pct": 8,
+        "atr_14_pct": 4.0, "macd_histogram": 0.31, "volume_ratio_20": 1.8,
+        "earnings_event": {"period": "Q2"}, "fundamental_revision": 0.18,
+        "catalyst_category_id": "earnings_results", "long_catalyst_score": 8,
+        "technical_timing": "pullback_watch",
+        "confirmed_entry_conditions": ["reported KPI direction is clear", "guidance/estimate path agrees", "post-print price holds direction"]
+      }
+    },
+    {
+      "case_id": "stale_fundamental_revision",
+      "title": "Historical growth is not a fresh fundamental revision",
+      "forced_playbook_id": "fundamental_revision_trend",
+      "expected_playbooks": ["fundamental_revision_trend"],
+      "expected_sides": ["long", "short"],
+      "expected_action": "needs_data",
+      "required_missing": ["fundamental_revision", "fresh_primary_data"],
+      "row": {
+        "ticker": "EXAM-J", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": false,
+        "rsi_14": 57, "return_20d_pct": 5, "atr_14_pct": 3.9, "macd_histogram": 0.2,
+        "revenue_growth": 0.24, "earnings_growth": 0.30, "catalyst_category_id": "old_filing",
+        "technical_timing": "neutral", "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "sector_short_with_bull_conflict",
+      "title": "Sector-relative weakness conflicts with a positive catalyst",
+      "forced_playbook_id": "sector_relative_strength_weakness",
+      "expected_playbooks": ["sector_relative_strength_weakness"],
+      "expected_sides": ["short"],
+      "expected_action": "perspective_only",
+      "require_opposite_counterview": true,
+      "row": {
+        "ticker": "EXAM-K", "instrument_type": "common", "risk_level": "Medium", "fresh_primary_data": true,
+        "sector_id": "technology", "sector_relative_strength": -2.4, "return_20d_pct": -5,
+        "rsi_14": 44, "atr_14_pct": 4.4, "macd_histogram": -0.12,
+        "catalyst_category_id": "contract_win", "long_catalyst_score": 9,
+        "shortable": true, "borrow_available": true, "borrow_fee_pct": 1.1, "squeeze_risk": "medium",
+        "technical_timing": "neutral",
+        "confirmed_entry_conditions": ["relative trend persists", "absolute price structure agrees", "sector regime is identified"]
+      }
+    },
+    {
+      "case_id": "non_common_instrument_guard",
+      "title": "High-risk warrant stays flat despite momentum",
+      "forced_playbook_id": "defensive_no_trade",
+      "expected_playbooks": ["defensive_no_trade"],
+      "expected_sides": ["flat"],
+      "expected_action": "no_trade",
+      "must_abstain": true,
+      "row": {
+        "ticker": "EXAM-LW", "instrument_type": "warrant", "risk_level": "High", "fresh_primary_data": true,
+        "rsi_14": 67, "return_20d_pct": 25, "atr_14_pct": 12, "macd_histogram": 0.7,
+        "volume_ratio_20": 2.8, "technical_timing": "pre_run_watch",
+        "dilution_flags": ["warrant_structure"], "confirmed_entry_conditions": []
+      }
+    },
+    {
+      "case_id": "lifecycle_invalidator_exit",
+      "title": "Existing thesis hits its frozen structural invalidator",
+      "forced_playbook_id": "support_bounce_swing",
+      "expected_playbooks": ["support_bounce_swing"],
+      "expected_sides": ["long"],
+      "expected_action": "manage_existing_exit",
+      "lifecycle_case": true,
+      "row": {
+        "ticker": "EXAM-M", "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": true,
+        "rsi_14": 31, "price_position_20d_pct": 12, "atr_14_pct": 5.0, "macd_histogram": -0.3,
+        "technical_timing": "near_lows_reversal", "position_open": true,
+        "frozen_playbook_id": "support_bounce_swing", "frozen_side": "long",
+        "triggered_invalidators": ["completed bar closes below support"],
+        "confirmed_entry_conditions": ["current-session bullish rejection", "completed 15m reclaim of support or prior-bar high", "volume participation"]
+      }
+    },
+    {
+      "case_id": "lifecycle_time_stop_exit",
+      "title": "Existing swing reaches its frozen time stop",
+      "forced_playbook_id": "controlled_breakout_swing",
+      "expected_playbooks": ["controlled_breakout_swing"],
+      "expected_sides": ["long"],
+      "expected_action": "manage_existing_exit",
+      "lifecycle_case": true,
+      "row": {
+        "ticker": "EXAM-N", "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": true,
+        "rsi_14": 54, "price_position_20d_pct": 65, "atr_14_pct": 3.5, "macd_histogram": 0.05,
+        "volume_ratio_20": 0.9, "technical_timing": "neutral", "position_open": true,
+        "frozen_playbook_id": "controlled_breakout_swing", "frozen_side": "long", "time_stop_reached": true,
+        "confirmed_entry_conditions": ["completed breakout", "retest holds resistance as support", "relative volume expands"]
+      }
+    }
+  ]
+}

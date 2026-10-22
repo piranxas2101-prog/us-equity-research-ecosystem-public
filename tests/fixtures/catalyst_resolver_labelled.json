@@ -1,0 +1,37 @@
+[
+  {
+    "fixture_id": "earnings_positive",
+    "text": "The company reported quarterly results and record revenue, beating its prior guidance.",
+    "expected_category": "earnings_guidance",
+    "expected_direction": "positive",
+    "source_url": "https://www.sec.gov/example/earnings"
+  },
+  {
+    "fixture_id": "dilution_negative",
+    "text": "The issuer entered a registered direct offering that includes warrant exercise rights.",
+    "expected_category": "dilution_capital_structure",
+    "expected_direction": "negative",
+    "source_url": "https://www.sec.gov/example/offering"
+  },
+  {
+    "fixture_id": "listing_negative",
+    "text": "Nasdaq delivered a listing deficiency notice after failure to meet the minimum bid requirement.",
+    "expected_category": "listing_compliance",
+    "expected_direction": "negative",
+    "source_url": "https://www.sec.gov/example/listing"
+  },
+  {
+    "fixture_id": "clinical_positive",
+    "text": "The Phase 3 clinical trial met primary endpoint and the company reported positive topline data.",
+    "expected_category": "clinical_healthcare",
+    "expected_direction": "positive",
+    "source_url": "https://www.sec.gov/example/clinical"
+  },
+  {
+    "fixture_id": "unresolved_generic",
+    "text": "The company furnished an exhibit with its foreign issuer report.",
+    "expected_category": "unknown",
+    "expected_direction": "unknown",
+    "source_url": "https://www.sec.gov/example/generic"
+  }
+]

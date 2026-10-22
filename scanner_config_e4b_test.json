@@ -1,0 +1,147 @@
+﻿{
+    "universe":  {
+                     "mode":  "sec_us_list",
+                     "include_exchanges":  [
+                                               "Nasdaq",
+                                               "NYSE",
+                                               "NYSE American"
+                                           ],
+                     "max_symbols":  300,
+                     "cache_file":  "cache/sec_company_tickers_exchange.json",
+                     "cache_max_age_hours":  24
+                 },
+    "scan":  {
+                 "lookback_days":  420,
+                 "min_history_days":  220,
+                 "top_n":  20,
+                 "max_price":  8.0,
+                 "min_composite_score":  70.0
+             },
+    "data_sources":  {
+                         "sec":  {
+                                     "enabled":  true,
+                                     "include_forms":  [
+                                                           "10-K",
+                                                           "10-Q",
+                                                           "8-K",
+                                                           "20-F",
+                                                           "6-K"
+                                                       ],
+                                     "max_recent_filings":  10,
+                                     "ticker_cik_cache_file":  "cache/sec_company_tickers.json",
+                                     "cache_max_age_hours":  24
+                                 },
+                         "market_data":  {
+                                             "provider_priority":  [
+                                                                       "alpaca",
+                                                                       "polygon",
+                                                                       "yfinance"
+                                                                   ],
+                                             "alpaca_feed":  "iex",
+                                             "adjustment":  "raw",
+                                             "bars_limit":  10000
+                                         },
+                         "macro":  {
+                                       "fred":  {
+                                                    "enabled":  true,
+                                                    "series_ids":  [
+                                                                       "FEDFUNDS",
+                                                                       "DGS10",
+                                                                       "CPIAUCSL"
+                                                                   ]
+                                                }
+                                   }
+                     },
+    "weights":  {
+                    "moving_average":  0.35,
+                    "fundamental":  0.65
+                },
+    "moving_average_rules":  [
+                                 {
+                                     "metric":  "close_above_sma_50",
+                                     "operator":  "\u003e=",
+                                     "value":  1,
+                                     "weight":  1.5
+                                 },
+                                 {
+                                     "metric":  "close_above_sma_200",
+                                     "operator":  "\u003e=",
+                                     "value":  1,
+                                     "weight":  2.0
+                                 },
+                                 {
+                                     "metric":  "sma_50_above_sma_200",
+                                     "operator":  "\u003e=",
+                                     "value":  1,
+                                     "weight":  2.0
+                                 },
+                                 {
+                                     "metric":  "close_to_sma_200_pct",
+                                     "operator":  "\u003e=",
+                                     "value":  -12,
+                                     "weight":  1.0
+                                 }
+                             ],
+    "fundamental_rules":  [
+                              {
+                                  "metric":  "roe",
+                                  "operator":  "\u003e=",
+                                  "value":  0.12,
+                                  "weight":  2.0
+                              },
+                              {
+                                  "metric":  "profit_margin",
+                                  "operator":  "\u003e=",
+                                  "value":  0.10,
+                                  "weight":  1.5
+                              },
+                              {
+                                  "metric":  "gross_margin",
+                                  "operator":  "\u003e=",
+                                  "value":  0.30,
+                                  "weight":  1.0
+                              },
+                              {
+                                  "metric":  "revenue_growth",
+                                  "operator":  "\u003e=",
+                                  "value":  0.05,
+                                  "weight":  1.5
+                              },
+                              {
+                                  "metric":  "earnings_growth",
+                                  "operator":  "\u003e=",
+                                  "value":  0.05,
+                                  "weight":  1.5
+                              },
+                              {
+                                  "metric":  "debt_to_equity",
+                                  "operator":  "\u003c=",
+                                  "value":  150,
+                                  "weight":  1.0
+                              },
+                              {
+                                  "metric":  "current_ratio",
+                                  "operator":  "\u003e=",
+                                  "value":  1.0,
+                                  "weight":  1.0
+                              },
+                              {
+                                  "metric":  "forward_pe",
+                                  "operator":  "\u003c=",
+                                  "value":  35,
+                                  "weight":  1.0
+                              }
+                          ],
+    "ollama":  {
+                   "enabled":  true,
+                   "host":  "http://127.0.0.1:11434",
+                   "model":  "gemma4:e4b",
+                   "temperature":  0.2,
+                   "num_predict":  180,
+                   "timeout_seconds":  420,
+                   "agent_prompt_file":  "agent_prompt.txt"
+               },
+    "output":  {
+                   "dir":  "output"
+               }
+}

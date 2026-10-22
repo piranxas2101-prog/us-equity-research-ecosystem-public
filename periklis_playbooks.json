@@ -1,0 +1,151 @@
+{
+  "agent_name": "periklis",
+  "version": 2,
+  "daily_strategies_enabled": true,
+  "catalog_file": "playbook_catalog_v2.json",
+  "portfolio_policy": "Evaluate the full catalog for perspective breadth; specialize in patient accumulation, compression, continuation and relative evidence.",
+  "paper_sizing_policy": {
+    "schema": "ecosystem.trader_sizing_policy.v1",
+    "base_notional_usd": 400.0,
+    "min_notional_usd": 100.0,
+    "max_notional_usd": 1500.0,
+    "score_floor": 5.5,
+    "confidence_multipliers": {"Low": 0.45, "Medium": 0.90, "High": 1.25},
+    "risk_multipliers": {"Low": 1.10, "Medium": 0.85, "High": 0.0},
+    "direction_multipliers": {"long": 1.00, "short": 0.70, "flat": 0.0},
+    "stop_atr_multiple": 0.95,
+    "min_stop_pct": 0.0125,
+    "max_stop_pct": 0.06,
+    "reward_to_risk": 1.60,
+    "min_take_profit_pct": 0.02,
+    "max_take_profit_pct": 0.10,
+    "holding_period_rule": "same_day_flat",
+    "same_day_flatten_cutoff_eastern": "15:55"
+  },
+  "playbook_portfolio": [
+    {"playbook_id": "support_bounce_swing", "status": "research", "weight": 0.75, "role": "alternative_tactical_view"},
+    {"playbook_id": "controlled_breakout_swing", "status": "research", "weight": 0.80, "role": "alternative_breakout_view"},
+    {"playbook_id": "early_accumulation_swing", "status": "active", "weight": 1.30, "role": "accumulation_core"},
+    {"playbook_id": "pre_run_breakout_confirmation", "status": "active", "weight": 1.30, "role": "compression_core"},
+    {"playbook_id": "failed_breakout_reversal", "status": "research", "weight": 0.70, "role": "short_failure_overlay"},
+    {"playbook_id": "failed_breakdown_reclaim", "status": "shadow", "weight": 1.10, "role": "patient_reclaim_specialty"},
+    {"playbook_id": "vwap_reclaim_rejection", "status": "shadow", "weight": 0.95, "role": "confirmation_filter"},
+    {"playbook_id": "pullback_to_vwap_continuation", "status": "shadow", "weight": 1.20, "role": "continuation_specialty"},
+    {"playbook_id": "opening_range_momentum", "status": "research", "weight": 0.65, "role": "opening_context"},
+    {"playbook_id": "gap_and_go_momentum", "status": "research", "weight": 0.65, "role": "gap_context"},
+    {"playbook_id": "gap_fade_reversal", "status": "research", "weight": 0.70, "role": "gap_context"},
+    {"playbook_id": "mean_reversion_overextension", "status": "shadow", "weight": 0.90, "role": "risk_counterview"},
+    {"playbook_id": "catalyst_momentum", "status": "shadow", "weight": 1.00, "role": "event_confirmation"},
+    {"playbook_id": "post_earnings_drift", "status": "shadow", "weight": 1.15, "role": "post_print_specialty"},
+    {"playbook_id": "sector_relative_strength_weakness", "status": "shadow", "weight": 1.20, "role": "sector_relative_specialty"},
+    {"playbook_id": "fundamental_revision_trend", "status": "shadow", "weight": 1.15, "role": "fundamental_revision_specialty"},
+    {"playbook_id": "defensive_no_trade", "status": "shadow", "weight": 1.35, "role": "abstention_guard"}
+  ],
+  "playbooks": [
+    {
+      "name": "early_accumulation_swing",
+      "style": "swing_trade",
+      "description": "Find clean early accumulation setups before the obvious run starts.",
+      "approved_sources": [
+        "https://www.schwab.com/learn/story/ins-and-outs-swing-trade",
+        "https://www.schwab.com/learn/story/identifying-trend-reversals-with-rsi",
+        "https://www.schwab.com/learn/story/trading-stocks-with-macd",
+        "https://international.schwab.com/story/average-true-range-indicator-and-volatility",
+        "https://www.interactivebrokers.com/campus/trading-course/cme-building-a-trade-plan/"
+      ],
+      "rules": {
+        "preferred_rsi_min": 40,
+        "preferred_rsi_max": 64,
+        "soft_price_position_60d_max": 76,
+        "soft_price_position_20d_max": 85,
+        "soft_distance_from_20d_low_max": 15,
+        "min_volume_ratio_soft": 0.95,
+        "min_volume_ratio_strong": 1.2,
+        "macd_histogram_floor": -0.05,
+        "max_atr_14_pct": 8.0,
+        "forbidden_flags": [
+          "sub_1usd_price_instability_risk",
+          "warrant_structure",
+          "unit_structure",
+          "rights_structure"
+        ]
+      }
+    },
+    {
+      "name": "pre_run_breakout_confirmation",
+      "style": "swing_trade",
+      "description": "Confirm pre-run names that are tightening and getting ready for a controlled breakout.",
+      "approved_sources": [
+        "https://www.schwab.com/learn/story/ins-and-outs-swing-trade",
+        "https://www.schwab.com/learn/story/trading-stocks-with-macd",
+        "https://international.schwab.com/story/average-true-range-indicator-and-volatility",
+        "https://www.interactivebrokers.com/campus/trading-course/cme-building-a-trade-plan/"
+      ],
+      "rules": {
+        "preferred_rsi_min": 46,
+        "preferred_rsi_max": 68,
+        "preferred_price_position_20d_min": 58,
+        "preferred_price_position_20d_max": 92,
+        "preferred_price_position_60d_min": 34,
+        "preferred_price_position_60d_max": 85,
+        "early_zone_buffer_20d": 8,
+        "early_zone_buffer_60d": 6,
+        "min_volume_ratio_soft": 0.95,
+        "min_volume_ratio_strong": 1.2,
+        "macd_histogram_floor": -0.04,
+        "max_atr_14_pct": 8.5,
+        "max_return_20d_pct": 20,
+        "forbidden_flags": [
+          "sub_1usd_price_instability_risk",
+          "warrant_structure",
+          "unit_structure",
+          "rights_structure"
+        ]
+      }
+    }
+  ],
+  "training_playbooks": [
+    {
+      "name": "vwap_reclaim_rejection",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/vwap_reclaim_rejection.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Matches his confirmation-first personality by requiring VWAP proof before an early setup becomes executable."
+    },
+    {
+      "name": "opening_range_breakout_breakdown",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/opening_range_breakout_breakdown.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Gives him a structured way to wait for the market to reveal direction after the open."
+    },
+    {
+      "name": "pullback_to_vwap_continuation",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/pullback_to_vwap_continuation.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Fits selective entries by waiting for controlled pullbacks instead of buying or shorting first impulse."
+    },
+    {
+      "name": "breakout_retest_failed_breakout",
+      "style": "swing_trade",
+      "library_doc": "strategy_library/breakout_retest_failed_breakout.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Helps him decide whether a breakout has true confirmation or should remain watch-only."
+    },
+    {
+      "name": "mean_reversion_fade_overextended",
+      "style": "short_side_risk_management",
+      "library_doc": "strategy_library/mean_reversion_fade_overextended.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Teaches cautious short entries only after exhaustion is confirmed, reducing early short timing errors."
+    },
+    {
+      "name": "gap_go_gap_fade_decision_tree",
+      "style": "intraday_execution_filter",
+      "library_doc": "strategy_library/gap_go_gap_fade_decision_tree.md",
+      "status": "training_only",
+      "why_periklis_should_learn_it": "Adds a patient gap classification process before he allows a trade."
+    }
+  ]
+}

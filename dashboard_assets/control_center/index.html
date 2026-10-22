@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="control-token" content="__SESSION_TOKEN__">
+  <title>Κέντρο Ελέγχου</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside class="nav">
+    <div class="brand">Κέντρο Ελέγχου<small>έρευνα μετοχών ΗΠΑ</small></div>
+    <a href="#/" data-page="status">Κατάσταση</a>
+    <a href="#/screener" data-page="screener">Σύμβολα</a>
+    <a href="#/sectors" data-page="sectors">Τομείς</a>
+    <a href="#/agents" data-page="agents">Agents</a>
+    <a href="#/reports" data-page="reports">Αναφορές</a>
+    <a href="#/review" data-page="review">Έλεγχος κατηγοριοποίησης <span id="review-badge" class="badge hidden"></span></a>
+    <div class="nav-foot">Μόνο τοπικά · μόνο έρευνα<br>Καμία σύνδεση με broker</div>
+  </aside>
+  <main id="app"><p class="muted">Φόρτωση…</p></main>
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

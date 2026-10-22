@@ -1,0 +1,12 @@
+{
+  "schema": "ecosystem.filing_llm_extraction_config.v2",
+  "ollama_host": "http://127.0.0.1:11434",
+  "model": "qwen2.5:3b",
+  "num_ctx": 4096,
+  "num_predict": 120,
+  "num_thread": 10,
+  "timeout_seconds": 900,
+  "section_scan_chars": 40000,
+  "business_lead_sentences": 6,
+  "sentences_per_field": 4
+}

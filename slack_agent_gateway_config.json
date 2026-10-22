@@ -1,0 +1,22 @@
+{
+  "schema": "ecosystem.slack_agent_gateway.v1",
+  "workspace_id": "T0B7GJ288S2",
+  "workspace_name": "χουλιγκανς",
+  "workspace_domain": "w1780343606-m0e990387.slack.com",
+  "channels": {
+    "C0BTHQ8L6VD": "research",
+    "C0BTSTTPEAF": "traders",
+    "C0BU1306JCR": "strategy",
+    "C0BTV10NEA1": "risk",
+    "C0BU132535F": "ecosystem"
+  },
+  "notion": {
+    "control_center": "https://app.notion.com/p/3cd36364d4b281dba141cd768fe67f67?pvs=204",
+    "research_conversations_data_source": "collection://220db8b0-d543-460e-925a-177d90809945"
+  },
+  "safety": {
+    "research_only": true,
+    "broker_actions": false,
+    "read_only_agents": ["koulis", "thymios", "miltos"]
+  }
+}

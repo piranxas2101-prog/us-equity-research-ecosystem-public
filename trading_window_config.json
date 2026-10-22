@@ -1,0 +1,23 @@
+{
+  "timezone": "Europe/Athens",
+  "canonical_market_timezone": "America/New_York",
+  "market_open_eastern": "09:30",
+  "market_close_eastern": "16:00",
+  "entry_allowed_from_eastern": "09:30",
+  "entry_allowed_until_eastern": "15:00",
+  "exit_allowed_from_eastern": "09:30",
+  "exit_allowed_until_eastern": "16:00",
+  "market_open_athens": "16:30",
+  "market_close_athens": "23:00",
+  "entry_allowed_from_athens": "16:30",
+  "entry_allowed_until_athens": "22:00",
+  "exit_allowed_from_athens": "16:30",
+  "exit_allowed_until_athens": "23:00",
+  "same_day_flatten_cutoff_eastern": "15:55",
+  "notes": [
+    "Eastern times are canonical and are converted to Europe/Athens at runtime, including DST offset changes.",
+    "Athens fields are retained only as compatibility fallbacks for older scripts.",
+    "Before any paper submission, Alpaca market clock must report is_open=true; this covers holidays and early closes.",
+    "Position monitors use 15:55 America/New_York as the same-day flatten safety cutoff."
+  ]
+}

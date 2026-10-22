@@ -1,0 +1,65 @@
+# Project metadata and centralized tool configuration.
+#
+# The ecosystem runs as a set of flat top-level modules driven by PowerShell
+# launchers (see SETUP.md); this file does not change that layout. It exists to
+# give the repository a single, versioned home for lint, format and type-check
+# settings so CI and local runs agree.
+
+[project]
+name = "us-equity-research-ecosystem"
+version = "0.1.0"
+description = "Local, evidence-first US equity research and paper-trading ecosystem."
+readme = "README.md"
+license = { file = "LICENSE" }
+# The supported runtime is Python 3.12 (see SETUP.md, the py312 dependency lock
+# and the .venv-next the launchers require). 3.11 is not supported and has no lock.
+requires-python = ">=3.12"
+
+[tool.ruff]
+# Match the runtime floor. Generated runtime state and virtual envs are never linted.
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    ".venv-next",
+    ".architecture-venv",
+    ".security-venv",
+    "data",
+    "cache",
+    "logs",
+    "models",
+    "output",
+]
+
+[tool.ruff.lint]
+# High-signal set that stays close to the code's existing style. It catches real
+# defects (undefined names, unused imports/vars, broken f-strings, Python-version
+# syntax errors, common bugbear traps) without reformatting the tree.
+#
+# Deliberately NOT enforced yet, to avoid a large style-only diff:
+#   E501 (line length), E701/E702 (dense single-line statements),
+#   I (import sorting) and UP (modernization). These can be adopted later as
+#   focused, opt-in passes.
+select = ["E4", "E7", "E9", "F", "W", "B"]
+ignore = [
+    "E701", # multiple statements on one line (colon) - existing house style
+    "E702", # multiple statements on one line (semicolon) - existing house style
+    "E741", # ambiguous variable name
+    "B905", # zip() without strict= - would touch many call sites
+    "B007", # unused loop variable - stylistic
+]
+
+[tool.ruff.format]
+# Formatting is not enforced in CI yet; these settings define the target style
+# for files we touch, without reflowing the whole tree.
+quote-style = "double"
+line-ending = "lf"
+
+[tool.mypy]
+# Introduced gradually: type errors are reported but not yet a hard gate, so the
+# heavy existing type hints get checked without blocking on the full backlog.
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = true
+warn_redundant_casts = true
+exclude = "(^|/)(\\.venv-next|\\.architecture-venv|\\.security-venv|data|cache|logs|models|output)/"

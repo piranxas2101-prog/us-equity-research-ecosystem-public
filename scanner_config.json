@@ -1,0 +1,283 @@
+{
+  "power": {
+    "hibernate_after_nightly": true,
+    "hibernate_idle_minutes": 15,
+    "hibernate_after_afternoon": true
+  },
+  "paper_session": {
+    "wait_for_late_run_date": "2026-10-14"
+  },
+  "preopen": {
+    "recheck_at_open": "on"
+  },
+  "universe": {
+    "mode": "registry_all_listed",
+    "include_exchanges": ["Nasdaq", "NYSE", "NYSE American", "NYSE Arca", "CBOE", "Cboe BZX", "IEX", "TXSE", "Texas Stock Exchange"],
+    "max_symbols": 0,
+    "defer_issuer_linked_instruments": true,
+    "separate_lane_routes": {
+      "fund_or_etp_observation": "etf_lane",
+      "exchange_traded_note_observation": "etf_lane",
+      "acquisition_vehicle_observation": "spac_lane"
+    },
+    "exclude_name_keywords": [
+      "warrant",
+      "right",
+      "unit",
+      "depositary share",
+      "etf",
+      "exchange traded fund",
+      "etn",
+      "fund",
+      "blank check",
+      "acquisition corp",
+      "acquisition corporation",
+      "merger corp",
+      "merger corporation",
+      "spac"
+    ],
+    "exclude_asset_types": [
+      "warrant",
+      "warrant_like",
+      "unit",
+      "unit_like",
+      "preferred_or_depositary",
+      "right",
+      "fund_or_trust",
+      "spac_common"
+    ],
+    "cache_file": "cache/sec_company_tickers_exchange.json",
+    "cache_max_age_hours": 24,
+    "eligibility_overrides_path": "universe_eligibility_overrides.json",
+    "eligibility_receipt_path": "output/universe_eligibility_latest.json"
+  },
+  "scan": {
+    "lookback_days": 420,
+    "min_history_days": 220,
+    "top_n": 20,
+    "max_price": null,
+    "min_composite_score": 70.0,
+    "min_fundamental_coverage": 50.0
+  },
+  "data_sources": {
+    "sec": {
+      "enabled": true,
+      "companyfacts_cache": {
+        "mode": "populate",
+        "max_age_days": 30,
+        "prefetch_budget": 800,
+        "dir": "cache/sec_companyfacts"
+      },
+      "business_description": {
+        "max_new_per_run": 150
+      },
+      "include_forms": [
+        "10-K",
+        "10-Q",
+        "8-K",
+        "8-K/A",
+        "20-F",
+        "6-K",
+        "S-1",
+        "S-1/A",
+        "S-3",
+        "S-3/A",
+        "424B3",
+        "424B4",
+        "424B5",
+        "EFFECT",
+        "DEF 14A",
+        "PREM14A",
+        "DEFM14A",
+        "SC 13D",
+        "SC 13D/A",
+        "SC 13G",
+        "SC 13G/A",
+        "4",
+        "NT 10-K",
+        "NT 10-Q",
+        "25-NSE"
+      ],
+      "max_recent_filings": 10,
+      "max_filing_age_days": 30,
+      "ticker_cik_cache_file": "cache/sec_company_tickers.json",
+      "cache_max_age_hours": 24
+    },
+    "market_data": {
+      "provider_priority": ["alpaca", "polygon", "yfinance"],
+      "shared_rate_limit_enabled": true,
+      "yfinance_call_timeout_seconds": 45,
+      "rate_limit_max_wait_seconds": 13.0,
+      "openbb_provider": "yfinance",
+      "alpaca_feed": "iex",
+      "adjustment": "raw",
+      "bars_limit": 10000
+    },
+    "openbb_research": {
+      "enabled": true,
+      "share_statistics_provider": "yfinance",
+      "insider_limit": 80,
+      "insider_lookback_days": 180,
+      "darkpool_weeks": 4
+    },
+    "macro": {
+      "fred": {
+        "enabled": true,
+        "max_observation_age_days": 30,
+        "series_ids": ["FEDFUNDS", "DGS10", "CPIAUCSL", "T10Y2Y", "UNRATE", "INDPRO", "BAA10Y"]
+      }
+    }
+  },
+  "database": {
+    "enabled": true,
+    "path": "data/market_intel.db"
+  },
+  "weights": {
+    "moving_average": 0.35,
+    "fundamental": 0.65
+  },
+  "moving_average_rules": [
+    {
+      "metric": "close_above_sma_50",
+      "operator": ">=",
+      "value": 1,
+      "weight": 1.5
+    },
+    {
+      "metric": "close_above_sma_200",
+      "operator": ">=",
+      "value": 1,
+      "weight": 2.0
+    },
+    {
+      "metric": "sma_50_above_sma_200",
+      "operator": ">=",
+      "value": 1,
+      "weight": 2.0
+    },
+    {
+      "metric": "close_to_sma_200_pct",
+      "operator": ">=",
+      "value": -12,
+      "weight": 1.0
+    }
+  ],
+  "fundamental_rules": [
+    {
+      "metric": "roe",
+      "operator": ">=",
+      "value": 0.12,
+      "weight": 2.0
+    },
+    {
+      "metric": "profit_margin",
+      "operator": ">=",
+      "value": 0.10,
+      "weight": 1.5
+    },
+    {
+      "metric": "gross_margin",
+      "operator": ">=",
+      "value": 0.30,
+      "weight": 1.0
+    },
+    {
+      "metric": "revenue_growth",
+      "operator": ">=",
+      "value": 0.05,
+      "weight": 1.5
+    },
+    {
+      "metric": "earnings_growth",
+      "operator": ">=",
+      "value": 0.05,
+      "weight": 1.5
+    },
+    {
+      "metric": "debt_to_equity",
+      "operator": "<=",
+      "value": 150,
+      "weight": 1.0
+    },
+    {
+      "metric": "current_ratio",
+      "operator": ">=",
+      "value": 1.0,
+      "weight": 1.0
+    },
+    {
+      "metric": "forward_pe",
+      "operator": "<=",
+      "value": 35,
+      "weight": 1.0,
+      "invalid_at_or_below": 0
+    }
+  ],
+  "ollama": {
+    "enabled": false,
+    "host": "http://127.0.0.1:11434",
+    "model": "",
+    "temperature": 0.2,
+    "num_predict": 350,
+    "timeout_seconds": 300,
+    "agent_prompt_file": "agent_prompt.txt"
+  },
+  "agents": {
+    "agent_1": {
+      "name": "Γιαννης",
+      "role": "fundamental_desk",
+      "prompt_file": "agent_prompt.txt"
+    },
+    "agent_2": {
+      "name": "μπαμπης",
+      "role": "all_market_fundamental_discovery",
+      "prompt_file": "agent_prompt_agent2_catalyst_hunter.txt"
+    }
+  },
+  "pipeline": {
+    "fundamental_first": true,
+    "full_universe": true,
+    "stage1_limit": 120,
+    "stage1_min_composite_score": 70.0,
+    "stage1_min_fundamental_coverage": 50.0,
+    "stage1_membership": {"enabled": true, "exit_composite_score": 55.0, "state_file": "output/shortlist_membership.json"},
+    "giannis_sec_first": true,
+    "giannis_catalyst_mode": "content_events",
+    "stage1_workers": 1,
+    "babis_sec_first": false,
+    "stage1_data_profile": "light",
+    "stage1_info_cache": {
+      "mode": "populate",
+      "max_age_days": 7,
+      "dir": "cache/stage1_info",
+      "news_watchlist_path": "output/babis_shortlist_latest.json"
+    },
+    "stage1_source_overrides": {
+      "sec": {
+        "max_recent_filings": 3,
+        "max_filing_age_days": 14
+      },
+      "openbb_research": {
+        "enabled": false,
+        "share_statistics_enabled": false,
+        "insider_trading_enabled": false,
+        "darkpool_enabled": false
+      }
+    },
+    "stage1_llm_refine_limit": 0,
+    "stage1_llm_num_predict": 160,
+    "stage1_llm_timeout_seconds": 180,
+    "checkpoint_enabled": true,
+    "checkpoint_every": 250,
+    "checkpoint_file": "output/babis_stage1_checkpoint.json",
+    "shortlist_deep_enrichment": {
+      "enabled": true,
+      "limit": 50
+    },
+    "stage2_limit": 60,
+    "stage2_llm_limit": 20
+  },
+  "output": {
+    "dir": "output"
+  }
+}

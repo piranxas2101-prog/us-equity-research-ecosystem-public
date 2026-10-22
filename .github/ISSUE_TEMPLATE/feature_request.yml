@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a focused improvement to research, evidence handling, agents, or controls.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What research or operational limitation should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe inputs, outputs, evidence requirements, and affected agents.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and validation
+      description: Explain how the change remains auditable and how it can be tested.
+    validations:
+      required: true

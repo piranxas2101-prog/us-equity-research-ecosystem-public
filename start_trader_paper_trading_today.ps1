@@ -80,7 +80,6 @@ if ($preflightExit -ne 0) {
     exit $preflightExit
 }
 Write-Host "[PREFLIGHT] OK"
-& "$projectRoot\start_multi_day_monitor_today.ps1" -PythonExe $PythonExe
 
 $effectiveMaxTotalNotional = $MaxTotalNotional
 if ($effectiveMaxTotalNotional -le 0) {
@@ -198,6 +197,14 @@ if (($submittedTotal -gt 0) -or $miltosWillEnter) {
     $monitorsStarted = $true
 } else {
     Write-Host "[MONITORS] No submitted orders and no Miltos entries; monitors not started."
+}
+
+# Positions held on their agent's horizon: watched by one monitor across sessions; with entries coming it
+# keeps watching until the close, so the positions the day monitors hand over during the day are covered.
+if (($submittedTotal -gt 0) -or $miltosWillEnter) {
+    & "$projectRoot\start_multi_day_monitor_today.ps1" -PythonExe $PythonExe -UntilClose
+} else {
+    & "$projectRoot\start_multi_day_monitor_today.ps1" -PythonExe $PythonExe
 }
 
 $miltosStarted = $false

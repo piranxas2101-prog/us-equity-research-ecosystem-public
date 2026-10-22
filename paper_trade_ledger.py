@@ -29,6 +29,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import feature_registry
+import holding_horizon
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "paper_learning.db"
@@ -303,6 +304,15 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
         record.update({"notional_usd": intent.get("notional_usd"), "entry_price": entry_price, "entry_at": entry_at,
                        "exit_price": exit_price, "exit_at": exit_at, "exit_reason": reason,
                        "exit_reason_inferred": inferred, "result_pct": result, "complete": result is not None})
+        plan = opening.get("paper_trade_plan") if isinstance(opening.get("paper_trade_plan"), dict) else {}
+        horizon = plan.get("holding_horizon") if plan.get("holding_period_rule") == holding_horizon.RULE else None
+        if horizon and holding_horizon.valid(horizon):
+            # held on its agent's horizon: completed later, on the session it closes in (complete_held)
+            record["holding_horizon_sessions"] = horizon["sessions"]
+            record["holding_class"] = holding_horizon.rules_class(horizon["sessions"])
+            if not close:
+                record.update({"exit_price": None, "exit_at": None, "exit_reason": "held_on_horizon",
+                               "exit_reason_inferred": False, "result_pct": None, "complete": False})
         records.append(record)
 
     # Shadow candidates: every candidate the traders kept after the pre-open check, traded or not. What it would
@@ -343,6 +353,36 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
         record["block_reason"] = item.get("block_reason")
         records.append(record)
     return records
+
+
+def complete_held(conn: sqlite3.Connection, closed_log: Path) -> int:
+    """Complete the trades held on their agent's horizon from the registry's closed log
+    (data/paper_positions_closed.jsonl, alpaca_multi_day_monitor.py): result at the close decision, the exit rule
+    and how long it was held. A position that left the account without a decision (``not_in_account``) has no
+    known result and stays incomplete."""
+    if not closed_log.is_file():
+        return 0
+    completed = 0
+    for line in closed_log.read_text(encoding="utf-8").splitlines():
+        try:
+            closed = json.loads(line)
+            opened = date.fromisoformat(str(closed["opened_session"]))
+        except (ValueError, KeyError):
+            continue
+        plpc = closed.get("exit_plpc")
+        if plpc is None:
+            continue
+        rid = record_id(opened, "trade", str(closed.get("agent") or ""), str(closed.get("symbol") or "").upper(),
+                        str(closed.get("playbook") or ""), str(closed.get("direction") or ""))
+        row = conn.execute("SELECT complete, record_json FROM paper_trade_ledger WHERE record_id=?", (rid,)).fetchone()
+        if row is None or row[0]:
+            continue
+        record = json.loads(row[1])
+        record.update({"exit_at": closed.get("closed_at"), "exit_reason": str(closed.get("close_reason")),
+                       "exit_reason_inferred": False, "result_pct": round(float(plpc) * 100, 3),
+                       "exit_session": str(_ny_date(closed.get("closed_at")) or ""), "complete": True})
+        completed += store(conn, [record])["completed"]
+    return completed
 
 
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
@@ -414,6 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     records = build_records(args.root / "output", session, orders=orders)
     with connect(args.root / "data" / "paper_learning.db") as conn:
         counts = store(conn, records)
+        counts["held_completed"] = complete_held(conn, args.root / "data" / "paper_positions_closed.jsonl")
     print(json.dumps({"session": session.isoformat(), "records": len(records),
                       "by_kind": {k: sum(r["kind"] == k for r in records) for k in sorted({r["kind"] for r in records})},
                       **counts}))

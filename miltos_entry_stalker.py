@@ -22,6 +22,9 @@ from alpaca_paper_trader import (
     to_float,
 )
 from thymios_order_intent import intents_for_agent, load_approved_intents
+import holding_horizon
+import pandas as pd
+import trading_clock
 
 
 DEFAULT_TRADER_REPORTS = {
@@ -119,6 +122,20 @@ def entry_window_open(
         else f"Entry window is closed ({start_raw}-{end_raw} Athens, now {now.strftime('%H:%M')})."
     )
     return allowed, reason
+
+
+def horizon_entry_window(config: dict[str, Any], current_time: datetime | None = None) -> dict[str, Any]:
+    """The entry window of positions held on their agent's horizon: until ``agent_horizon_entry_until_eastern``
+    (15:45), and never later than 15 minutes before an early close (trading_clock)."""
+    window = dict(config)
+    until = str(config.get("agent_horizon_entry_until_eastern") or config.get("entry_allowed_until_eastern") or "15:00")
+    now = (current_time or datetime.now(ATHENS_TZ)).astimezone(EASTERN_TZ)
+    hours = trading_clock.session(now.date())
+    if hours is not None:
+        latest = (hours[1] - pd.Timedelta(minutes=15)).strftime("%H:%M")
+        until = min(until, latest)
+    window["entry_allowed_until_eastern"] = until
+    return window
 
 
 def entry_window_finished(
@@ -258,8 +275,12 @@ def process_report(
         if key in submitted_keys:
             result["skipped"].append({"agent_name": report_agent, "ticker": ticker, "reason": "duplicate_blocked_by_miltos_state"})
             continue
-        if not entry_allowed:
-            result["skipped"].append({"agent_name": report_agent, "ticker": ticker, "reason": entry_window_reason})
+        plan = opening.get("paper_trade_plan") if isinstance(opening.get("paper_trade_plan"), dict) else {}
+        allowed, window_reason = entry_allowed, entry_window_reason
+        if plan.get("holding_period_rule") == holding_horizon.RULE:
+            allowed, window_reason = getattr(args, "horizon_entry", (entry_allowed, entry_window_reason))
+        if not allowed:
+            result["skipped"].append({"agent_name": report_agent, "ticker": ticker, "reason": window_reason})
             continue
         if str(opening.get("order_status") or "").lower().strip() != "waiting_confirmation":
             result["skipped"].append({"agent_name": report_agent, "ticker": ticker, "reason": f"order_status={opening.get('order_status')}"})
@@ -388,7 +409,12 @@ def run_once(args: argparse.Namespace, state: dict[str, Any]) -> dict[str, Any]:
     }
     trading_window = load_trading_window(Path(args.trading_window_config))
     entry_allowed, entry_window_reason = entry_window_open(trading_window)
-    entry_finished = entry_window_finished(trading_window)
+    # owner 2026-10-23: a position its agent holds on a horizon (holding_horizon.py) may open until shortly before
+    # the close - its monitor carries it across sessions; a same-day position keeps the earlier entry cutoff
+    horizon_window = horizon_entry_window(trading_window)
+    horizon_allowed, horizon_reason = entry_window_open(horizon_window)
+    entry_finished = entry_window_finished(horizon_window)
+    args.horizon_entry = (horizon_allowed, horizon_reason)
     aggregate = {"submitted": [], "still_waiting": [], "skipped": [], "failed": []}
     checked_count = 0
     for agent_name, report_path in reports.items():

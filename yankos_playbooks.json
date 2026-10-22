@@ -20,7 +20,7 @@
     "reward_to_risk": 1.75,
     "min_take_profit_pct": 0.025,
     "max_take_profit_pct": 0.12,
-    "holding_period_rule": "same_day_flat",
+    "holding_period_rule": "agent_horizon",
     "same_day_flatten_cutoff_eastern": "15:55"
   },
   "playbook_portfolio": [

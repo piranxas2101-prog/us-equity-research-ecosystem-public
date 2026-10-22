@@ -14,6 +14,7 @@
   "exit_allowed_from_athens": "16:30",
   "exit_allowed_until_athens": "23:00",
   "same_day_flatten_cutoff_eastern": "15:55",
+  "agent_horizon_entry_until_eastern": "15:45",
   "notes": [
     "Eastern times are canonical and are converted to Europe/Athens at runtime, including DST offset changes.",
     "Athens fields are retained only as compatibility fallbacks for older scripts.",

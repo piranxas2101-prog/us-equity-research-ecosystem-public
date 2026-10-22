@@ -139,29 +139,50 @@ years of the exit lab (80,445 signals, 26 shock sessions): no effect on day and 
 holds and **+0.39 points per trade on quarter holds** (6 strategies better, 2 worse, 15 no clear difference). In
 execution (Step 3) the same guard would run intraday in the monitors for every open position.
 
-## Step 3: multi-day execution, built and switched off (owner's request 2026-10-23)
+## Step 3: the agents decide how long each position stays open (owner 2026-10-23)
 
 Built the day after the session of 2026-10-22, when all six approvals went through Miltos, nothing was sent
 directly, no position monitor started and his four fills (INCY, ROKU, AMD, MIAX short) were left open overnight.
+The same day the owner set the direction: "the agents decide which positions open and for how long - five hours,
+a week, three days; since monitors watch them, opening and closing need no fixed time window". A first version
+with a fixed class map (week / month / quarter set by the owner) was replaced the same day by this one.
 
 * **Monitors also for Miltos entries.** `start_trader_paper_trading_today.ps1` starts the position monitors when
   orders were sent *or* Miltos will enter; a monitor re-reads the opening reports and picks up his fills.
 * **Leftovers closed, not blocking.** By default the preflight closes, at the session's start, every position and
-  open order that is not a registered multi-day position (`--auto-flatten --keep-registered
-  data/paper_positions.json`); `-BlockOnLeftovers` restores the old block. A failed close still blocks the session.
-  On days without new orders the afternoon session does the same at 09:35 New York.
-* **Holding class per strategy:** `paper_session.holding_classes` in scanner_config.json (`agent:playbook:direction`
-  or `playbook` -> week / month / quarter). **Empty: every position is still a day position, flat by 15:55.**
-* **Registry** `data/paper_positions.json` (`positions_registry.py`): the day monitor hands a filled multi-day
-  position over instead of flattening it; one with unknown ATR(14) stays a day position (no stop can be set).
-* **Multi-day monitor** `alpaca_multi_day_monitor.py` (started by `start_multi_day_monitor_today.ps1` whenever the
-  registry has positions): the rules of `thesis_exit.py` live - widening stop 1.1 x ATR x sqrt(sessions), thesis
-  check once per new nightly run (a stock missing from the board is held), market shock from 15:45 New York (SPY
-  beyond 2 x ATR against the position, or calm -> volatile, with today's bar so far: the lab measured the close
-  and exited at the next open, so live exits come one overnight gap earlier), time stop on the class's last
-  session from 15:50. Closed positions go to `data/paper_positions_closed.jsonl` with the reason.
-* **Koulis:** held multi-day positions take order slots, count toward the notional and short limits and block their
-  tickers; an unknown held value blocks new orders (unknown stays unknown).
+  open order that is not a registered position (`--auto-flatten --keep-registered data/paper_positions.json`);
+  `-BlockOnLeftovers` restores the old block. A failed close still blocks the session. On days without new orders
+  the afternoon session does the same at 09:35 New York.
+* **The horizon is the agent's decision, in its frozen trade plan.** With `holding_period_rule = agent_horizon` in
+  `yankos_playbooks.json` / `periklis_playbooks.json`, Yankos and Periklis write a `holding_horizon` into every
+  plan (`holding_horizon.py`), from the exit lab's horizon curve (`exit_lab.py --horizon-curve`: the fixed hold on
+  1, 2, 3, 5, 7, 10, 15, 20, 30, 40 and 60 sessions against a random entry of the same stock, FDR, per year). Only
+  horizons with a real edge count (significant and positive in more than half of the years); among them the agent
+  takes the most edge per square root of sessions (edge per unit of risk). No real edge at any horizon: the
+  position stays same-day - open for the hours left in the session. The horizon is a ceiling: the monitors close
+  earlier on the widening stop, a broken thesis or a market shock. Thymios accepts only `same_day_flat` or a valid
+  agent horizon (whole sessions 1-60 with matching minutes); the plan's hash covers the horizon.
+* **Time is counted in trading minutes from the fill** (`trading_clock.py`, NYSE calendar from `exchange_calendars`,
+  added to the lock): one session = 390 minutes, nights, weekends, holidays and early closes skipped. A
+  one-session position filled at 11:00 ends at 11:00 of the next session. The same-day flat moves to 5 minutes
+  before an early close (13:00) - before, 15:55 came after the market had closed.
+* **Entries:** a position with an agent horizon may open until 15:45 New York (`agent_horizon_entry_until_eastern`,
+  never later than 15 minutes before an early close); a same-day position keeps the 15:00 cutoff.
+* **Registry and monitor:** the day monitor hands a filled position with a valid horizon over to
+  `data/paper_positions.json` (`positions_registry.py`; unknown ATR(14) or fill time: it stays same-day) and
+  `alpaca_multi_day_monitor.py` watches it every session until its horizon ends: widening stop 1.1 x ATR x
+  sqrt(sessions so far), thesis check once per new nightly run with the rules that fit the horizon (up to 5
+  sessions technical, up to 20 both, beyond fundamental; a stock missing from the board is held), market shock in
+  the last 15 minutes (SPY beyond 2 x ATR against the position, or calm -> volatile, with today's bar so far: the
+  lab measured the close and left at the next open, so live exits come one overnight gap earlier), horizon end.
+  A failed cycle is retried, never ends the watch. Closed positions go to `data/paper_positions_closed.jsonl`.
+* **Koulis:** held positions take order slots, count toward the notional and short limits and block their tickers;
+  an unknown held value blocks new orders (unknown stays unknown).
+* **Learning:** the ledger records a held trade as `held_on_horizon` and completes it on the session it closes in
+  (`complete_held`: result, exit rule, exit session), so every held position still feeds the lessons.
 
-Open: the session report and the ledger still read a position as one session; they learn multi-day positions when
-the first strategy gets a class.
+Evidence on 2026-10-23's candidates: Yankos's support_bounce long (107 candidates) would be held 60 sessions,
+Periklis's momentum_12_1 short 10, gap_fade short 5; momentum_12_1 long (99) has no stable edge at any horizon and
+stays same-day. With held positions counted in Koulis's six order slots, a few quarter-long positions would leave
+little room for new ones: the split between new orders and held positions is the owner's risk decision.
+Not yet: intraday evidence for horizons shorter than a session (the curve is built on daily bars).

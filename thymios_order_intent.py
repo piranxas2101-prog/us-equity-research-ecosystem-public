@@ -8,6 +8,7 @@ from typing import Any
 
 import agent_methodology
 import agent_personality
+import holding_horizon
 from trader_trade_plan import digest as trade_plan_digest
 
 
@@ -133,7 +134,13 @@ def validate_intent_payload(payload: dict[str, Any], *, today: date | None = Non
                 raise IntentValidationError(f"Frozen trade-plan hash mismatch for {ticker}.")
             if not trade_plan.get("invalidators") or not trade_plan.get("exit_logic"):
                 raise IntentValidationError(f"Trade plan lacks invalidators or exit logic for {ticker}.")
-            if str(trade_plan.get("holding_period_rule") or "") != "same_day_flat":
+            rule = str(trade_plan.get("holding_period_rule") or "")
+            # owner 2026-10-23: a position is same-day or held for the horizon its agent decided from the evidence
+            # (holding_horizon.py); any other rule, or a horizon a monitor cannot act on, is refused.
+            if rule == holding_horizon.RULE:
+                if not holding_horizon.valid(trade_plan.get("holding_horizon")):
+                    raise IntentValidationError(f"Agent holding horizon is missing or invalid for {ticker}.")
+            elif rule != holding_horizon.SAME_DAY:
                 raise IntentValidationError(f"Experiment position is not same-day-flat for {ticker}.")
             if direction == "short" and trade_plan.get("unresolved_short_gates_at_signal"):
                 raise IntentValidationError(f"SHORT gates are unresolved for {ticker}.")

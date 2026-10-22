@@ -21,7 +21,9 @@ from alpaca_paper_exit_manager import (
     to_float,
 )
 from alpaca_paper_trader import render_markdown_report as render_opening_markdown_report
+import holding_horizon
 import positions_registry
+import trading_clock
 
 
 ATHENS_TZ = ZoneInfo("Europe/Athens")
@@ -61,7 +63,9 @@ def parse_cutoff_minutes(raw: str) -> int:
 def eod_cutoff_reached(cutoff_minutes: int) -> bool:
     eastern_now = now_eastern()
     now_minutes = eastern_now.hour * 60 + eastern_now.minute
-    return now_minutes >= cutoff_minutes
+    # an early close (13:00, e.g. the day after Thanksgiving) moves the flat to 5 minutes before it (trading_clock)
+    left = trading_clock.minutes_to_close(eastern_now)
+    return now_minutes >= cutoff_minutes or (left is not None and left <= 5)
 
 
 def fetch_position(symbol: str) -> dict[str, Any] | None:
@@ -217,7 +221,6 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
     strategy_payload = load_json(Path(args.strategy))
     agent_name = str(open_report.get("agent_name") or args.agent_name or "agent")
     cutoff_minutes = parse_cutoff_minutes(args.eod_cutoff)
-    holding_map = positions_registry.policy()
     force_flat_now = bool(args.today_only_policy) and eod_cutoff_reached(cutoff_minutes)
 
     actions: list[dict[str, Any]] = []
@@ -301,25 +304,22 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
             continue
 
         current_row = best_current_row(strategy_payload, symbol)
-        holding_class = positions_registry.class_for(agent_name, str(opening.get("playbook_name") or ""),
-                                                     trade_direction, holding_map)
-        if holding_class != "day":
-            # ADR-001 step 3: a multi-day position belongs to alpaca_multi_day_monitor.py from its fill on (its own
-            # widening stop, thesis and time stop); no same-day stop, take-profit or 15:55 flat here.
-            def hand_over(entries, symbol=symbol, opening=opening, holding_class=holding_class, row=current_row):
-                return symbol in entries or positions_registry.register(
-                    entries, opening, agent=agent_name, holding_class=holding_class, today=now_eastern().date(),
-                    row=row)
+        plan = opening.get("paper_trade_plan") if isinstance(opening.get("paper_trade_plan"), dict) else {}
+        if plan.get("holding_period_rule") == holding_horizon.RULE:
+            # owner 2026-10-23: the agent decided how long it holds (holding_horizon.py); from its fill on the
+            # position belongs to alpaca_multi_day_monitor.py (widening stop, thesis, market shock, horizon end) -
+            # no same-day stop, take-profit or flat here.
+            def hand_over(entries, symbol=symbol, opening=opening, row=current_row):
+                return symbol in entries or positions_registry.register(entries, opening, agent=agent_name, row=row)
 
-            handed = positions_registry.update(hand_over)
-            if handed:
-                opening["holding_class"] = holding_class
+            if positions_registry.update(hand_over):
+                horizon = plan.get("holding_horizon") or {}
                 holds.append({"ticker": symbol, "trade_direction": trade_direction, "live_order_status": order_status,
-                              "holding_class": holding_class,
-                              "decision_reason": f"{agent_name} holds {symbol} for a {holding_class}: "
-                                                 "handed to the multi-day monitor."})
+                              "holding_horizon_sessions": horizon.get("sessions"),
+                              "decision_reason": f"{agent_name} holds {symbol} for up to {horizon.get('sessions')} "
+                                                 "session(s): handed to the multi-day monitor."})
                 continue
-            opening["holding_class_fallback"] = "day_atr_unknown"
+            opening["holding_horizon_fallback"] = "same_day_atr_or_fill_time_unknown"
         should_close, decision_reason = exit_decision_reason(
             agent_name=agent_name,
             opening=opening,

@@ -1,44 +1,33 @@
-"""Multi-day paper positions (ADR-001 step 3, owner's decision 2026-10-23): which holding class a position is opened
-for, and the registry of the positions kept across sessions.
+"""Positions held beyond the session they opened in (ADR-001 step 3; owner 2026-10-23: the agents decide which
+positions open and for how long, and the monitors close them whenever their rules say so).
 
-* Holding class per strategy: ``paper_session.holding_classes`` in scanner_config.json maps ``agent:playbook:direction``
-  (or ``playbook``) to week / month / quarter. Anything not listed is a day position, flat by 15:55 as before; with
-  the map empty nothing changes. Only the owner fills the map (a risk decision).
-* Registry ``data/paper_positions.json``: every filled position of a multi-day class, with what its monitor needs -
-  entry, session it opened, class length, ATR(14) and Giannis's score at entry (for the widening stop and the thesis
-  check). A position in the account that is not in the registry is a leftover: the preflight closes it at the next
-  session (owner 2026-10-23, after four Miltos entries of 10/22 were left open with no monitor).
-* Unknown stays unknown: a position whose ATR(14) is unknown cannot get its widening stop, so it is not registered
-  and stays a day position (``register`` returns False and the monitor flattens it by 15:55 as before).
+* The horizon is the agent's: its frozen trade plan carries ``holding_period_rule = agent_horizon`` and a
+  ``holding_horizon`` (holding_horizon.py) in trading minutes. A plan without one is a same-day position.
+* Registry ``data/paper_positions.json``: every filled position with a valid agent horizon, with what its monitor
+  needs - fill time, the moment its horizon ends (``trading_clock``: nights, weekends, holidays and early closes
+  skipped), ATR(14) and Giannis's score at entry (for the widening stop and the thesis check). A position in the
+  account that is not in the registry is a leftover: the preflight closes it at the next session (owner
+  2026-10-23, after four Miltos entries of 10/22 were left open with no monitor).
+* Unknown stays unknown: without an ATR(14) no stop can be set and without a fill time no horizon can be counted;
+  such a position is not registered and stays same-day (``register`` returns False, flat 5 minutes before close).
 * Closed positions leave the registry and are appended to ``data/paper_positions_closed.jsonl`` with the reason.
 """
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import time
 from typing import Any, Callable, Iterator
 
+import holding_horizon
+import trading_clock
+
 ROOT = Path(__file__).resolve().parent
 REGISTRY = ROOT / "data" / "paper_positions.json"
 CLOSED = ROOT / "data" / "paper_positions_closed.jsonl"
-CONFIG = ROOT / "scanner_config.json"
-SESSIONS = {"day": 1, "week": 5, "month": 20, "quarter": 60}
-
-
-def policy(config: Path = CONFIG) -> dict[str, str]:
-    try:
-        mapping = (json.loads(config.read_text(encoding="utf-8-sig")).get("paper_session") or {}).get("holding_classes")
-    except (OSError, ValueError):
-        mapping = None
-    return {str(k): str(v) for k, v in (mapping or {}).items() if str(v) in SESSIONS}
-
-
-def class_for(agent: str, playbook: str, direction: str, mapping: dict[str, str]) -> str:
-    return mapping.get(f"{agent}:{playbook}:{direction}") or mapping.get(str(playbook)) or "day"
 
 
 def load(path: Path = REGISTRY) -> dict[str, dict[str, Any]]:
@@ -91,35 +80,35 @@ def update(change: Callable[[dict[str, dict[str, Any]]], Any], path: Path = REGI
     return result
 
 
-def register(entries: dict[str, dict[str, Any]], opening: dict[str, Any], *, agent: str, holding_class: str,
-             today: date, row: dict[str, Any] | None = None) -> bool:
-    """Add a filled multi-day opening once (keyed by symbol); False when it is a day position, already known, or its
-    ATR(14) is unknown. ``row`` is the trader's strategy row for the ticker (ATR, Giannis's score, risk at entry)."""
+def register(entries: dict[str, dict[str, Any]], opening: dict[str, Any], *, agent: str,
+             row: dict[str, Any] | None = None) -> bool:
+    """Add a filled opening with a valid agent horizon once (keyed by symbol). False when the plan is same-day, the
+    symbol is known, or the ATR(14) or the fill time is unknown. ``row``: the trader's strategy row at entry."""
     symbol = str(opening.get("ticker") or "").upper()
-    if holding_class not in SESSIONS or holding_class == "day" or not symbol or symbol in entries:
+    plan = opening.get("paper_trade_plan") if isinstance(opening.get("paper_trade_plan"), dict) else {}
+    horizon = plan.get("holding_horizon")
+    if not symbol or symbol in entries or not holding_horizon.valid(horizon):
         return False
     row = row or {}
     atr = _float(opening.get("atr_14_pct")) or _float(row.get("atr_14_pct"))
-    if atr is None or atr <= 0:
-        return False
     order = opening.get("refreshed_order_response") or opening.get("order_response") or {}
+    filled_at = order.get("filled_at")
+    if atr is None or atr <= 0 or not filled_at:
+        return False
+    filled = datetime.fromisoformat(str(filled_at).replace("Z", "+00:00"))
+    expires = trading_clock.add_trading_minutes(filled, horizon["minutes"])
     entries[symbol] = {
         "symbol": symbol, "agent": agent, "playbook": opening.get("playbook_name"),
-        "direction": str(opening.get("trade_direction") or "long").lower(), "holding_class": holding_class,
-        "sessions": SESSIONS[holding_class], "opened_session": str(today),
+        "direction": str(opening.get("trade_direction") or "long").lower(),
+        "horizon_sessions": horizon["sessions"], "horizon_minutes": horizon["minutes"],
+        "holding_class": holding_horizon.rules_class(horizon["sessions"]), "horizon_basis": horizon.get("basis"),
+        "filled_at": str(filled_at), "expires_at": expires.isoformat(),
+        "opened_session": str(filled.astimezone(trading_clock.EASTERN).date()),
         "entry_price": _float(order.get("filled_avg_price")), "qty": order.get("filled_qty") or order.get("qty"),
         "atr_14_pct": atr, "giannis_score": _float(row.get("giannis_score")), "risk_level": row.get("risk_level"),
         "registered_at": datetime.now(timezone.utc).isoformat(), "weak_nights": 0, "last_thesis_check": None,
     }
     return True
-
-
-def sessions_held(opened: str, today: date) -> int:
-    """Sessions since the opening session, counting today (the opening session is 1). Weekdays only: an exchange
-    holiday counts as a session, so the time stop can come one session early, never late."""
-    start = date.fromisoformat(opened)
-    days = (today - start).days
-    return 1 + sum(1 for offset in range(1, days + 1) if (start + timedelta(days=offset)).weekday() < 5)
 
 
 def close(entries: dict[str, dict[str, Any]], symbol: str, reason: str, *, detail: dict[str, Any] | None = None,

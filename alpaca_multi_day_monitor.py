@@ -1,16 +1,19 @@
-"""Multi-day paper positions, watched every session on their own clock (ADR-001 step 3, owner 2026-10-23).
+"""Positions held on their agent's horizon, watched every session on their own clock (ADR-001 step 3; owner
+2026-10-23: the agents decide how long a position stays open, the monitors close it whenever its rules say so).
 
-A position opened for a week, a month or a quarter (positions_registry.py) is not flattened at 15:55; this monitor
-applies, live, the rules the exit lab and thesis_exit.py measured on five years and on the archived runs:
+A position with an agent horizon (positions_registry.py, holding_horizon.py) is not flattened at the close; this
+monitor applies, live, the rules the exit lab and thesis_exit.py measured on five years and on the archived runs,
+with time counted in trading minutes from the fill (``trading_clock``: nights, weekends, holidays, early closes):
 
-* widening disaster stop: 1.1 x ATR(14) x sqrt(sessions held), clamped 1.5-20% (``thesis_exit.scaled_stop``);
+* widening disaster stop: 1.1 x ATR(14) x sqrt(sessions held so far), clamped 1.5-20% (``thesis_exit.scaled_stop``);
 * thesis exit: once per new nightly run, the trader's board for the stock is judged with ``thesis_exit.thesis_break``
-  for the position's class (week technical, month both with two weak nights, quarter fundamental). A stock missing
-  from the board is unknown: held. A break decided at night exits at the first cycle of the next session;
-* abrupt change of the market's mood (owner 2026-10-22: every position is watched whatever its class): from 15:45
-  New York, SPY beyond 2 x its ATR(14) against the position, or the market turning from calm to volatile
-  (``thesis_exit.market_shocks`` on SPY's daily bars with today's bar so far) - the lab measured it on the close;
-* time stop: the class's last session (5 / 20 / 60), from 15:50 New York.
+  with the rules that fit the horizon (up to 5 sessions technical, up to 20 both with two weak nights, beyond that
+  fundamental). A stock missing from the board is unknown: held. A break decided at night exits at the first cycle;
+* abrupt change of the market's mood (owner 2026-10-22: every position is watched whatever its horizon): in the
+  last ``SHOCK_WINDOW`` minutes of the session, SPY beyond 2 x its ATR(14) against the position, or the market
+  turning from calm to volatile (``thesis_exit.market_shocks`` on SPY's daily bars with today's bar so far) - the
+  lab measured it on the close and left at the next open, so live exits come one overnight gap earlier;
+* horizon end: when the agent's horizon has run out, or 5 minutes before the close of the session it ends in.
 
 Paper account only; closes go through the same Alpaca call as the day monitor (``close_position_qty``) and only with
 ``--submit``. Every action is written to output/multi_day_monitor_latest.{json,md} and the day's action journal.
@@ -18,8 +21,9 @@ Paper account only; closes go through the same Alpaca call as the day monitor (`
 from __future__ import annotations
 
 import argparse
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
+import math
 from pathlib import Path
 import time
 from typing import Any
@@ -38,10 +42,11 @@ from alpaca_paper_position_monitor import (
 )
 import positions_registry
 import thesis_exit
+import trading_clock
 
 DATA_URL = "https://data.alpaca.markets"
-SHOCK_FROM = 15 * 60 + 45
-TIME_STOP_FROM = 15 * 60 + 50
+SHOCK_WINDOW = 15  # minutes before the close
+CLOSE_MARGIN = 5  # minutes before the close
 
 
 def spy_daily(today: date) -> pd.DataFrame | None:
@@ -73,15 +78,20 @@ def board_rows(agent: str, symbol: str, strategy_dir: Path) -> tuple[str | None,
     return (str(payload.get("run_id") or "") or None), (rows or None)
 
 
-def decide(entry: dict[str, Any], position: dict[str, Any], *, today: date, minutes: int,
-           shock: str | None, strategy_dir: Path) -> tuple[str | None, str]:
+def decide(entry: dict[str, Any], position: dict[str, Any], *, now: datetime, shock: str | None,
+           strategy_dir: Path) -> tuple[str | None, str]:
     """(exit reason or None, explanation). Updates the entry's thesis state in place."""
     symbol, cls, direction = entry["symbol"], entry["holding_class"], entry["direction"]
-    held = positions_registry.sessions_held(entry["opened_session"], today)
+    today = now.astimezone(trading_clock.EASTERN).date()
+    filled = datetime.fromisoformat(str(entry["filled_at"]).replace("Z", "+00:00"))
+    expires = datetime.fromisoformat(str(entry["expires_at"]))
+    elapsed = trading_clock.trading_minutes_between(filled, now)
+    held = max(1, math.ceil(elapsed / trading_clock.SESSION_MINUTES))
+    left = trading_clock.minutes_to_close(now)
     plpc = unrealized_plpc(position)
     stop = thesis_exit.scaled_stop(to_float(entry.get("atr_14_pct")), held)
     if plpc is not None and stop is not None and plpc <= -stop:
-        return "scaled_stop", f"{symbol} {plpc:.2%} beyond the {stop:.2%} stop of session {held} ({cls})."
+        return "scaled_stop", f"{symbol} {plpc:.2%} beyond the {stop:.2%} stop of session {held}."
     run_id, rows = board_rows(entry["agent"], symbol, strategy_dir)
     if run_id and run_id != entry.get("last_thesis_run") and entry["opened_session"] != str(today):
         state = {"weak_nights": int(entry.get("weak_nights") or 0)}
@@ -89,19 +99,23 @@ def decide(entry: dict[str, Any], position: dict[str, Any], *, today: date, minu
         entry.update(weak_nights=state["weak_nights"], last_thesis_run=run_id, last_thesis_check=str(today))
         if reason:
             return f"thesis_{reason}", f"{symbol}: the reason it was opened no longer holds ({reason}, run {run_id})."
-    if minutes >= SHOCK_FROM and shock_against(shock, direction):
+    if left is not None and left <= SHOCK_WINDOW and shock_against(shock, direction):
         return "market_shock", f"SPY today: {shock} - an abrupt change of the market's mood against {symbol}."
-    if held >= int(entry["sessions"]) and minutes >= TIME_STOP_FROM:
-        return "time_stop", f"{symbol} reached the end of its {cls} ({held} sessions)."
-    return None, f"{symbol} held: session {held} of {entry['sessions']}, P/L {plpc}, stop {stop}."
+    ends_today = expires.astimezone(trading_clock.EASTERN).date() <= today
+    if now >= expires or (ends_today and left is not None and left <= CLOSE_MARGIN):
+        return "horizon_end", (f"{symbol} reached the end of its agent's horizon ({entry['horizon_sessions']} "
+                               f"session(s), {elapsed} trading minutes held).")
+    return None, (f"{symbol} held: {elapsed} of {entry['horizon_minutes']} trading minutes, P/L {plpc}, "
+                  f"stop {stop}.")
 
 
 def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[str, Any]:
     eastern = now_eastern()
-    today, minutes = eastern.date(), eastern.hour * 60 + eastern.minute
+    today = eastern.date()
     entries = positions_registry.load(Path(args.registry))
     shock = None
-    if entries and minutes >= SHOCK_FROM:
+    left = trading_clock.minutes_to_close(eastern)
+    if entries and left is not None and left <= SHOCK_WINDOW:
         if spy_cache.get("at") is None or time.monotonic() - spy_cache["at"] > 240:
             spy_cache.update(at=time.monotonic(), shocks=thesis_exit.market_shocks(spy_daily(today)))
         shock = spy_cache["shocks"].get(today)
@@ -114,14 +128,15 @@ def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[st
         if position is None:
             closes[symbol] = ("not_in_account", {})
             continue
-        reason, explanation = decide(entry, position, today=today, minutes=minutes, shock=shock,
-                                     strategy_dir=Path(args.strategy_dir))
+        reason, explanation = decide(entry, position, now=eastern, shock=shock, strategy_dir=Path(args.strategy_dir))
         states[symbol] = {key: entry.get(key) for key in ("weak_nights", "last_thesis_run", "last_thesis_check")}
         if reason is None:
-            holds.append({"ticker": symbol, "holding_class": entry["holding_class"], "decision_reason": explanation})
+            holds.append({"ticker": symbol, "horizon_sessions": entry["horizon_sessions"],
+                          "decision_reason": explanation})
             continue
         qty = str(position.get("qty") or "").strip().lstrip("-")  # a short position's qty is negative
-        action = {"ticker": symbol, "trade_direction": entry["direction"], "holding_class": entry["holding_class"],
+        action = {"ticker": symbol, "trade_direction": entry["direction"], "agent": entry["agent"],
+                  "playbook_name": entry.get("playbook"), "horizon_sessions": entry["horizon_sessions"],
                   "action_type": "close_position", "exit_rule": reason, "decision_reason": explanation,
                   "position_plpc": unrealized_plpc(position), "action_status": "preview",
                   "request_payload": {"symbol": symbol, "qty": qty}}
@@ -157,7 +172,8 @@ def render(payload: dict[str, Any]) -> str:
              f"- Session: {payload['session']} | submit: {payload['submit']}",
              f"- Market shock today: {payload['market_shock_today'] or 'none'}",
              f"- Positions: {payload['positions']} | actions: {payload['actions_count']}", "", "## Actions", ""]
-    lines += [f"- {a['ticker']} {a['exit_rule']} ({a['holding_class']}): {a['action_status']} - {a['decision_reason']}"
+    lines += [f"- {a['ticker']} {a['exit_rule']} (horizon {a['horizon_sessions']}): {a['action_status']} - "
+              f"{a['decision_reason']}"
               for a in payload["actions"]] or ["- None."]
     lines += ["", "## Held", ""]
     lines += [f"- {h['decision_reason']}" for h in payload["holds"]] or ["- None."]
@@ -168,15 +184,22 @@ def run(args: argparse.Namespace) -> int:
     load_dotenv(Path(".env"))
     spy_cache: dict[str, Any] = {}
     while True:
-        payload = monitor_once(args, spy_cache)
+        try:
+            payload = monitor_once(args, spy_cache)
+        except Exception as exc:  # a broker or network error must not leave the positions unwatched
+            print(f"[MULTI-DAY] cycle failed, retrying next cycle: {exc}", flush=True)
+            time.sleep(max(15, int(args.poll_seconds)))
+            continue
         out = Path(args.out_prefix)
         out.parent.mkdir(parents=True, exist_ok=True)
         Path(f"{out}_latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         Path(f"{out}_latest.md").write_text(render(payload), encoding="utf-8")
         journal_actions(payload)
         print(f"[MULTI-DAY] session={payload['session']} positions={payload['positions']} "
-              f"actions={payload['actions_count']}")
-        if args.once or payload["remaining_active_count"] == 0 or payload["session"] in ("after_hours", "closed"):
+              f"actions={payload['actions_count']}", flush=True)
+        closed = (trading_clock.minutes_to_close(now_eastern()) or 0) == 0
+        # --until-close: positions handed over during the day by the day monitors are picked up as they come
+        if args.once or closed or (payload["remaining_active_count"] == 0 and not args.until_close):
             return 0
         time.sleep(max(15, int(args.poll_seconds)))
 
@@ -189,6 +212,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-prefix", default="output/multi_day_monitor")
     parser.add_argument("--poll-seconds", type=int, default=60)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--until-close", action="store_true",
+                        help="keep watching until the close even with no position yet (new ones are handed over)")
     parser.add_argument("--submit", action="store_true", help="Send the closes to the Alpaca paper account.")
     return parser
 

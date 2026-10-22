@@ -35,6 +35,7 @@ Use the locked runtime `.venv-next` (Python 3.12):
 .\.venv-next\Scripts\python.exe -m research_registry.sec_filing_index sync    # read missing days of the SEC daily form index (also run by the universe preparation)
 .\.venv-next\Scripts\python.exe companyfacts_cache.py status|shadow           # SEC companyfacts store; mode in scanner_config (off/populate/reuse)
 .\.venv-next\Scripts\python.exe run_performance_log.py backfill|record --run-id <id>  # per-run performance history: output/run_performance_history.csv (+ .md), written at the end of every run
+.\.venv-next\Scripts\python.exe exit_lab.py --horizon-curve                 # evidence for the agents' holding horizons (output/strategy_lab/horizon_curve_latest.json, read-only, ~5 min)
 ```
 
 `.venv-next` is built from the standalone python.org 3.12 in `%LOCALAPPDATA%\Programs\Python\Python312` (no dependency on any Codex runtime).

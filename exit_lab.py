@@ -23,6 +23,10 @@ rule, class and side. The edge is the paired difference (signal minus random ent
 for five years gives no edge to a short. Judged with the same bootstrap and a separate FDR control, plus per-year
 stability (years with at least ``MIN_YEAR_PAIRS`` pairs, and how many of them have a positive edge).
 The four original playbooks join when ``strategy_lab.py --legacy`` has saved their signals.
+
+``--horizon-curve`` (owner 2026-10-23: the agents decide how long each position stays open, any length): the
+``fixed`` hold on a fine grid of holding periods (``HORIZONS``, 1-60 sessions) with the same random-entry edge,
+FDR and per-year stability, written to ``horizon_curve_latest.json`` - the evidence ``holding_horizon.py`` reads.
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ import price_history_store as phs
 
 ROOT = Path(__file__).resolve().parent
 CLASSES = {"day": 1, "week": 5, "month": 20, "quarter": 60}
+HORIZONS = {f"s{n}": n for n in (1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 60)}
 RULES = ("fixed", "atr_bracket", "mr_signal", "trend_trailing", "fixed_shock")
 FAMILY = {"rsi2_mean_reversion": "mean_reversion", "mean_reversion_overextension": "mean_reversion",
           "gap_fade": "mean_reversion", "failed_breakdown_reclaim": "mean_reversion",
@@ -105,7 +110,8 @@ def simulate(o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, sma5:
     return c[end], horizon
 
 
-def collect(signals: pd.DataFrame, directory: Path, seed: int = 5) -> pd.DataFrame:
+def collect(signals: pd.DataFrame, directory: Path, seed: int = 5, classes: dict[str, int] | None = None,
+            rules: tuple[str, ...] = RULES) -> pd.DataFrame:
     """Every signal and its random entry (same stock, one random session) replayed for every class and rule."""
     spy_frame = phs.load("SPY", directory)
     spy = spy_frame["Close"].astype(float)
@@ -113,6 +119,7 @@ def collect(signals: pd.DataFrame, directory: Path, seed: int = 5) -> pd.DataFra
 
     market = te.market_shocks(spy_frame)  # date -> down / up / volatile
     draw = np.random.default_rng(seed)
+    classes = classes or CLASSES
     rows = []
     for count, (symbol, group) in enumerate(signals.groupby("symbol"), 1):
         frame = phs.load(symbol, directory)
@@ -133,8 +140,8 @@ def collect(signals: pd.DataFrame, directory: Path, seed: int = 5) -> pd.DataFra
             long = signal.side == "long"
             entries = [("signal", i)] + ([("random", int(draw.choice(valid)))] if len(valid) else [])
             for kind, k in entries:
-                for cls, horizon in CLASSES.items():
-                    for rule in RULES:
+                for cls, horizon in classes.items():
+                    for rule in rules:
                         out = simulate(o, h, low, c, sma5, atr[k], k, horizon, rule, long, shocks)
                         if out is None:
                             continue
@@ -311,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="signal files; a missing one is skipped")
     parser.add_argument("--out", type=Path, default=ROOT / "output" / "strategy_lab")
     parser.add_argument("--per-group", type=int, default=MAX_PER_GROUP)
+    parser.add_argument("--horizon-curve", action="store_true", help="fixed hold on the HORIZONS grid only")
     args = parser.parse_args(argv)
     started = time.perf_counter()
     files = [f for f in args.signals if f.exists()]
@@ -320,6 +328,16 @@ def main(argv: list[str] | None = None) -> int:
                          for f in files], ignore_index=True)
     # a random sample of at most per_group signals for each strategy and side
     sampled = signals.sample(frac=1.0, random_state=7).groupby(["strategy", "side"]).head(args.per_group)
+    if args.horizon_curve:
+        replays = collect(sampled, args.dir, classes=HORIZONS, rules=("fixed",))
+        results = summarize(replays) if len(replays) else []
+        report = {"schema": "ecosystem.horizon_curve.v1", "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "signal_files": [f.name for f in files], "signals": int(len(sampled)), "replays": int(len(replays)),
+                  "horizons": HORIZONS, "seconds": round(time.perf_counter() - started, 1), "results": results}
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "horizon_curve_latest.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+        print(json.dumps({"signals": report["signals"], "replays": report["replays"], "seconds": report["seconds"]}))
+        return 0
     replays = collect(sampled, args.dir)
     results = summarize(replays) if len(replays) else []
     report = {"schema": "ecosystem.exit_lab.v2", "generated_at": datetime.now(timezone.utc).isoformat(),

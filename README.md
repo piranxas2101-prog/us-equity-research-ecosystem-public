@@ -78,32 +78,72 @@ candidate -> shadow -> champion
 
 Model files are JSON-only, promotion is manual and every state transition is auditable. See [Agent learning architecture](docs/AGENT_LEARNING_ARCHITECTURE.md).
 
-## Quick start on Windows
+## Getting started
 
-Requirements: Windows, PowerShell and Python 3.12.
+### What you need
+
+| | |
+| --- | --- |
+| Computer | Windows 10/11 with PowerShell (the launchers are PowerShell scripts) |
+| Python | **3.12** from [python.org](https://www.python.org/downloads/) (3.11 and 3.13 are not supported) |
+| Disk | about 10 GB to start; every nightly run is archived, so plan for more over time (about 35 GB after a month here) |
+| Time | installation: a few minutes; **the first full research run takes about 4 hours** (it studies every US-listed symbol, within the providers' free rate limits) |
+
+### Keys (in your local `.env`, never committed)
+
+| Key | Needed for | Cost |
+| --- | --- | --- |
+| `SEC_USER_AGENT` | **required**: the SEC asks every program to identify itself, e.g. `Your Name your@email.com` | free |
+| `FRED_API_KEY` | the macro environment (rates, inflation) | free |
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | only the separate paper-trading workflow (a paper account, no real money) and pre-market prices | free paper account |
+| `FMP_API_KEY`, `POLYGON_API_KEY` | optional extra sources; the system works without them and reports what is missing | free tiers |
+
+A local [Ollama](https://ollama.com/) model is optional: it only extracts candidate evidence from filings for human review.
+
+### Install and check
 
 ```powershell
 git clone https://github.com/piranxas2101-prog/us-equity-research-ecosystem-public.git
 Set-Location .\us-equity-research-ecosystem-public
 .\setup_windows.ps1
-Copy-Item .env.example .env
 ```
 
-Add your own provider credentials to `.env`. Credentials, databases, caches, logs, trained runtime models and research outputs are ignored by Git.
+`setup_windows.ps1` creates the isolated Python 3.12 runtime (`.venv-next`), installs the locked, hash-checked
+dependencies, creates `.env` from `.env.example`, initializes the local databases and runs a few smoke tests. Then
+open `.env` and add your keys.
 
-Run the complete research-only pipeline in an independent background process:
+A quick check that everything works, before the long run (about a minute, no network):
 
 ```powershell
-.\start_full_research_control_plane_background.ps1
+.\.venv-next\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+.\.venv-next\Scripts\python.exe daily_pipeline.py plan --full-market   # shows every step of a run, runs nothing
 ```
 
-Build the local portal and dashboards from saved artifacts:
+### First research run
 
 ```powershell
-.\build_demo.ps1
+.\start_full_research_with_notify.ps1      # research only, in the background; a Windows notification at the end
 ```
 
-No server is required. The dashboards are standalone local HTML files.
+It cannot submit orders. When it ends, build the local dashboards (static HTML files, no server):
+
+```powershell
+.\build_demo.ps1                            # then open output\dashboards\index.html
+```
+
+### What you will see
+
+Each company's research, agent by agent (identity and routing, sector context, fundamental analysis, synthesis):
+
+![Symbol research dashboard](docs/images/symbol_research_dashboard.png)
+
+What the agents learned and which models are still candidates (nothing is promoted without a human):
+
+![Agent learning dashboard](docs/images/agent_learning_dashboard.png)
+
+The interface is in Greek for now; the code, the documentation and the reports' structure are in English. Daily
+reports land under `output/` (research summary, results per period, results journal, labs), and the optional
+paper-trading workflow (`SETUP.md`, "Trader Workflow") adds its own session and learning reports.
 
 ## Repository guide
 

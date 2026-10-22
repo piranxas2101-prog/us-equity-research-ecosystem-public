@@ -176,13 +176,19 @@ with a fixed class map (week / month / quarter set by the owner) was replaced th
   the last 15 minutes (SPY beyond 2 x ATR against the position, or calm -> volatile, with today's bar so far: the
   lab measured the close and left at the next open, so live exits come one overnight gap earlier), horizon end.
   A failed cycle is retried, never ends the watch. Closed positions go to `data/paper_positions_closed.jsonl`.
-* **Koulis:** held positions take order slots, count toward the notional and short limits and block their tickers;
-  an unknown held value blocks new orders (unknown stays unknown).
+* **Koulis:** a held position always blocks its ticker for a new order. Owner's decision 2026-10-23: **no limit on
+  held positions to begin with** (`paper_session.held_positions_limit = "none"`): the daily limits (6 new orders,
+  agent-sized notional, 2 shorts) apply to new orders only, so every agent decision is taken and its win rate shows
+  whether the agents open positions for a reason, not just to open them; the limits are discussed again on that
+  evidence. `"count"` makes held positions take slots, notional and short limits (an unknown held value then stops
+  new orders); an unreadable switch takes that stricter side.
+* **Win rate on the right window:** a held trade is judged against SPY from its entry session's open to its exit
+  session's close (`paper_learning.attach_held_spy`), not against the entry session alone.
 * **Learning:** the ledger records a held trade as `held_on_horizon` and completes it on the session it closes in
   (`complete_held`: result, exit rule, exit session), so every held position still feeds the lessons.
 
 Evidence on 2026-10-23's candidates: Yankos's support_bounce long (107 candidates) would be held 60 sessions,
 Periklis's momentum_12_1 short 10, gap_fade short 5; momentum_12_1 long (99) has no stable edge at any horizon and
-stays same-day. With held positions counted in Koulis's six order slots, a few quarter-long positions would leave
-little room for new ones: the split between new orders and held positions is the owner's risk decision.
+stays same-day. Counted in Koulis's six order slots, a few quarter-long positions would have left little room
+for new ones; hence the owner's choice of no held-position limit while the win rate is measured.
 Not yet: intraday evidence for horizons shorter than a session (the curve is built on daily bars).

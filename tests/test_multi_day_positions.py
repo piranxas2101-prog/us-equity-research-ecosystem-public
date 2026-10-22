@@ -214,14 +214,27 @@ class PreflightTests(unittest.TestCase):
 
 
 class KoulisTests(unittest.TestCase):
-    def build(self, kept):
+    def build(self, kept, held_limit="count", tickers="ABC"):
         from tests.test_risk_gate import signal, strategy
-        rows = [signal("yankos", t, "long", 8.0 + i / 10, playbook=f"p{i}") for i, t in enumerate("ABC")]
+        rows = [signal("yankos", t, "long", 8.0 + i / 10, playbook=f"p{i}") for i, t in enumerate(tickers)]
         preflight = {"block_trader_run": False, "kept_positions": kept,
                      "snapshot_before": {"positions": kept, "open_orders": []}}
         return koulis_risk_gate.build_gate([("yankos", strategy("yankos", rows))], preflight, run_id="run_test",
                                            min_score=7.0, max_total_orders=3, notional_per_trade=250.0,
-                                           max_total_notional=750.0, max_short_orders=1)
+                                           max_total_notional=750.0, max_short_orders=1, held_limit=held_limit)
+
+    def test_owner_choice_no_limit_on_held_positions(self):
+        self.assertEqual(koulis_risk_gate.held_limit_mode(), "none")
+        held = [{"symbol": f"H{i}", "side": "short", "market_value": None} for i in range(10)]
+        payload = self.build(held, held_limit="none")
+        self.assertEqual((payload["approved_count"], payload["held_positions_limit"]), (3, "none"))
+        self.assertIsNone(payload["held_multi_day_notional"])  # unknown value reported as unknown
+        blocked = self.build([{"symbol": "A", "side": "long", "market_value": "250"}], held_limit="none")
+        self.assertIn("existing_account_exposure", {b["block_reason"] for b in blocked["blocked_intents"]})
+
+    def test_unreadable_switch_takes_the_stricter_side(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(koulis_risk_gate.held_limit_mode(Path(folder) / "missing.json"), "count")
 
     def test_no_held_positions_limits_as_before(self):
         self.assertEqual(self.build([])["approved_count"], 3)
@@ -380,6 +393,31 @@ class LedgerTests(unittest.TestCase):
                 conn.close()
         self.assertEqual((stored["result_pct"], stored["exit_reason"], stored["exit_session"], stored["complete"]),
                          (3.4, "horizon_end", "2026-10-26", True))
+
+
+class HeldExcessTests(unittest.TestCase):
+    def test_held_trade_judged_against_spy_over_the_same_window(self):
+        import paper_learning
+
+        prices = {("SPY", "2026-10-21"): (100.0, 101.0), ("SPY", "2026-10-26"): (103.0, 104.0)}
+        held = {"kind": "trade", "session_date": "2026-10-21", "exit_session": "2026-10-26", "direction": "long",
+                "record_id": "r1", "result_pct": 6.0}
+        same_day = {"kind": "trade", "session_date": "2026-10-21", "exit_session": "2026-10-21", "direction": "long",
+                    "record_id": "r2", "result_pct": 1.0}
+        missing = {"kind": "trade", "session_date": "2026-10-21", "exit_session": "2026-10-27", "direction": "long",
+                   "record_id": "r3", "result_pct": 1.0}
+        records = [held, same_day, missing]
+        paper_learning.attach_held_spy(records, lambda t, d: prices.get((t, d.isoformat()), (None, None)))
+        self.assertEqual(held["spy_window_pct"], 4.0)
+        self.assertNotIn("spy_window_pct", same_day)
+        self.assertIsNone(missing["spy_window_pct"])
+        with tempfile.TemporaryDirectory() as folder:
+            conn = paper_trade_ledger.connect(Path(folder) / "l.db")
+            try:
+                paper_learning.attach_counterfactuals(conn, records)
+            finally:
+                conn.close()
+        self.assertEqual((held["excess_pct"], missing["excess_pct"]), (2.0, None))
 
 
 class LauncherTests(unittest.TestCase):

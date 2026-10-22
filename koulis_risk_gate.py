@@ -52,10 +52,24 @@ def _float(value: Any) -> float | None:
     return number if number == number else None
 
 
+HELD_LIMIT_MODES = ("none", "count")
+SCANNER_CONFIG = Path(__file__).resolve().parent / "scanner_config.json"
+
+
+def held_limit_mode(config: Path = SCANNER_CONFIG) -> str:
+    """``paper_session.held_positions_limit``: "none" (owner 2026-10-23: no limit on held positions to begin with -
+    the agents' win rate decides later) or "count" (held positions take order slots, notional and short limits)."""
+    try:
+        mode = (json.loads(config.read_text(encoding="utf-8-sig")).get("paper_session") or {}).get(
+            "held_positions_limit")
+    except (OSError, ValueError):
+        mode = None
+    return mode if mode in HELD_LIMIT_MODES else "count"  # unreadable switch: the stricter side
+
+
 def held_multi_day_positions(preflight: dict[str, Any]) -> list[dict[str, Any]]:
-    """Registered multi-day positions the preflight kept open (ADR-001 step 3). They are exposure like a new order:
-    each takes an order slot, its market value counts toward the notional limit and a short one toward the short
-    limit. Empty until the owner gives a strategy a multi-day class, so the limits work as before."""
+    """Positions held on their agent's horizon that the preflight kept open (ADR-001 step 3). Their tickers are
+    always blocked for a new order; whether they also count toward the limits is ``held_limit_mode``."""
     return [item for item in preflight.get("kept_positions") or [] if isinstance(item, dict)]
 
 
@@ -222,6 +236,7 @@ def build_gate(
     notional_source: str = "default",
     selection: str = "strategy_rank",
     max_per_strategy: int = DEFAULT_MAX_PER_STRATEGY,
+    held_limit: str = "count",
 ) -> dict[str, Any]:
     if selection not in SELECTION_MODES:
         raise ValueError(f"selection must be one of {SELECTION_MODES}.")
@@ -292,12 +307,14 @@ def build_gate(
 
     approved: list[dict[str, Any]] = []
     held = held_multi_day_positions(preflight)
-    held_slots = len(held)
-    short_count = sum(1 for item in held if str(item.get("side") or "").lower() == "short")
     held_values = [_float(item.get("market_value")) for item in held]
-    held_value_unknown = any(value is None for value in held_values)  # unknown stays unknown: no new orders
-    used_notional = sum(abs(value) for value in held_values if value is not None)
-    used_notional_held = used_notional
+    used_notional_held = sum(abs(value) for value in held_values if value is not None)
+    counted = held_limit == "count"
+    held_slots = len(held) if counted else 0
+    short_count = sum(1 for item in held if str(item.get("side") or "").lower() == "short") if counted else 0
+    # unknown stays unknown: a held value the limits need but cannot read stops new orders
+    held_value_unknown = counted and any(value is None for value in held_values)
+    used_notional = used_notional_held if counted else 0.0
     per_strategy: dict[tuple[str, str], int] = {}
     for item in sorted(eligible, key=priority):
         reason = None
@@ -381,7 +398,9 @@ def build_gate(
         },
         "existing_exposure_symbols": sorted(exposure),
         "held_multi_day_positions": [item.get("symbol") for item in held],
-        "held_multi_day_notional": None if held_value_unknown else round(used_notional_held, 2),
+        "held_positions_limit": held_limit,
+        "held_multi_day_notional": (None if any(value is None for value in held_values)
+                                    else round(used_notional_held, 2)),
         "approved_count": len(approved),
         "approved_notional_usd": round(sum(item["notional_usd"] for item in approved), 2),
         "approved_intents": approved,
@@ -434,6 +453,7 @@ def main() -> int:
         notional_source=args.notional_source,
         selection=args.selection,
         max_per_strategy=args.max_per_strategy,
+        held_limit=held_limit_mode(),
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

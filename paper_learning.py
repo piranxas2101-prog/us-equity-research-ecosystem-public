@@ -123,6 +123,20 @@ def fill_simulations(conn: Any, records: list[dict[str, Any]], bars: Any, *, sto
     return added
 
 
+def attach_held_spy(records: list[dict[str, Any]], prices: Prices) -> None:
+    """A trade held on its agent's horizon is judged against SPY over the same window - the entry session's open to
+    the exit session's close - not the entry session alone (owner 2026-10-23: the win rate decides what comes next).
+    Unknown when either price is missing."""
+    for record in records:
+        exit_session = record.get("exit_session")
+        if record.get("kind") != "trade" or not exit_session or exit_session == record.get("session_date"):
+            continue
+        opened, _ = prices("SPY", date.fromisoformat(record["session_date"]))
+        _, closed = prices("SPY", date.fromisoformat(exit_session))
+        record["spy_window_pct"] = (None if opened is None or closed is None
+                                    else round((closed / opened - 1) * 100, 3))
+
+
 def attach_counterfactuals(conn: Any, records: list[dict[str, Any]]) -> None:
     """Each record's outcome: a trade's real result; otherwise the simulated trade (entered positions only; an
     approval Miltos did not enter uses the forced entry). Without bars, open to close stands in, flagged."""
@@ -137,6 +151,8 @@ def attach_counterfactuals(conn: Any, records: list[dict[str, Any]]) -> None:
         simulation, sim_spy = sims.get(record["record_id"], (None, None))
         record["open_close_pct"], record["simulation"] = own, simulation
         spy = sim_spy if sim_spy is not None else spy
+        if "spy_window_pct" in record:  # held over several sessions: SPY over the same window (None stays unknown)
+            spy = record["spy_window_pct"]
         record["spy_open_close_pct"] = spy
         if record["kind"] == "trade":
             result, source = record.get("result_pct"), "real"
@@ -648,10 +664,12 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         everything = ledger.load(conn)
         if bars is not None:
             fill_simulations(conn, everything, bars)
-        fill_counterfactuals(conn, everything, prices or store_prices(root / "data" / "price_history"))
+        prices = prices or store_prices(root / "data" / "price_history")
+        fill_counterfactuals(conn, everything, prices)
         frames = frames or hs.store_frames(root / "data" / "price_history")
         hs.fill(conn, everything, frames, root / "output" / "runs")
         records = ledger.load(conn, since, until)
+        attach_held_spy(records, prices)
         attach_counterfactuals(conn, records)
         hs.attach(conn, records)
     lab_dir = root / "output" / "strategy_lab"

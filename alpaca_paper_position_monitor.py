@@ -68,6 +68,16 @@ def eod_cutoff_reached(cutoff_minutes: int) -> bool:
     return now_minutes >= cutoff_minutes or (left is not None and left <= 5)
 
 
+def fetch_positions() -> dict[str, dict[str, Any]]:
+    """Every open position of the account in one call (symbol -> position): one request a cycle instead of one per
+    position, so hundreds of positions stay inside Alpaca's request limit. An error is raised, never read as
+    "no positions"."""
+    payload = alpaca_request("GET", "/v2/positions")
+    if not isinstance(payload, list):
+        raise RuntimeError(f"Alpaca positions answer is not a list: {type(payload).__name__}")
+    return {str(item.get("symbol") or "").upper(): item for item in payload if isinstance(item, dict)}
+
+
 def fetch_position(symbol: str) -> dict[str, Any] | None:
     try:
         payload = alpaca_request("GET", f"/v2/positions/{symbol}")
@@ -137,6 +147,8 @@ def refreshed_order(item: dict[str, Any]) -> dict[str, Any]:
     order_id = str(order.get("id") or "").strip()
     if not order_id:
         return order if isinstance(order, dict) else {}
+    if str(order.get("status") or "").lower() in TERMINAL_ORDER_STATUSES and order.get("filled_at") is not None:
+        return order  # a filled entry does not change: no broker call every cycle
     try:
         payload = fetch_order_by_id(order_id)
         return payload if isinstance(payload, dict) else {}
@@ -228,6 +240,11 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
     remaining_active_count = 0
     entry_order_refreshes = 0
     open_report_changed = False
+    positions = fetch_positions()
+    # at the flat every close is sent at once; the fills are reconciled on the next cycles (hundreds of positions
+    # waiting 2 s x 10 refreshes each would not all be closed before the market closes)
+    refresh_seconds = 0.0 if force_flat_now else args.post_action_refresh_seconds
+    refresh_attempts = 1 if force_flat_now else args.post_action_refresh_attempts
 
     for opening in open_report.get("openings", []):
         if not isinstance(opening, dict):
@@ -253,7 +270,7 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
         order_status = str(order.get("status") or opening.get("order_status") or "").lower().strip()
         trade_direction = str(opening.get("trade_direction") or "long").lower().strip() or "long"
         qty = live_qty_from_opening(opening, order)
-        position = fetch_position(symbol)
+        position = positions.get(symbol)
         position_plpc = unrealized_plpc(position)
 
         if force_flat_now and order_status in CANCELABLE_ORDER_STATUSES and position is None:
@@ -273,8 +290,8 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
                     action["response_payload"] = {"order_id": order_id}
                     refreshed = refreshed_action_response(
                         order_id,
-                        args.post_action_refresh_seconds,
-                        attempts=args.post_action_refresh_attempts,
+                        refresh_seconds,
+                        attempts=refresh_attempts,
                     )
                     if refreshed:
                         action["refreshed_response_payload"] = refreshed
@@ -377,8 +394,8 @@ def monitor_once(args: argparse.Namespace) -> dict[str, Any]:
                 action["response_payload"] = compact_order_payload(response)
                 refreshed = refreshed_action_response(
                     str(response.get("id") or ""),
-                    args.post_action_refresh_seconds,
-                    attempts=args.post_action_refresh_attempts,
+                    refresh_seconds,
+                    attempts=refresh_attempts,
                 )
                 if refreshed:
                     action["refreshed_response_payload"] = refreshed
@@ -449,7 +466,14 @@ def run(args: argparse.Namespace) -> int:
     load_dotenv(Path(".env"))
     out_prefix = Path(args.out_prefix)
     while True:
-        payload = monitor_once(args)
+        try:
+            payload = monitor_once(args)
+        except Exception as exc:  # a broker or network error must not leave the positions unwatched
+            print(f"[MONITOR] cycle failed, retrying next cycle: {exc}", flush=True)
+            if args.once:
+                return 1
+            time.sleep(max(15, int(args.poll_seconds)))
+            continue
         write_payload(out_prefix, payload)
         print(
             f"[MONITOR] agent={payload['agent_name']} session={payload['session']} "

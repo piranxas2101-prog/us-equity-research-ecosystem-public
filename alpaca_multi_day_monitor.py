@@ -35,7 +35,7 @@ from alpaca_paper_exit_manager import alpaca_request, close_position_qty, load_d
 from alpaca_paper_position_monitor import (
     compact_order_payload,
     current_session_label,
-    fetch_position,
+    fetch_positions,
     journal_actions,
     now_eastern,
     unrealized_plpc,
@@ -123,8 +123,9 @@ def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[st
     holds: list[dict[str, Any]] = []
     closes: dict[str, tuple[str, dict[str, Any]]] = {}
     states: dict[str, dict[str, Any]] = {}
+    positions = fetch_positions() if entries else {}
     for symbol, entry in sorted(entries.items()):
-        position = fetch_position(symbol)
+        position = positions.get(symbol)
         if position is None:
             closes[symbol] = ("not_in_account", {})
             continue

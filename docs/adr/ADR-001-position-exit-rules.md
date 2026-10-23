@@ -182,6 +182,14 @@ with a fixed class map (week / month / quarter set by the owner) was replaced th
   whether the agents open positions for a reason, not just to open them; the limits are discussed again on that
   evidence. `"count"` makes held positions take slots, notional and short limits (an unknown held value then stops
   new orders); an unreadable switch takes that stricter side.
+* **No limit on new orders either** (owner 2026-10-24: "let them make as many trades as they want, just watched by
+  the monitors with the rules we set"): `paper_session.new_orders_limit = "none"` - Koulis keeps one candidate per
+  ticker, no opposite directions and no held ticker, and Thymios still validates every intent, but there is no
+  count, notional, short or per-strategy cap; the traders place every approved intent. `"limits"` restores the
+  launcher's daily limits. With hundreds of positions the Alpaca calls are paced (about 170 a minute, 429 retried),
+  the monitors read all positions in one call per cycle and send every close at once at the flat.
+* **Entry confirmation on sound data** (owner 2026-10-24, the AMSF short): Miltos confirms on completed SIP bars
+  with volume, RSI(14) 15m and a real-time check (`entry_confirmation_rules.py`, docs/RULES_REVIEW.md).
 * **Win rate on the right window:** a held trade is judged against SPY from its entry session's open to its exit
   session's close (`paper_learning.attach_held_spy`), not against the entry session alone.
 * **Learning:** the ledger records a held trade as `held_on_horizon` and completes it on the session it closes in

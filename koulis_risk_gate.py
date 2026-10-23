@@ -67,6 +67,23 @@ def held_limit_mode(config: Path = SCANNER_CONFIG) -> str:
     return mode if mode in HELD_LIMIT_MODES else "count"  # unreadable switch: the stricter side
 
 
+NEW_ORDER_LIMIT_MODES = ("none", "limits")
+NO_LIMIT_ORDERS = 1_000_000
+NO_LIMIT_NOTIONAL = 1e12  # finite, so the JSON stays standard for PowerShell and Thymios
+
+
+def new_orders_limit_mode(config: Path = SCANNER_CONFIG) -> str:
+    """``paper_session.new_orders_limit``: "none" (owner 2026-10-24: "let them make as many trades as they want,
+    just watched by the monitors with the rules we set" - every agent decision is taken, so the win rate shows
+    whether they open positions for a reason) or "limits" (the launcher's daily limits: orders, notional, shorts,
+    per strategy). An unreadable switch keeps the limits."""
+    try:
+        mode = (json.loads(config.read_text(encoding="utf-8-sig")).get("paper_session") or {}).get("new_orders_limit")
+    except (OSError, ValueError):
+        mode = None
+    return mode if mode in NEW_ORDER_LIMIT_MODES else "limits"
+
+
 def held_multi_day_positions(preflight: dict[str, Any]) -> list[dict[str, Any]]:
     """Positions held on their agent's horizon that the preflight kept open (ADR-001 step 3). Their tickers are
     always blocked for a new order; whether they also count toward the limits is ``held_limit_mode``."""
@@ -441,6 +458,10 @@ def main() -> int:
     max_notional = args.max_total_notional
     if max_notional is None:
         max_notional = max(0, args.max_total_orders) * max(0.0, args.notional_per_trade)
+    if new_orders_limit_mode() == "none":
+        # one candidate per ticker, no opposite directions and held tickers stay blocked; no count or size cap
+        args.max_total_orders, args.max_short_orders, args.max_per_strategy = NO_LIMIT_ORDERS, NO_LIMIT_ORDERS, 0
+        max_notional = NO_LIMIT_NOTIONAL
     payload = build_gate(
         strategies,
         load_json(Path(args.preflight)),

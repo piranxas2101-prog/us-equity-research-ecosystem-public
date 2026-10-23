@@ -243,18 +243,38 @@ def alpaca_headers() -> dict[str, str]:
     }
 
 
+# Alpaca allows about 200 requests a minute per account; with no limit on the number of orders (owner 2026-10-24)
+# a session can send hundreds, so every call keeps a minimum spacing and a 429 (too many requests) is retried.
+MIN_REQUEST_SPACING_SECONDS = 0.35
+RATE_LIMIT_RETRIES = 4
+_last_request_at = [0.0]
+
+
+def _pace() -> None:
+    wait = _last_request_at[0] + MIN_REQUEST_SPACING_SECONDS - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at[0] = time.monotonic()
+
+
 def alpaca_request(method: str, path: str, body: dict[str, Any] | None = None, base_url: str = PAPER_BASE_URL) -> Any:
     url = urlparse.urljoin(base_url, path)
     payload = None if body is None else json.dumps(body).encode("utf-8")
-    req = urlrequest.Request(url, data=payload, method=method.upper(), headers=alpaca_headers())
-    try:
-        with urlrequest.urlopen(req, timeout=ALPACA_HTTP_TIMEOUT_SECONDS) as response:
-            raw = response.read().decode("utf-8")
-    except urlerror.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Alpaca HTTP {exc.code}: {detail}") from exc
-    except urlerror.URLError as exc:
-        raise RuntimeError(f"Alpaca connection error: {exc}") from exc
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        _pace()
+        req = urlrequest.Request(url, data=payload, method=method.upper(), headers=alpaca_headers())
+        try:
+            with urlrequest.urlopen(req, timeout=ALPACA_HTTP_TIMEOUT_SECONDS) as response:
+                raw = response.read().decode("utf-8")
+            break
+        except urlerror.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 429 and attempt < RATE_LIMIT_RETRIES:
+                time.sleep(2 ** attempt * 2)
+                continue
+            raise RuntimeError(f"Alpaca HTTP {exc.code}: {detail}") from exc
+        except urlerror.URLError as exc:
+            raise RuntimeError(f"Alpaca connection error: {exc}") from exc
     if not raw:
         return {}
     return json.loads(raw)
@@ -361,16 +381,24 @@ def parse_alpaca_timestamp(value: Any) -> datetime | None:
         return None
 
 
-def fetch_intraday_bars(symbol: str, timeframe: str, lookback_hours: int = 48) -> list[dict[str, Any]]:
-    end_dt = datetime.now(timezone.utc) - timedelta(minutes=16)
+# Miltos confirms on the consolidated tape (SIP, every exchange), not on IEX alone (AMSF, 2026-10-23: a break of
+# 2 cents seen on 413 IEX shares did not exist on SIP). The free plan serves SIP 15 minutes late, so the request
+# ends 16 minutes ago; the real-time check runs on IEX minute bars (entry_confirmation_rules.py).
+CONFIRMATION_FEED = "sip"
+CONFIRMATION_DELAY_MINUTES = 16
+
+
+def fetch_intraday_bars(symbol: str, timeframe: str, lookback_hours: int = 96, *, feed: str = CONFIRMATION_FEED,
+                        end_dt: datetime | None = None) -> list[dict[str, Any]]:
+    end_dt = end_dt or datetime.now(timezone.utc) - timedelta(minutes=CONFIRMATION_DELAY_MINUTES)
     start_dt = end_dt - timedelta(hours=max(4, lookback_hours))
     params = {
         "timeframe": timeframe,
         "start": start_dt.isoformat().replace("+00:00", "Z"),
         "end": end_dt.isoformat().replace("+00:00", "Z"),
-        "limit": "50",
+        "limit": "1000",
         "adjustment": "raw",
-        "feed": "iex",
+        "feed": feed,
     }
     query = urlparse.urlencode(params)
     payload = alpaca_request("GET", f"/v2/stocks/{symbol}/bars?{query}", base_url=MARKET_DATA_BASE_URL)
@@ -380,6 +408,14 @@ def fetch_intraday_bars(symbol: str, timeframe: str, lookback_hours: int = 48) -
     return [bar for bar in bars if isinstance(bar, dict)]
 
 
+def fetch_realtime_minutes(symbol: str, session_date: str) -> list[dict[str, Any]]:
+    """Today's IEX minute bars up to now (real time on the free plan)."""
+    now = datetime.now(timezone.utc)
+    start = datetime.fromisoformat(f"{session_date}T09:30:00").replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)
+    hours = max(1, int((now - start).total_seconds() // 3600) + 1)
+    return fetch_intraday_bars(symbol, "1Min", lookback_hours=hours, feed="iex", end_dt=now)
+
+
 def entry_confirmation(
     symbol: str,
     trade_direction: str,
@@ -387,11 +423,18 @@ def entry_confirmation(
     *,
     expected_session_date: str | None = None,
 ) -> dict[str, Any]:
-    bars = fetch_intraday_bars(symbol, timeframe)
+    """Miltos's confirmation (entry_confirmation_rules.py): trigger, participation and momentum on completed SIP
+    15-minute bars, and the real-time price still holding on IEX. Anything unknown waits."""
+    import entry_confirmation_rules as rules
+
+    data_end = datetime.now(timezone.utc) - timedelta(minutes=CONFIRMATION_DELAY_MINUTES)
+    bars = fetch_intraday_bars(symbol, timeframe, end_dt=data_end)
     bars = sorted(
         bars,
         key=lambda item: parse_alpaca_timestamp(item.get("t")) or datetime.min.replace(tzinfo=timezone.utc),
     )
+    minutes = 15 if str(timeframe).lower().startswith("15") else int(re.sub(r"\D", "", str(timeframe)) or 15)
+    bars = rules.completed(bars, data_end=data_end, minutes=minutes, parse=parse_alpaca_timestamp)
     required_session = expected_session_date or datetime.now(timezone.utc).astimezone(EASTERN_TZ).date().isoformat()
     observed_sessions = sorted(
         {
@@ -406,98 +449,44 @@ def entry_confirmation(
         if (parsed := parse_alpaca_timestamp(item.get("t"))) is not None
         and parsed.astimezone(EASTERN_TZ).date().isoformat() == required_session
     ]
+    base = {
+        "entry_timeframe": timeframe,
+        "confirmation_feed": CONFIRMATION_FEED,
+        "bars_checked": len(session_bars),
+        "bars_available_all_sessions": len(bars),
+        "required_session_date": required_session,
+        "observed_session_dates": observed_sessions,
+    }
     if len(session_bars) < 2:
         return {
+            **base,
             "entry_status": "waiting_confirmation",
             "entry_trigger_confirmed": False,
             "entry_trigger_reason": (
                 f"{symbol} has fewer than two completed {timeframe} candles for the required "
                 f"market session {required_session}; stale prior-session bars cannot confirm entry."
             ),
-            "entry_timeframe": timeframe,
-            "bars_checked": len(session_bars),
-            "bars_available_all_sessions": len(bars),
-            "required_session_date": required_session,
-            "observed_session_dates": observed_sessions,
             "data_error_code": "stale_last_bar",
         }
+    try:
+        minute_bars = fetch_realtime_minutes(symbol, required_session)
+    except Exception:  # noqa: BLE001 - no real-time view: the "still holding" check stays unknown and the entry waits
+        minute_bars = None
+    result = rules.evaluate(trade_direction, bars, minute_bars, session_bars=session_bars,
+                            parse=parse_alpaca_timestamp)
 
-    previous = session_bars[-2]
-    latest = session_bars[-1]
-    prev_high = to_float(previous.get("h"))
-    prev_low = to_float(previous.get("l"))
-    latest_open = to_float(latest.get("o"))
-    latest_close = to_float(latest.get("c"))
-    latest_time = latest.get("t")
-    direction = str(trade_direction or "long").lower().strip()
-
-    if None in {prev_high, prev_low, latest_open, latest_close}:
-        return {
-            "entry_status": "waiting_confirmation",
-            "entry_trigger_confirmed": False,
-            "entry_trigger_reason": f"{symbol} {timeframe} confirmation data is incomplete.",
-            "entry_timeframe": timeframe,
-            "bars_checked": len(bars),
-            "latest_bar_time": latest_time,
-        }
-
-    if direction == "short":
-        confirmed = bool(latest_close < prev_low and latest_close < latest_open)
-        if confirmed:
-            reason = (
-                f"{symbol} short trigger confirmed on {timeframe}: latest close "
-                f"{latest_close:.4f} broke below previous low {prev_low:.4f} with a red candle."
-            )
-            status = "entry_confirmed"
-        else:
-            reason = (
-                f"{symbol} short setup is still waiting: latest {timeframe} close "
-                f"{latest_close:.4f} did not break below previous low {prev_low:.4f} "
-                f"with bearish candle confirmation."
-            )
-            status = "waiting_confirmation"
-    else:
-        confirmed = bool(latest_close > prev_high and latest_close > latest_open)
-        if confirmed:
-            reason = (
-                f"{symbol} long trigger confirmed on {timeframe}: latest close "
-                f"{latest_close:.4f} broke above previous high {prev_high:.4f} with a green candle."
-            )
-            status = "entry_confirmed"
-        else:
-            reason = (
-                f"{symbol} long setup is still waiting: latest {timeframe} close "
-                f"{latest_close:.4f} did not break above previous high {prev_high:.4f} "
-                f"with bullish candle confirmation."
-            )
-            status = "waiting_confirmation"
+    def compact(bar: dict[str, Any]) -> dict[str, Any]:
+        return {key: bar.get(key) for key in ("t", "o", "h", "l", "c", "v")}
 
     return {
-        "entry_status": status,
-        "entry_trigger_confirmed": confirmed,
-        "entry_trigger_reason": reason,
-        "entry_timeframe": timeframe,
-        "bars_checked": len(session_bars),
-        "required_session_date": required_session,
-        "observed_session_dates": observed_sessions,
-        "previous_bar": {
-            "t": previous.get("t"),
-            "o": previous.get("o"),
-            "h": previous.get("h"),
-            "l": previous.get("l"),
-            "c": previous.get("c"),
-            "v": previous.get("v"),
-        },
-        "latest_bar": {
-            "t": latest.get("t"),
-            "o": latest.get("o"),
-            "h": latest.get("h"),
-            "l": latest.get("l"),
-            "c": latest.get("c"),
-            "v": latest.get("v"),
-        },
+        **base,
+        "entry_status": "entry_confirmed" if result["confirmed"] else "waiting_confirmation",
+        "entry_trigger_confirmed": bool(result["confirmed"]),
+        "entry_trigger_reason": f"{symbol} {result['reason']}",
+        "confirmation_checks": result["checks"],
+        "previous_bar": compact(result.get("previous") or session_bars[-2]),
+        "latest_bar": compact(result.get("latest") or session_bars[-1]),
     }
-
 
 def validate_directional_trade(symbol: str, trade_direction: str, asset: dict[str, Any]) -> None:
     if not bool(asset.get("tradable", False)):
@@ -685,9 +674,13 @@ def run(args: argparse.Namespace) -> int:
             )
     existing_report_path = Path(f"{Path(args.out_prefix)}_latest.json")
     excluded_tickers = excluded_tickers_from_report(existing_report_path) if args.exclude_existing_report else set()
+    import koulis_risk_gate
+
+    # owner 2026-10-24: with no limit on new orders every intent Koulis and Thymios approved is placed
+    max_orders = koulis_risk_gate.NO_LIMIT_ORDERS if koulis_risk_gate.new_orders_limit_mode() == "none" else args.max_orders
     selected, skipped = choose_trade_rows(
         strategy_payload,
-        max_orders=args.max_orders,
+        max_orders=max_orders,
         min_score=args.min_score,
         excluded_tickers=excluded_tickers,
         precheck_shortable=args.precheck_shortable,

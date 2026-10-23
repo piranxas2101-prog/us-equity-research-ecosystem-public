@@ -265,7 +265,8 @@ class DayMonitorHandoffTests(unittest.TestCase):
                                    close_on_watch=True, stop_loss_pct=0.03, take_profit_pct=0.06, submit=False,
                                    post_action_refresh_seconds=0, post_action_refresh_attempts=1)
             with mock.patch.object(monitor, "refreshed_order", return_value=item["order_response"]), \
-                    mock.patch.object(monitor, "fetch_position", return_value={"qty": "3", "unrealized_plpc": "-0.05"}), \
+                    mock.patch.object(monitor, "fetch_positions",
+                                      return_value={"ABC": {"qty": "3", "unrealized_plpc": "-0.05"}}), \
                     mock.patch.object(monitor, "eod_cutoff_reached", return_value=True), \
                     mock.patch.object(reg.update, "__defaults__", (registry,)):
                 payload = monitor.monitor_once(args)
@@ -340,8 +341,8 @@ class MultiDayDecisionTests(unittest.TestCase):
             args = SimpleNamespace(registry=str(registry), closed_log=str(closed), strategy_dir=str(folder),
                                    submit=True)
             with mock.patch.object(mdm, "now_eastern", return_value=ny("2026-10-23 10:30")), \
-                    mock.patch.object(mdm, "fetch_position",
-                                      side_effect=lambda s: None if s == "GONE" else {"qty": "-3", "unrealized_plpc": "0.02"}), \
+                    mock.patch.object(mdm, "fetch_positions",
+                                      return_value={"ABC": {"qty": "-3", "unrealized_plpc": "0.02"}}), \
                     mock.patch.object(mdm, "close_position_qty", return_value={"id": "x", "status": "accepted"}) as send:
                 payload = mdm.monitor_once(args, {})
             send.assert_called_once_with("ABC", "3")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -61,18 +62,34 @@ def alpaca_headers() -> dict[str, str]:
     }
 
 
+# Alpaca allows about 200 requests a minute per account; with no limit on the number of orders (owner 2026-10-24)
+# the monitors watch hundreds of positions, so every call keeps a minimum spacing and a 429 is retried.
+MIN_REQUEST_SPACING_SECONDS = 0.35
+RATE_LIMIT_RETRIES = 4
+_last_request_at = [0.0]
+
+
 def alpaca_request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
     url = urlparse.urljoin(PAPER_BASE_URL, path)
     payload = None if body is None else json.dumps(body).encode("utf-8")
-    req = urlrequest.Request(url, data=payload, method=method.upper(), headers=alpaca_headers())
-    try:
-        with urlrequest.urlopen(req, timeout=45) as response:
-            raw = response.read().decode("utf-8")
-    except urlerror.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Alpaca HTTP {exc.code}: {detail}") from exc
-    except urlerror.URLError as exc:
-        raise RuntimeError(f"Alpaca connection error: {exc}") from exc
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        wait = _last_request_at[0] + MIN_REQUEST_SPACING_SECONDS - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        _last_request_at[0] = time.monotonic()
+        req = urlrequest.Request(url, data=payload, method=method.upper(), headers=alpaca_headers())
+        try:
+            with urlrequest.urlopen(req, timeout=45) as response:
+                raw = response.read().decode("utf-8")
+            break
+        except urlerror.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 429 and attempt < RATE_LIMIT_RETRIES:
+                time.sleep(2 ** attempt * 2)
+                continue
+            raise RuntimeError(f"Alpaca HTTP {exc.code}: {detail}") from exc
+        except urlerror.URLError as exc:
+            raise RuntimeError(f"Alpaca connection error: {exc}") from exc
     if not raw:
         return {}
     return json.loads(raw)

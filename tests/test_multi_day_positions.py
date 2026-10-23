@@ -431,11 +431,21 @@ class LauncherTests(unittest.TestCase):
         text = (ROOT / "start_trader_paper_trading_today.ps1").read_text(encoding="utf-8-sig")
         self.assertIn('"--auto-flatten", "--keep-registered", "data\\paper_positions.json"', text)
 
+    def test_leftovers_sent_to_close_before_the_open_every_session(self):
+        # owner 2026-10-23: the leftovers close before the market opens, when the afternoon run starts
+        text = (ROOT / "start_trader_afternoon_session.ps1").read_text(encoding="utf-8-sig")
+        start = text.index("# 1a. Leftovers")
+        step = text[start:text.index("# 2. Paper orders", start)]
+        self.assertLess(text.index('"preopen_check.py"'), text.index("# 1a. Leftovers"))
+        self.assertIn('"--auto-flatten" "--keep-registered" "data\\paper_positions.json"', step)
+        self.assertNotIn("--block-on-existing", step)
+        self.assertIn("if (-not $startedToday)", step)
+        self.assertNotIn("Wait-Eastern", step)
+
     def test_afternoon_looks_after_held_positions_without_orders(self):
         text = (ROOT / "start_trader_afternoon_session.ps1").read_text(encoding="utf-8-sig")
         branch = text[text.index('Write-Log "No paper orders today: $reason"'):]
         branch = branch[:branch.index("exit 0")]
-        self.assertIn('"--keep-registered" "data\\paper_positions.json"', branch)
         self.assertIn("start_multi_day_monitor_today.ps1", branch)
         self.assertIn("alpaca_multi_day_monitor", text.split("$sessionWorkers =", 1)[1].splitlines()[0])
 

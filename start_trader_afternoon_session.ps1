@@ -4,7 +4,8 @@
 # 2. Paper orders only if today's nightly run completed, the traders' files come from it and no session started
 #    today: at 09:35 New York, start_trader_paper_trading_today.ps1 on the checked files (preflight, Koulis,
 #    Thymios, Alpaca market clock, traders, Miltos 15Min confirmation, position monitors, same-day flat; leftovers
-#    closed, registered multi-day positions watched by alpaca_multi_day_monitor.py, also on days without orders).
+#    closed (sent at 09:00, filled at the open), positions held on their agent's horizon watched by
+#    alpaca_multi_day_monitor.py, also on days without orders).
 #    Limits are the launcher's defaults; paper account only.
 # 3. After the close (16:10 New York): paper_session_report.py and a notification with the day's result.
 # 4. Rest (owner's decision 2026-10-14): the computer is kept awake only while there is work. With nothing to
@@ -132,6 +133,21 @@ try {
     $checkExit = Invoke-Logged { & $python -W ignore "preopen_check.py" }
     Write-Log "Pre-open check finished with exit code $checkExit."
 
+    # 1a. Leftovers closed before the open (owner 2026-10-23, after four positions of 10/22 stayed open overnight):
+    #     positions and open orders that are not registered positions held on their agent's horizon
+    #     (data\paper_positions.json) get their closing orders now; queued, they fill at the 09:30 open, before any new
+    #     position. Skipped when a paper session already started today (its own positions are not leftovers).
+    $startedToday = $false
+    try {
+        $earlier = Get-Content -LiteralPath (Join-Path $projectRoot "output\trader_paper_trading_run_latest.json") -Raw | ConvertFrom-Json
+        $startedToday = [datetime]::Parse([string]$earlier.started_at).Date -eq (Get-Date).Date
+    } catch { }
+    if (-not $startedToday) {
+        $leftoverExit = Invoke-Logged { & $python -W ignore "alpaca_account_preflight.py" "--out-prefix" "output\alpaca_preflight_leftovers" `
+            "--auto-flatten" "--keep-registered" "data\paper_positions.json" }
+        Write-Log "Leftover positions sent to close at the open (exit $leftoverExit): output\alpaca_preflight_leftovers_latest.md"
+    }
+
     # 2. Paper orders, only on today's completed research run
     $reason = $null
     $pointer = $null
@@ -165,13 +181,10 @@ try {
     if ($null -ne $reason) {
         Write-Log "No paper orders today: $reason"
         Show-Notice "Paper trading" "Xoris entoles simera: $reason"
-        # Positions in the account are still looked after without new orders (ADR-001 step 3, owner 2026-10-23):
-        # at the open, leftovers nobody watches are closed and the registered multi-day positions get their monitor.
+        # Positions held on their agent's horizon are still watched without new orders (ADR-001 step 3, owner
+        # 2026-10-23); the leftovers were already sent to close at 09:00 (step 1a).
         if ($reason -ne "paper trading already started today") {
             Wait-Eastern 9 35
-            $heldExit = Invoke-Logged { & $python -W ignore "alpaca_account_preflight.py" "--out-prefix" "output\alpaca_preflight" `
-                "--block-on-existing" "--auto-flatten" "--keep-registered" "data\paper_positions.json" }
-            Write-Log "Held positions preflight finished with exit code $heldExit."
             $null = Invoke-Logged { & (Join-Path $projectRoot "start_multi_day_monitor_today.ps1") -PythonExe $python }
         }
         Invoke-Rest "No paper orders today ($reason)" $sessionWorkers

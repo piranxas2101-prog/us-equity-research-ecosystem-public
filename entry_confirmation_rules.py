@@ -7,8 +7,15 @@ the order filled inside a green 15-minute candle with the hour's largest volume 
 
 1. **trigger** - the latest completed 15-minute bar closes beyond the previous bar's low (short) / high (long), in a
    candle of the trade's colour (as before, now on SIP);
-2. **participation** - its volume is at least ``VOLUME_MIN`` x the average of the ``VOLUME_BARS`` completed bars
-   before it (a break on thin volume is not a break);
+2. **participation** - its volume is at least ``VOLUME_MIN`` x the average of the ``VOLUME_BARS`` regular-session
+   bars before it (``PARTICIPATION_BASIS = "last_bars"``). A break on thin volume is not a break. T3 (2026-10-24)
+   asked whether the same 15-minute slot of the last ``PROFILE_SESSIONS`` sessions (relative volume by time of day)
+   judges better, since volume is U-shaped through the day. A replay of 361 records of the 7 paper sessions
+   (trades, approvals not entered, Koulis leftovers, 250 shadow candidates; exit at the 15:45 close) did not show
+   it: last 20 bars >= 1.0x entered 87, mean +0.30%, 60% won; same slot >= 1.0x entered 114, +0.08%, 50% won; no
+   volume check 192, +0.06%, 48% - every 95% day-bootstrap interval spans zero and the others. So the basis stays
+   "last_bars" and both ratios are recorded on every confirmation (``volume_x_last_bars``, ``volume_x_same_slot``)
+   until enough sessions decide; switching is the owner's call (``"same_slot"``);
 3. **momentum** - RSI(14) of the 15-minute closes is below ``RSI_SHORT_BELOW`` for a short, above
    ``RSI_LONG_ABOVE`` for a long (the move has the momentum of its direction, not a neutral 50);
 4. **still holding now** - the latest real-time price (IEX minute bars, the only real-time feed of the free plan)
@@ -29,6 +36,10 @@ from typing import Any
 
 VOLUME_BARS = 20
 VOLUME_MIN = 1.0
+PARTICIPATION_BASIS = "last_bars"  # or "same_slot" (owner's decision; see 2. above)
+PROFILE_SESSIONS = 20
+PROFILE_MIN_SESSIONS = 10
+REGULAR_OPEN, REGULAR_CLOSE = "09:30", "16:00"
 RSI_PERIOD = 14
 RSI_SHORT_BELOW = 50.0
 RSI_LONG_ABOVE = 50.0
@@ -72,11 +83,42 @@ def completed(bars: list[dict[str, Any]], *, data_end: datetime, minutes: int, p
     return out
 
 
+def regular_hours(bars: list[dict[str, Any]], *, parse, tz) -> list[dict[str, Any]]:
+    """Only the bars of the regular session (09:30-16:00 New York): pre- and after-market bars are not candles of
+    the session the trigger is judged in."""
+    out = []
+    for bar in bars:
+        start = parse(bar.get("t"))
+        if start is not None and REGULAR_OPEN <= start.astimezone(tz).strftime("%H:%M") < REGULAR_CLOSE:
+            out.append(bar)
+    return out
+
+
+def slot_profile(bars: list[dict[str, Any]], *, before: str, parse, tz,
+                 sessions: int = PROFILE_SESSIONS) -> dict[str, list[float]]:
+    """Slot ("HH:MM" New York) -> the volumes of that 15-minute slot over the last ``sessions`` sessions before the
+    date ``before`` (regular hours only)."""
+    by_day: dict[str, dict[str, float]] = {}
+    for bar in regular_hours(bars, parse=parse, tz=tz):
+        local = parse(bar.get("t")).astimezone(tz)
+        day = local.date().isoformat()
+        volume = _f(bar.get("v"))
+        if day < before and volume is not None:
+            by_day.setdefault(day, {})[local.strftime("%H:%M")] = volume
+    profile: dict[str, list[float]] = {}
+    for day in sorted(by_day)[-sessions:]:
+        for slot, volume in by_day[day].items():
+            profile.setdefault(slot, []).append(volume)
+    return profile
+
+
 def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[str, Any]] | None,
-             *, session_bars: list[dict[str, Any]], parse) -> dict[str, Any]:
+             *, session_bars: list[dict[str, Any]], parse, volume_profile: dict[str, list[float]] | None = None,
+             tz=None, basis: str | None = None) -> dict[str, Any]:
     """The confirmation of one entry. ``bars``: completed 15-minute SIP bars (several sessions, oldest first);
     ``session_bars``: those of today's session; ``minute_bars``: today's real-time IEX minute bars."""
     short = str(direction).lower() == "short"
+    basis = basis or PARTICIPATION_BASIS
     checks: dict[str, Any] = {}
     if len(session_bars) < 2:
         return {"confirmed": False, "reason": "fewer than two completed 15-minute candles today", "checks": checks}
@@ -88,12 +130,22 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
     checks["trigger"] = (c < edge and c < o) if short else (c > edge and c > o)
 
     index = next((k for k, bar in enumerate(bars) if bar.get("t") == latest.get("t")), None)
-    before = bars[max(0, index - VOLUME_BARS):index] if index is not None else []
-    volumes = [_f(b.get("v")) for b in before]
-    known = [v for v in volumes if v is not None]
     volume = _f(latest.get("v"))
-    average = sum(known) / len(known) if len(known) == VOLUME_BARS else None
-    checks["volume_x_average"] = None if average in (None, 0) or volume is None else round(volume / average, 2)
+    before = bars[max(0, index - VOLUME_BARS):index] if index is not None else []
+    known = [v for v in (_f(b.get("v")) for b in before) if v is not None]
+    last_average = sum(known) / len(known) if len(known) == VOLUME_BARS else None
+    checks["volume_x_last_bars"] = (None if last_average in (None, 0) or volume is None
+                                    else round(volume / last_average, 2))
+    if volume_profile is not None:  # measured on every confirmation, whichever basis decides (T3)
+        slot = parse(latest.get("t")).astimezone(tz).strftime("%H:%M")
+        history = volume_profile.get(slot) or []
+        slot_average = sum(history) / len(history) if len(history) >= PROFILE_MIN_SESSIONS else None
+        checks["volume_x_same_slot"] = (None if slot_average in (None, 0) or volume is None
+                                        else round(volume / slot_average, 2))
+        checks["same_slot_sessions"] = len(history)
+    use_slot = basis == "same_slot" and volume_profile is not None
+    checks["volume_basis"] = "same 15-minute slot of previous sessions" if use_slot else f"last {VOLUME_BARS} bars"
+    checks["volume_x_average"] = checks.get("volume_x_same_slot") if use_slot else checks["volume_x_last_bars"]
     checks["participation"] = None if checks["volume_x_average"] is None else checks["volume_x_average"] >= VOLUME_MIN
 
     closes = [_f(b.get("c")) for b in bars[:index + 1]] if index is not None else []

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import json
 from pathlib import Path
 import tempfile
@@ -212,6 +213,58 @@ class ShortGateTests(unittest.TestCase):
                "signal_verdict": "candidate", "risk_level": "Low", "atr_14_pct": 3.0, "rationale": ["r"]}
         plan = trader_trade_plan.build_trade_plan("yankos", row, catalog["gap_fade"], policy, "run_test", curve)
         self.assertEqual((plan["holding_period_rule"], plan["holding_horizon"]["sessions"]), (holding_horizon.RULE, 5))
+
+
+class TimeOfDayVolumeTests(unittest.TestCase):
+    """T3 (2026-10-24): participation against the same 15-minute slot of previous sessions."""
+    NY = ZoneInfo("America/New_York")
+
+    def bars_on(self, day, slots):
+        out = []
+        for hhmm, volume in slots:
+            local = datetime.fromisoformat(f"{day}T{hhmm}:00").replace(tzinfo=self.NY)
+            out.append({"t": local.astimezone(timezone.utc).isoformat(), "o": 10, "h": 10, "l": 10, "c": 10, "v": volume})
+        return out
+
+    def test_profile_by_slot_regular_hours_only_and_before_the_day(self):
+        history = []
+        for k in range(12):
+            day = (datetime(2026, 10, 1) + timedelta(days=k)).date().isoformat()
+            history += self.bars_on(day, [("08:00", 99999), ("09:30", 5000), ("12:30", 1000)])
+        history += self.bars_on("2026-10-26", [("12:30", 7777)])
+        profile = rules.slot_profile(history, before="2026-10-26", parse=parse, tz=self.NY)
+        self.assertNotIn("08:00", profile)
+        self.assertEqual((len(profile["12:30"]), set(profile["12:30"])), (12, {1000.0}))
+        self.assertEqual(len(rules.slot_profile(history, before="2026-10-26", parse=parse, tz=self.NY,
+                                                sessions=5)["09:30"]), 5)
+
+    def test_midday_break_judged_against_midday(self):
+        bars = falling_session(trigger_volume=1500)  # 1.5x the 1000 of the earlier bars
+        slot = parse(bars[-1]["t"]).astimezone(self.NY).strftime("%H:%M")
+        quiet = {slot: [500.0] * 12}  # this slot usually trades 500: 1500 is 3x
+        busy = {slot: [6000.0] * 12}
+        thin = {slot: [500.0] * 5}  # too few sessions: unknown
+        live = minutes_after(bars, [94.9])
+        r_quiet = rules.evaluate("short", bars, live, session_bars=bars, parse=parse, volume_profile=quiet, tz=self.NY,
+                                  basis="same_slot")
+        r_busy = rules.evaluate("short", bars, live, session_bars=bars, parse=parse, volume_profile=busy, tz=self.NY,
+                                  basis="same_slot")
+        r_thin = rules.evaluate("short", bars, live, session_bars=bars, parse=parse, volume_profile=thin, tz=self.NY,
+                                  basis="same_slot")
+        self.assertEqual((r_quiet["checks"]["volume_x_average"], r_quiet["confirmed"]), (3.0, True))
+        self.assertEqual((r_busy["checks"]["volume_x_average"], r_busy["confirmed"]), (0.25, False))
+        self.assertIsNone(r_thin["checks"]["participation"])
+        self.assertIn("same 15-minute slot", r_quiet["checks"]["volume_basis"])
+
+    def test_live_basis_stays_last_bars_and_both_ratios_are_recorded(self):
+        # the T3 replay did not show the same-slot basis judging better: the live basis is unchanged
+        self.assertEqual(rules.PARTICIPATION_BASIS, "last_bars")
+        bars = falling_session(trigger_volume=1500)
+        slot = parse(bars[-1]["t"]).astimezone(self.NY).strftime("%H:%M")
+        r = rules.evaluate("short", bars, minutes_after(bars, [94.9]), session_bars=bars, parse=parse,
+                           volume_profile={slot: [6000.0] * 12}, tz=self.NY)
+        self.assertEqual((r["checks"]["volume_x_last_bars"], r["checks"]["volume_x_same_slot"]), (1.5, 0.25))
+        self.assertTrue(r["confirmed"])
 
 
 if __name__ == "__main__":

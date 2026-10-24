@@ -389,23 +389,46 @@ CONFIRMATION_DELAY_MINUTES = 16
 
 
 def fetch_intraday_bars(symbol: str, timeframe: str, lookback_hours: int = 96, *, feed: str = CONFIRMATION_FEED,
-                        end_dt: datetime | None = None) -> list[dict[str, Any]]:
+                        end_dt: datetime | None = None, max_pages: int = 5) -> list[dict[str, Any]]:
     end_dt = end_dt or datetime.now(timezone.utc) - timedelta(minutes=CONFIRMATION_DELAY_MINUTES)
     start_dt = end_dt - timedelta(hours=max(4, lookback_hours))
     params = {
         "timeframe": timeframe,
         "start": start_dt.isoformat().replace("+00:00", "Z"),
         "end": end_dt.isoformat().replace("+00:00", "Z"),
-        "limit": "1000",
+        "limit": "10000",
         "adjustment": "raw",
         "feed": feed,
     }
-    query = urlparse.urlencode(params)
-    payload = alpaca_request("GET", f"/v2/stocks/{symbol}/bars?{query}", base_url=MARKET_DATA_BASE_URL)
-    bars = payload.get("bars", []) if isinstance(payload, dict) else []
-    if not isinstance(bars, list):
-        return []
-    return [bar for bar in bars if isinstance(bar, dict)]
+    bars: list[dict[str, Any]] = []
+    for _ in range(max_pages):  # long windows come back in pages
+        query = urlparse.urlencode(params)
+        payload = alpaca_request("GET", f"/v2/stocks/{symbol}/bars?{query}", base_url=MARKET_DATA_BASE_URL)
+        page = payload.get("bars", []) if isinstance(payload, dict) else []
+        bars.extend(bar for bar in page or [] if isinstance(bar, dict))
+        token = payload.get("next_page_token") if isinstance(payload, dict) else None
+        if not token:
+            break
+        params["page_token"] = token
+    return bars
+
+
+# Same-slot volume over the last sessions (T3, 2026-10-24): fetched once per symbol and day, then reused by every
+# confirmation cycle of the running process.
+PROFILE_LOOKBACK_DAYS = 35
+_profile_cache: dict[tuple[str, str], dict[str, list[float]]] = {}
+
+
+def volume_profile(symbol: str, session_date: str) -> dict[str, list[float]]:
+    import entry_confirmation_rules as rules
+
+    key = (symbol.upper(), session_date)
+    if key not in _profile_cache:
+        end = datetime.fromisoformat(f"{session_date}T09:30:00").replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)
+        history = fetch_intraday_bars(symbol, "15Min", lookback_hours=24 * PROFILE_LOOKBACK_DAYS, end_dt=end)
+        _profile_cache[key] = rules.slot_profile(history, before=session_date, parse=parse_alpaca_timestamp,
+                                                 tz=EASTERN_TZ)
+    return _profile_cache[key]
 
 
 def fetch_realtime_minutes(symbol: str, session_date: str) -> list[dict[str, Any]]:
@@ -435,6 +458,7 @@ def entry_confirmation(
     )
     minutes = 15 if str(timeframe).lower().startswith("15") else int(re.sub(r"\D", "", str(timeframe)) or 15)
     bars = rules.completed(bars, data_end=data_end, minutes=minutes, parse=parse_alpaca_timestamp)
+    bars = rules.regular_hours(bars, parse=parse_alpaca_timestamp, tz=EASTERN_TZ)
     required_session = expected_session_date or datetime.now(timezone.utc).astimezone(EASTERN_TZ).date().isoformat()
     observed_sessions = sorted(
         {
@@ -472,8 +496,12 @@ def entry_confirmation(
         minute_bars = fetch_realtime_minutes(symbol, required_session)
     except Exception:  # noqa: BLE001 - no real-time view: the "still holding" check stays unknown and the entry waits
         minute_bars = None
+    try:
+        profile = volume_profile(symbol, required_session)
+    except Exception:  # noqa: BLE001 - no history: participation stays unknown and the entry waits
+        profile = {}
     result = rules.evaluate(trade_direction, bars, minute_bars, session_bars=session_bars,
-                            parse=parse_alpaca_timestamp)
+                            parse=parse_alpaca_timestamp, volume_profile=profile, tz=EASTERN_TZ)
 
     def compact(bar: dict[str, Any]) -> dict[str, Any]:
         return {key: bar.get(key) for key in ("t", "o", "h", "l", "c", "v")}

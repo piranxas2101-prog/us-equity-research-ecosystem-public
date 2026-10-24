@@ -79,7 +79,9 @@ class TraderTradePlanTests(unittest.TestCase):
             notional_source="agent_suggestion", expected_run_id="run_test",
         )
         self.assertFalse(candidates)
-        self.assertEqual(blocked[0]["block_reason"], "unresolved_short_implementation_gates")
+        # without today's short-gate data nothing resolves; the reason now names the open gates (2026-10-24)
+        self.assertTrue(blocked[0]["block_reason"].startswith("unresolved_short_implementation_gates:"))
+        self.assertIn("shortability", blocked[0]["block_reason"])
 
 
 if __name__ == "__main__":

@@ -190,6 +190,9 @@ with a fixed class map (week / month / quarter set by the owner) was replaced th
   the monitors read all positions in one call per cycle and send every close at once at the flat.
 * **Entry confirmation on sound data** (owner 2026-10-24, the AMSF short): Miltos confirms on completed SIP bars
   with volume, RSI(14) 15m and a real-time check (`entry_confirmation_rules.py`, docs/RULES_REVIEW.md).
+* **Lab strategies in the catalog, shorts through the SHORT contract** (owner's choice B, 2026-10-24): the six daily
+  strategies get trade plans and agent horizons; a short is placed only when today's broker flags (shortable,
+  easy to borrow) and short interest/float resolve its gates (`alpaca_short_gate_data.py`); unknown keeps it blocked.
 * **Win rate on the right window:** a held trade is judged against SPY from its entry session's open to its exit
   session's close (`paper_learning.attach_held_spy`), not against the entry session alone.
 * **Learning:** the ledger records a held trade as `held_on_horizon` and completes it on the session it closes in

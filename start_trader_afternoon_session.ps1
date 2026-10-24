@@ -148,6 +148,12 @@ try {
         Write-Log "Leftover positions sent to close at the open (exit $leftoverExit): output\alpaca_preflight_leftovers_latest.md"
     }
 
+    # 1b. SHORT gates (owner's choice B, 2026-10-24): shortability and borrow from the broker, short interest and
+    #     float from Giannis / the yfinance cache / yfinance for the day's short candidates, read-only. Without them
+    #     Koulis keeps the shorts with open gates blocked.
+    $shortGatesExit = Invoke-Logged { & $python -W ignore "alpaca_short_gate_data.py" }
+    Write-Log "Short gate data finished with exit code ${shortGatesExit}: output\short_gate_data_latest.json"
+
     # 2. Paper orders, only on today's completed research run
     $reason = $null
     $pointer = $null

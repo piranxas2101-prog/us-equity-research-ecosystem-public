@@ -42,7 +42,9 @@ STORED_FIELDS = PRICE_SCALED_FIELDS + (
     "enterpriseValue", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins", "revenueGrowth",
     "earningsGrowth", "returnOnEquity", "returnOnAssets", "totalCash", "totalDebt", "debtToEquity",
     "freeCashflow", "operatingCashflow", "currentRatio", "quickRatio", "sharesOutstanding", "netIncomeToCommon",
-    "longName", "shortName", "sector", "industry", "currency")
+    "longName", "shortName", "sector", "industry", "currency",
+    # short interest and float for the SHORT gates (alpaca_short_gate_data.py, owner's choice B 2026-10-24)
+    "shortPercentOfFloat", "floatShares")
 FILING_LAG_DAYS = 5
 CARRY_MAX_DAYS = 30  # a field missing from a fresh answer keeps the stored value at most this long
 POPULATE_KEEP_DAYS = 6  # a populate copy is refreshed only when older (reuse accepts copies up to 7 days)

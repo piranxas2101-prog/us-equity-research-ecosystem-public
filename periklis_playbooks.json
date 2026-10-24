@@ -39,7 +39,13 @@
     {"playbook_id": "post_earnings_drift", "status": "shadow", "weight": 1.15, "role": "post_print_specialty"},
     {"playbook_id": "sector_relative_strength_weakness", "status": "shadow", "weight": 1.20, "role": "sector_relative_specialty"},
     {"playbook_id": "fundamental_revision_trend", "status": "shadow", "weight": 1.15, "role": "fundamental_revision_specialty"},
-    {"playbook_id": "defensive_no_trade", "status": "shadow", "weight": 1.35, "role": "abstention_guard"}
+    {"playbook_id": "defensive_no_trade", "status": "shadow", "weight": 1.35, "role": "abstention_guard"},
+    {"playbook_id": "rsi2_mean_reversion", "status": "research", "weight": 1.00, "role": "other_trader_daily_strategy"},
+    {"playbook_id": "gap_continuation", "status": "research", "weight": 1.00, "role": "other_trader_daily_strategy"},
+    {"playbook_id": "gap_fade", "status": "research", "weight": 1.00, "role": "other_trader_daily_strategy"},
+    {"playbook_id": "momentum_12_1", "status": "active", "weight": 1.00, "role": "daily_strategy"},
+    {"playbook_id": "high_52w_breakout", "status": "active", "weight": 1.00, "role": "daily_strategy"},
+    {"playbook_id": "volatility_compression_breakout", "status": "active", "weight": 1.00, "role": "daily_strategy"}
   ],
   "playbooks": [
     {

@@ -142,8 +142,12 @@ def validate_intent_payload(payload: dict[str, Any], *, today: date | None = Non
                     raise IntentValidationError(f"Agent holding horizon is missing or invalid for {ticker}.")
             elif rule != holding_horizon.SAME_DAY:
                 raise IntentValidationError(f"Experiment position is not same-day-flat for {ticker}.")
-            if direction == "short" and trade_plan.get("unresolved_short_gates_at_signal"):
-                raise IntentValidationError(f"SHORT gates are unresolved for {ticker}.")
+            open_gates = set(trade_plan.get("unresolved_short_gates_at_signal") or [])
+            if direction == "short" and open_gates:
+                # owner's choice B (2026-10-24): Koulis resolved them from today's broker and short-interest data
+                resolution = item.get("short_gate_resolution") or {}
+                if resolution.get("as_of") != session_date or not open_gates <= set(resolution.get("resolved") or {}):
+                    raise IntentValidationError(f"SHORT gates are unresolved for {ticker}.")
         expected_id = stable_intent_id(run_id, agent, ticker, direction, playbook)
         if intent_id != expected_id:
             raise IntentValidationError(f"Intent id mismatch for {ticker}.")

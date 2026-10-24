@@ -10,8 +10,11 @@ import unittest
 from unittest import mock
 
 import alpaca_paper_position_monitor as monitor
+import holding_horizon
 import entry_confirmation_rules as rules
 import koulis_risk_gate
+import playbook_framework
+import trader_trade_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 START = datetime(2026, 10, 23, 13, 30, tzinfo=timezone.utc)
@@ -128,6 +131,87 @@ class MonitorBatchTests(unittest.TestCase):
         with mock.patch.object(monitor, "fetch_order_by_id") as fetch:
             self.assertEqual(monitor.refreshed_order(filled)["status"], "filled")
             fetch.assert_not_called()
+
+
+class ShortGateTests(unittest.TestCase):
+    TODAY = "2026-10-26"
+
+    def data(self, **facts):
+        import alpaca_short_gate_data as sg
+        base = {"symbol": "ABC", "shortable": True, "easy_to_borrow": True}
+        asset = {**base, **{k: v for k, v in facts.items() if k in ("shortable", "easy_to_borrow")}}
+        row = {"ticker": "ABC", "short_percent_of_float": facts.get("short_float", 0.05),
+               "shares_outstanding": facts.get("shares", 50_000_000)}
+        return sg, sg.build([asset], [row], self.TODAY, info=lambda symbol: {})
+
+    GATES = ["borrow_carry", "shortability", "squeeze_buyback_low_float_risk"]
+
+    def test_all_gates_resolved_for_an_easy_liquid_stock(self):
+        sg, data = self.data()
+        resolved, remaining = sg.resolve(self.GATES, data, "ABC", self.TODAY)
+        self.assertEqual((sorted(resolved), remaining), (sorted(self.GATES), []))
+
+    def test_hard_to_borrow_crowded_or_small_float_stays_blocked(self):
+        for facts, gate in (({"easy_to_borrow": False}, "borrow_carry"), ({"shortable": False}, "shortability"),
+                            ({"short_float": 0.25}, "squeeze_buyback_low_float_risk"),
+                            ({"shares": 5_000_000}, "squeeze_buyback_low_float_risk"),
+                            ({"short_float": None}, "squeeze_buyback_low_float_risk")):
+            sg, data = self.data(**facts)
+            self.assertIn(gate, sg.resolve(self.GATES, data, "ABC", self.TODAY)[1], facts)
+
+    def test_old_data_or_unknown_symbol_resolves_nothing(self):
+        sg, data = self.data()
+        self.assertEqual(sg.resolve(self.GATES, data, "ABC", "2026-10-27")[1], self.GATES)
+        self.assertEqual(sg.resolve(self.GATES, data, "XYZ", self.TODAY)[1], self.GATES)
+        self.assertEqual(sg.resolve(self.GATES, None, "ABC", self.TODAY)[1], self.GATES)
+
+    def test_koulis_approves_and_thymios_accepts_a_resolved_lab_short(self):
+        from datetime import date
+        from thymios_order_intent import IntentValidationError, validate_intent_payload
+        catalog = playbook_framework.load_catalog(ROOT / "playbook_catalog_v2.json")
+        policy = json.loads((ROOT / "yankos_playbooks.json").read_text(encoding="utf-8"))["paper_sizing_policy"]
+        row = {"agent_name": "yankos", "ticker": "ABC", "company": "Abc", "trade_direction": "short",
+               "playbook_name": "gap_fade", "signal_score": 9.0, "signal_verdict": "candidate",
+               "instrument_type": "common", "risk_level": "Low", "fresh_primary_data": True,
+               "fundamental_packet_hash": "h", "fundamental_thesis_id": "t", "fundamental_thesis_hash": "th",
+               "fundamental_gate_status": "pass", "execution_eligible": True, "atr_14_pct": 3.0, "rationale": ["r"]}
+        row["paper_trade_plan"] = trader_trade_plan.build_trade_plan(
+            "yankos", row, playbook_framework.catalog_by_id(catalog)["gap_fade"], policy, "run_test", {})
+        self.assertTrue(row["paper_trade_plan"]["unresolved_short_gates_at_signal"])
+        today = date.today().isoformat()
+        sg, data = self.data()
+        data["as_of"] = today
+
+        def gate(short_data):
+            return koulis_risk_gate.build_gate(
+                [("yankos", {"run_id": "run_test", "agent_name": "yankos", "results": [row]})],
+                {"block_trader_run": False, "snapshot_before": {"positions": [], "open_orders": []}},
+                run_id="run_test", min_score=7.0, max_total_orders=5, notional_per_trade=250.0,
+                max_total_notional=5000.0, max_short_orders=2, notional_source="agent_suggestion",
+                short_gate_data=short_data, today=today)
+
+        blocked = gate(None)
+        self.assertEqual(blocked["approved_count"], 0)
+        self.assertTrue(blocked["blocked_intents"][0]["block_reason"].startswith("unresolved_short_implementation_gates"))
+        approved = gate(data)
+        self.assertEqual(approved["approved_count"], 1)
+        validate_intent_payload(approved)
+        tampered = json.loads(json.dumps(approved))
+        tampered["approved_intents"][0]["short_gate_resolution"]["resolved"].pop("borrow_carry")
+        with self.assertRaisesRegex(IntentValidationError, "SHORT gates"):
+            validate_intent_payload(tampered)
+
+    def test_lab_strategies_are_in_the_catalog_with_a_horizon(self):
+        catalog = playbook_framework.catalog_by_id(playbook_framework.load_catalog(ROOT / "playbook_catalog_v2.json"))
+        for name in ("momentum_12_1", "high_52w_breakout", "rsi2_mean_reversion", "volatility_compression_breakout",
+                     "gap_continuation", "gap_fade"):
+            self.assertIn(name, catalog)
+        policy = json.loads((ROOT / "yankos_playbooks.json").read_text(encoding="utf-8"))["paper_sizing_policy"]
+        curve = {("gap_fade", "short"): [{"sessions": 5, "edge_pct": 1.9, "edge_ci": [1, 2], "years": "5/5", "n": 1}]}
+        row = {"ticker": "GAP", "trade_direction": "short", "playbook_name": "gap_fade", "signal_score": 9.0,
+               "signal_verdict": "candidate", "risk_level": "Low", "atr_14_pct": 3.0, "rationale": ["r"]}
+        plan = trader_trade_plan.build_trade_plan("yankos", row, catalog["gap_fade"], policy, "run_test", curve)
+        self.assertEqual((plan["holding_period_rule"], plan["holding_horizon"]["sessions"]), (holding_horizon.RULE, 5))
 
 
 if __name__ == "__main__":

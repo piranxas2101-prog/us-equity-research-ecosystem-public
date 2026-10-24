@@ -18,6 +18,7 @@ from thymios_order_intent import (
     write_validation_report,
 )
 from common import load_json
+import alpaca_short_gate_data as short_gates
 
 
 def as_float(value: Any, default: float = 0.0) -> float:
@@ -142,6 +143,7 @@ def prefilter_strategy_rows(payload: dict[str, Any], agent: str) -> tuple[list[d
 def candidate_rows(
     payload: dict[str, Any], agent: str, min_score: float, notional_usd: float,
     notional_source: str = "default", expected_run_id: str = "",
+    short_gate_data: dict[str, Any] | None = None, today: str = "",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -154,6 +156,15 @@ def candidate_rows(
         score = as_float(raw.get("signal_score"))
         trade_plan = raw.get("paper_trade_plan") if isinstance(raw.get("paper_trade_plan"), dict) else None
         selected_notional = notional_usd
+        short_resolution: dict[str, Any] | None = None
+        remaining_gates: list[str] = []
+        if direction == "short" and trade_plan is not None and trade_plan.get("unresolved_short_gates_at_signal"):
+            # owner's choice B (2026-10-24): the gates the signal left open are resolved from today's broker and
+            # Giannis data (alpaca_short_gate_data.py); whatever stays unknown keeps the short blocked
+            resolved, remaining_gates = short_gates.resolve(
+                list(trade_plan["unresolved_short_gates_at_signal"]), short_gate_data, ticker, today)
+            if not remaining_gates:
+                short_resolution = {"as_of": today, "resolved": resolved}
         if notional_source == "agent_suggestion" and trade_plan is not None:
             selected_notional = as_float(trade_plan.get("suggested_notional_usd"), 0.0)
         reason = None
@@ -189,8 +200,8 @@ def candidate_rows(
             reason = "trade_plan_authority_violation"
         elif trade_plan is not None and str(trade_plan.get("portfolio_status_required") or "") != "active":
             reason = "trade_plan_not_active_specialization"
-        elif direction == "short" and trade_plan is not None and trade_plan.get("unresolved_short_gates_at_signal"):
-            reason = "unresolved_short_implementation_gates"
+        elif direction == "short" and remaining_gates:
+            reason = "unresolved_short_implementation_gates:" + ",".join(sorted(remaining_gates))
         elif selected_notional <= 0:
             reason = "invalid_agent_notional"
         item = {
@@ -203,6 +214,7 @@ def candidate_rows(
             "notional_usd": round(selected_notional, 2),
             "notional_source": notional_source,
             "trade_plan": trade_plan,
+            "short_gate_resolution": short_resolution,
             "fundamental_packet_hash": raw.get("fundamental_packet_hash"),
             "fundamental_thesis_id": raw.get("fundamental_thesis_id"),
             "fundamental_thesis_hash": raw.get("fundamental_thesis_hash"),
@@ -254,6 +266,8 @@ def build_gate(
     selection: str = "strategy_rank",
     max_per_strategy: int = DEFAULT_MAX_PER_STRATEGY,
     held_limit: str = "count",
+    short_gate_data: dict[str, Any] | None = None,
+    today: str | None = None,
 ) -> dict[str, Any]:
     if selection not in SELECTION_MODES:
         raise ValueError(f"selection must be one of {SELECTION_MODES}.")
@@ -288,6 +302,7 @@ def build_gate(
         fresh, rejected = candidate_rows(
             filtered_payload, agent, min_score, notional_per_trade,
             notional_source=notional_source, expected_run_id=run_id,
+            short_gate_data=short_gate_data, today=today or datetime.now(timezone.utc).date().isoformat(),
         )
         all_candidates.extend(fresh)
         blocked.extend(rejected)
@@ -447,6 +462,8 @@ def main() -> int:
     parser.add_argument("--max-short-orders", type=int, default=2)
     parser.add_argument("--selection", choices=SELECTION_MODES, default="strategy_rank",
                         help="strategy_rank: standing inside each strategy (owner 2026-10-15); score: raw signal score")
+    parser.add_argument("--short-gate-data", default="output/short_gate_data_latest.json",
+                        help="broker and short-interest data that resolves the SHORT gates (alpaca_short_gate_data.py)")
     parser.add_argument("--max-per-strategy", type=int, default=DEFAULT_MAX_PER_STRATEGY,
                         help="approved intents per (agent, playbook); 0 = no limit")
     args = parser.parse_args()
@@ -475,6 +492,7 @@ def main() -> int:
         selection=args.selection,
         max_per_strategy=args.max_per_strategy,
         held_limit=held_limit_mode(),
+        short_gate_data=load_json(Path(args.short_gate_data)) if Path(args.short_gate_data).is_file() else None,
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

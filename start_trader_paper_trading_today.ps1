@@ -92,6 +92,15 @@ if ($effectiveMaxTotalNotional -le 0) {
     }
 }
 
+# SHORT gates (owner's choice B, 2026-10-24): today's shortability and borrow flags from the broker and the short
+# interest from Giannis, read-only. Without them Koulis keeps every short with open gates blocked.
+$shortGatesOut = Join-Path $logsDir "short_gate_data_$timestamp.out.log"
+$shortGatesErr = Join-Path $logsDir "short_gate_data_$timestamp.err.log"
+$shortGatesExit = Run-Python -Arguments @(".\alpaca_short_gate_data.py", "--if-stale") -StdoutLog $shortGatesOut -StderrLog $shortGatesErr
+if ($shortGatesExit -ne 0) {
+    Write-Host "[SHORT-GATES] Data not read (exit $shortGatesExit); shorts with open gates stay blocked. See $shortGatesErr"
+}
+
 $approvedIntents = Join-Path $outputDir "koulis_order_intents_latest.json"
 $approvedIntentsArg = "output\koulis_order_intents_latest.json"
 $koulisOut = Join-Path $logsDir "koulis_risk_gate_$timestamp.out.log"

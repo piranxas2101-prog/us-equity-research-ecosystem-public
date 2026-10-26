@@ -132,7 +132,15 @@ def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[st
         reason, explanation = decide(entry, position, now=eastern, shock=shock, strategy_dir=Path(args.strategy_dir))
         states[symbol] = {key: entry.get(key) for key in ("weak_nights", "last_thesis_run", "last_thesis_check")}
         if reason is None:
-            holds.append({"ticker": symbol, "horizon_sessions": entry["horizon_sessions"],
+            # the session report shows every held position (T7, 2026-10-26): its figures, not only the sentence
+            elapsed = trading_clock.trading_minutes_between(
+                datetime.fromisoformat(str(entry["filled_at"]).replace("Z", "+00:00")), eastern)
+            held = max(1, math.ceil(elapsed / trading_clock.SESSION_MINUTES))
+            holds.append({"ticker": symbol, "agent": entry["agent"], "playbook_name": entry.get("playbook"),
+                          "trade_direction": entry["direction"], "horizon_sessions": entry["horizon_sessions"],
+                          "opened_session": entry["opened_session"], "expires_at": entry["expires_at"],
+                          "sessions_held": held, "position_plpc": unrealized_plpc(position),
+                          "stop_pct": thesis_exit.scaled_stop(to_float(entry.get("atr_14_pct")), held),
                           "decision_reason": explanation})
             continue
         qty = str(position.get("qty") or "").strip().lstrip("-")  # a short position's qty is negative

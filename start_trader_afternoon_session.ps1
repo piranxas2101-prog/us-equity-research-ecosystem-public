@@ -1,5 +1,6 @@
 # Afternoon paper session (owner's decision 2026-10-13), started by the scheduled task "Ecosystem Preopen Check"
-# Mon-Fri at 16:00 Athens. The nightly research run stays research-only; this is the separate paper workflow.
+# Mon-Fri at 15:00 Athens and waits for 09:00 New York (owner 2026-10-26: one start time for every week of the year,
+# whatever the two clock changes). The nightly research run stays research-only; this is the separate paper workflow.
 # 1. Pre-open check (09:00 New York): pre-market gap and new 8-Ks, candidate -> watch only (preopen_check.py).
 # 2. Paper orders only if today's nightly run completed, the traders' files come from it and no session started
 #    today: at 09:35 New York, start_trader_paper_trading_today.ps1 on the checked files (preflight, Koulis,
@@ -101,6 +102,12 @@ if ((Get-Eastern).DayOfWeek -in @([DayOfWeek]::Saturday, [DayOfWeek]::Sunday)) {
 [void][Ecosystem.Awake]::SetThreadExecutionState([uint32]2147483649)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
 
 try {
+    # The task starts at 15:00 Athens (owner 2026-10-26): Europe and the US change their clocks on different dates,
+    # so for a few weeks a year Athens is 6 hours ahead of New York instead of 7 (on 2026-10-26 the 16:00 start was
+    # 10:00 New York and the "pre-open" check ran after the open). Starting at 15:00 and waiting for 09:00 New York
+    # keeps the check before the open in every week.
+    Wait-Eastern 9 0
+
     # 0. One-off, owner's choice (not daily): only on the date in paper_session.wait_for_late_run_date
     #    (scanner_config.json) a research run still active is waited for until 14:00 New York, so its traders'
     #    files are the ones checked and traded. On every other day a run not finished by 16:00 means no orders.

@@ -7,7 +7,8 @@
   "paper_session": {
     "wait_for_late_run_date": "2026-10-14",
     "held_positions_limit": "none",
-    "new_orders_limit": "none"
+    "new_orders_limit": "none",
+    "shadow_only_strategies": ["gap_continuation:long", "mean_reversion_overextension:long", "gap_fade:long"]
   },
   "preopen": {
     "recheck_at_open": "on"

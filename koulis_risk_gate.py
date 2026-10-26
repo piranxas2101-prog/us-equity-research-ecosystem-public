@@ -19,6 +19,7 @@ from thymios_order_intent import (
 )
 from common import load_json
 import alpaca_short_gate_data as short_gates
+import strategy_tiers
 
 
 def as_float(value: Any, default: float = 0.0) -> float:
@@ -144,6 +145,7 @@ def candidate_rows(
     payload: dict[str, Any], agent: str, min_score: float, notional_usd: float,
     notional_source: str = "default", expected_run_id: str = "",
     short_gate_data: dict[str, Any] | None = None, today: str = "",
+    shadow_only: set[str] | frozenset[str] = frozenset(),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -200,6 +202,9 @@ def candidate_rows(
             reason = "trade_plan_authority_violation"
         elif trade_plan is not None and str(trade_plan.get("portfolio_status_required") or "") != "active":
             reason = "trade_plan_not_active_specialization"
+        elif f"{playbook}:{direction}" in shadow_only:
+            # owner's choice 3 for T5 (2026-10-26): worse than a random entry within days - recorded, never placed
+            reason = "shadow_only_strategy"
         elif direction == "short" and remaining_gates:
             reason = "unresolved_short_implementation_gates:" + ",".join(sorted(remaining_gates))
         elif selected_notional <= 0:
@@ -268,6 +273,7 @@ def build_gate(
     held_limit: str = "count",
     short_gate_data: dict[str, Any] | None = None,
     today: str | None = None,
+    shadow_only: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     if selection not in SELECTION_MODES:
         raise ValueError(f"selection must be one of {SELECTION_MODES}.")
@@ -303,6 +309,7 @@ def build_gate(
             filtered_payload, agent, min_score, notional_per_trade,
             notional_source=notional_source, expected_run_id=run_id,
             short_gate_data=short_gate_data, today=today or datetime.now(timezone.utc).date().isoformat(),
+            shadow_only=shadow_only,
         )
         all_candidates.extend(fresh)
         blocked.extend(rejected)
@@ -493,6 +500,7 @@ def main() -> int:
         max_per_strategy=args.max_per_strategy,
         held_limit=held_limit_mode(),
         short_gate_data=load_json(Path(args.short_gate_data)) if Path(args.short_gate_data).is_file() else None,
+        shadow_only=strategy_tiers.shadow_only(),
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

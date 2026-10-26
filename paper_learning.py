@@ -29,6 +29,7 @@ from typing import Any, Callable
 import holding_shadow as hs
 import preopen_recheck as pr
 import paper_trade_ledger as ledger
+import strategy_tiers
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "output" / "paper_learning"
@@ -344,6 +345,8 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
             "category_findings": category_findings(signals + trades),
             "holding_shadow": hs.summarize(records, metrics),
             "holding_category_findings": hs.category_findings(records, min_records=MIN_TRADES, min_days=MIN_DAYS),
+            # T5 (owner 2026-10-26): the three tiers and the review of the same-day strategies - proposals only
+            "strategy_tiers": strategy_tiers.review(trades, signals),
             "active_decisions_changed": False}
 
 
@@ -566,6 +569,7 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
         lines.append(f"- **{check['check']}**: {check['question']} Άλλη πλευρά {check['other']['known']} με μέσο "
                      f"{_v(check['other']['mean_pct'], '%')}, trades {check['traded']['known']} με μέσο "
                      f"{_v(check['traded']['mean_pct'], '%')} → {VERDICT_GR.get(check['verdict'], check['verdict'])}.")
+    lines += strategy_tiers.render(evaluation.get("strategy_tiers") or [])
     sig = evaluation.get("signals") or {}
     so = sig.get("overall") or {}
     lines += ["", "## Ποιότητα σημάτων (όλα τα candidates, σκιώδη trades)", "",

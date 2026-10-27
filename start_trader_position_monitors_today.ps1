@@ -84,7 +84,9 @@ $reconcileErr = Join-Path $logsDir ("trader_reconciliation_waiter_{0}.err.log" -
 $reconcileArgs = @(
     "-ExecutionPolicy", "Bypass",
     "-File", ".\run_trader_reconciliation_today.ps1",
-    "-PythonExe", $PythonExe,
+    # quoted: Start-Process joins the list with spaces, and "New project" split the path (no reconciliation
+    # ran since 2026-08-26; found 2026-10-27)
+    "-PythonExe", ('"{0}"' -f $PythonExe),
     "-SessionLabel", "after_monitors",
     "-WaitForMonitors"
 )

@@ -110,5 +110,40 @@ class ExecutionTests(unittest.TestCase):
             self.assertEqual(logged.count("could not start (0xC0000142)"), 2)
 
 
+CHILD = """param([string]$PythonExe, [int]$PollSeconds = 30)
+Set-Content -Path (Join-Path $PSScriptRoot "seen.txt") -Value "$PythonExe|$PollSeconds"
+"""
+PARENT = """$PythonExe = Join-Path $PSScriptRoot ".venv-next\\Scripts\\python.exe"
+$list = @("-ExecutionPolicy", "Bypass", "-File", ".\\child.ps1", "-PythonExe", ('"{0}"' -f $PythonExe))
+$p = Start-Process -FilePath "powershell.exe" -ArgumentList $list -WorkingDirectory $PSScriptRoot -PassThru -Wait -WindowStyle Hidden
+exit $p.ExitCode
+"""
+
+
+class StartProcessPathTests(unittest.TestCase):
+    """2026-10-27: Start-Process joins -ArgumentList with spaces, so a path with a space ("New project") passed
+    unquoted to a child PowerShell script split into two arguments - the reconciliation waiter failed every session."""
+
+    def test_python_path_handed_to_a_child_script_is_quoted(self):
+        for path in ROOT.glob("*.ps1"):
+            for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+                if re.search(r'"-PythonExe",\s*\$PythonExe', line.split("#", 1)[0]):
+                    with self.subTest(script=path.name, line=number):
+                        self.fail(f"{path.name}:{number} passes $PythonExe unquoted through Start-Process")
+
+    @unittest.skipUnless(POWERSHELL, "Windows PowerShell not available")
+    def test_quoted_path_with_a_space_reaches_the_child_as_one_parameter(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder) / "New project"
+            base.mkdir()
+            (base / "child.ps1").write_text(CHILD, encoding="utf-8")
+            (base / "parent.ps1").write_text(PARENT, encoding="utf-8")
+            done = subprocess.run([POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                   str(base / "parent.ps1")], capture_output=True, text=True, timeout=120)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            seen = (base / "seen.txt").read_text(encoding="utf-8-sig").strip()
+        self.assertEqual(seen, str(base / ".venv-next" / "Scripts" / "python.exe") + "|30")
+
+
 if __name__ == "__main__":
     unittest.main()

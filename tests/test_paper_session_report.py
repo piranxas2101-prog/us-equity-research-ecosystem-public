@@ -110,6 +110,49 @@ class WholeDayTests(unittest.TestCase):
         self.assertIn("Θέσεις που κρατάμε", text)
         self.assertIn("χαμηλός όγκος 1", text)
 
+    def test_wait_cost_of_miltos_entries_and_the_move_of_the_ones_that_never_entered(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            write(out, "yankos_paper_trades_latest.json", {"run_timestamp": "2026-10-13T16:40:00+03:00", "openings": [
+                {"ticker": "AAA", "playbook_name": "support_bounce_swing", "trade_direction": "long",
+                 "order_status": "filled", "miltos_activated_at": "2026-10-13T18:02:00+03:00",
+                 "order_response": {"filled_at": "2026-10-13T15:02:00Z", "filled_avg_price": "102"}},
+                {"ticker": "SSS", "playbook_name": "early_accumulation_swing", "trade_direction": "short",
+                 "order_status": "filled", "miltos_activated_at": "2026-10-13T18:02:00+03:00",
+                 "order_response": {"filled_at": "2026-10-13T15:02:00Z", "filled_avg_price": 49}},
+                {"ticker": "BBB", "playbook_name": "momentum_12_1", "trade_direction": "long", "order_status": "filled",
+                 "order_response": {"filled_at": "2026-10-13T13:40:00Z", "filled_avg_price": 10}},
+                {"ticker": "CCC", "playbook_name": "support_bounce_swing", "trade_direction": "long",
+                 "order_status": "waiting_confirmation", "confirmation_checks": {"trigger": False}},
+                {"ticker": "DDD", "playbook_name": "support_bounce_swing", "trade_direction": "long",
+                 "order_status": "waiting_confirmation", "confirmation_checks": {"trigger": False}}]})
+            asked = []
+
+            def prices(tickers):
+                asked.extend(tickers)
+                return {"AAA": {"at_0935": 100.0, "close": 103.0}, "SSS": {"at_0935": 50.0, "close": 48.0},
+                        "CCC": {"at_0935": 20.0, "close": 21.0}}          # DDD has no price: stays unknown
+            report = psr.build(out, TODAY, spy_move=0.0, prices=prices)
+        self.assertEqual(sorted(asked), ["AAA", "CCC", "DDD", "SSS"])     # trader-at-start entries are not priced
+        rows = {r["playbook"]: r for r in report["miltos_wait_cost"]["by_strategy"]}
+        bounce = rows["support_bounce_swing"]
+        self.assertEqual((bounce["miltos_entries"], bounce["average_wait_cost_pct"]), (1, 2.0))   # paid 102 vs 100
+        self.assertEqual((bounce["never_entered"], bounce["priced_never_entered"],
+                          bounce["average_move_if_entered_at_0935_pct"]), (2, 1, 5.0))
+        self.assertEqual(rows["early_accumulation_swing"]["average_wait_cost_pct"], 2.0)   # short sold 49 < 50: worse
+        self.assertNotIn("momentum_12_1", rows)
+        self.assertIn("Κόστος αναμονής του Miltos", psr.render(report))
+
+    def test_no_price_source_keeps_the_wait_cost_unknown(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            write(out, "yankos_paper_trades_latest.json", {"run_timestamp": "2026-10-13T16:40:00+03:00", "openings": [
+                {"ticker": "AAA", "playbook_name": "support_bounce_swing", "trade_direction": "long",
+                 "order_status": "filled", "miltos_activated_at": "2026-10-13T18:02:00+03:00",
+                 "order_response": {"filled_at": "2026-10-13T15:02:00Z", "filled_avg_price": 102}}]})
+            row = psr.build(out, TODAY, spy_move=0.0)["miltos_wait_cost"]["by_strategy"][0]
+        self.assertEqual((row["miltos_entries"], row["average_wait_cost_pct"], row["priced_entries"]), (1, None, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

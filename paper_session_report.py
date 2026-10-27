@@ -7,6 +7,11 @@ T7 (owner 2026-10-26): the report shows the whole day, not the last cycle - ever
 time and who placed it (trader at the start or Miltos later), what kept the waiting entries out (trigger,
 volume, momentum, price now), results per strategy and tier, the positions held on their agent's horizon (result,
 sessions held, stop, expiry), and Koulis as a summary instead of one line per approval.
+
+T8 choice C1 (owner 2026-10-27): the intraday lab found support_bounce long's edge strongest from the open, so the
+report measures what Miltos's wait cost - the price at 09:35 New York (when the traders send their orders) against
+the fill of every Miltos entry, and the 09:35-to-close move of the entries that waited all day without entering.
+Report only: it changes no entry rule. Prices come from yfinance 1-minute bars; a missing price stays unknown.
 """
 from __future__ import annotations
 
@@ -15,7 +20,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
@@ -73,6 +78,74 @@ def spy_session_move(today: date) -> float | None:
         return None
 
 
+def session_prices(tickers: list[str], today: date) -> dict[str, dict[str, float]]:
+    """{ticker: {"at_0935": open of the 09:35 New York minute, "close": last regular close}} from yfinance 1-minute
+    bars; a ticker without both prices is left out (unknown, not zero)."""
+    out: dict[str, dict[str, float]] = {}
+    if not tickers:
+        return out
+    try:
+        import yfinance as yf
+
+        frame = yf.download(sorted(set(tickers)), start=today.isoformat(), interval="1m", group_by="ticker",
+                            auto_adjust=False, prepost=False, progress=False, threads=True)
+    except Exception:  # noqa: BLE001 - unknown, not zero
+        return out
+    for ticker in set(tickers):
+        try:
+            bars = (frame[ticker] if frame.columns.nlevels > 1 else frame).dropna(subset=["Open", "Close"])
+            index = bars.index.tz_convert(NEW_YORK) if bars.index.tz is not None else bars.index.tz_localize(NEW_YORK)
+            bars = bars[(index.date == today)]
+            index = index[(index.date == today)]
+            start = bars[(index.hour == 9) & (index.minute == 35)]
+            regular = bars[(index.hour * 60 + index.minute) < 16 * 60]
+            if start.empty or regular.empty:
+                continue
+            out[ticker] = {"at_0935": float(start["Open"].iloc[0]), "close": float(regular["Close"].iloc[-1])}
+        except Exception:  # noqa: BLE001 - one ticker's gap leaves only that ticker unknown
+            continue
+    return out
+
+
+def _signed_pct(start: float | None, end: float | None, direction: str) -> float | None:
+    """end against start in the trade's direction, in %: positive = the price moved for the trade."""
+    if not start or end is None:
+        return None
+    move = (end / start - 1) * 100
+    return round(move if direction == "long" else -move, 2) + 0.0  # + 0.0 keeps -0.0 out of the report
+
+
+def _wait_cost(entries: list[dict[str, Any]], waited: list[dict[str, Any]],
+               prices: dict[str, dict[str, float]]) -> dict[str, Any]:
+    """C1: per strategy, what entering at 09:35 instead of waiting for Miltos would have changed."""
+    groups: dict[tuple, dict[str, list[float]]] = defaultdict(lambda: {"cost": [], "entered": 0, "missed": [],
+                                                                        "waited": 0})
+    for e in entries:
+        if e["entered_by"] != "miltos":
+            continue
+        p = prices.get(str(e["ticker"])) or {}
+        # cost = the move in the trade's favour from 09:35 to the fill, missed by waiting (positive = a worse price)
+        e["price_0935"] = p.get("at_0935")
+        e["wait_cost_pct"] = _signed_pct(p.get("at_0935"), e.get("fill_price"), str(e["direction"]))
+        g = groups[(e["agent"], e["playbook"], e["direction"])]
+        g["entered"] += 1
+        if e["wait_cost_pct"] is not None:
+            g["cost"].append(e["wait_cost_pct"])
+    for w in waited:
+        p = prices.get(str(w["ticker"])) or {}
+        w["move_0935_to_close_pct"] = _signed_pct(p.get("at_0935"), p.get("close"), str(w["direction"]))
+        g = groups[(w["agent"], w["playbook"], w["direction"])]
+        g["waited"] += 1
+        if w["move_0935_to_close_pct"] is not None:
+            g["missed"].append(w["move_0935_to_close_pct"])
+    rows = [{"agent": a, "playbook": p, "direction": d, "miltos_entries": g["entered"],
+             "average_wait_cost_pct": _mean(g["cost"]), "priced_entries": len(g["cost"]),
+             "never_entered": g["waited"], "average_move_if_entered_at_0935_pct": _mean(g["missed"]),
+             "priced_never_entered": len(g["missed"])}
+            for (a, p, d), g in sorted(groups.items(), key=lambda kv: (str(kv[0][1]), str(kv[0][2]), str(kv[0][0])))]
+    return {"by_strategy": rows, "never_entered": waited}
+
+
 def _tiers():
     """(curve, shadow-only set) for the tier of each strategy; empty when unavailable (tier stays unknown)."""
     try:
@@ -96,7 +169,8 @@ def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
 
 
-def build(out: Path, today: date, spy_move: float | None) -> dict[str, Any]:
+def build(out: Path, today: date, spy_move: float | None,
+          prices: Callable[[list[str]], dict[str, dict[str, float]]] | None = None) -> dict[str, Any]:
     preopen = _today(_load(out / "preopen" / "preopen_check_latest.json"), today, "checked_at")
     koulis = _today(_load(out / "koulis_order_intents_latest.json"), today, "generated_at")
     traders = {a: _today(_load(out / f"{a}_paper_trades_latest.json"), today, "run_timestamp") for a in AGENTS}
@@ -106,7 +180,7 @@ def build(out: Path, today: date, spy_move: float | None) -> dict[str, Any]:
     curve, shadow = _tiers()
 
     # every entry of the day, with who placed it and when (the trader at the start, Miltos later)
-    entries, waiting, by_key = [], Counter(), {}
+    entries, waiting, by_key, waited = [], Counter(), {}, []
     for agent, payload in traders.items():
         for o in (payload or {}).get("openings") or []:
             if not isinstance(o, dict):
@@ -119,13 +193,20 @@ def build(out: Path, today: date, spy_move: float | None) -> dict[str, Any]:
                        "entered_by": "miltos" if o.get("miltos_activated_at") else "trader",
                        "holding_sessions": (plan.get("holding_horizon") or {}).get("sessions")
                        if plan.get("holding_period_rule") == "agent_horizon" else None,
-                       "tier": _tier(o.get("playbook_name"), o.get("trade_direction"), curve, shadow)}
+                       "tier": _tier(o.get("playbook_name"), o.get("trade_direction"), curve, shadow),
+                       "fill_price": order.get("filled_avg_price")}
+                if row["fill_price"] is not None:
+                    row["fill_price"] = float(row["fill_price"])
                 entries.append(row)
                 by_key[(agent, str(o.get("ticker")))] = row
             elif str(o.get("order_status") or "").lower() == "waiting_confirmation":
                 checks = o.get("confirmation_checks") or {}
                 failed = [k for k in CHECKS if checks.get(k) is False] or [k for k in CHECKS if checks.get(k) is None]
                 waiting.update(failed or ["unknown"])
+                waited.append({"agent": agent, "ticker": o.get("ticker"), "playbook": o.get("playbook_name"),
+                               "direction": o.get("trade_direction")})
+    wanted = [str(e["ticker"]) for e in entries if e["entered_by"] == "miltos"] + [str(w["ticker"]) for w in waited]
+    wait_cost = _wait_cost(entries, waited, (prices or (lambda _t: {}))(wanted) if wanted else {})
 
     # every cycle's actions from the monitors' day journal; the *_latest files keep only the last cycle
     actions: list[tuple[str, dict[str, Any]]] = []
@@ -216,6 +297,7 @@ def build(out: Path, today: date, spy_move: float | None) -> dict[str, Any]:
                     "held_on_horizon": sum(1 for e in entries if e["holding_sessions"]),
                     "by_hour_ny": dict(sorted(hours.items())), "list": entries},
         "waiting_reasons": dict(waiting.most_common()),
+        "miltos_wait_cost": wait_cost,
         "closed_positions": closes,
         "per_strategy": per_strategy,
         "held_positions": held,
@@ -270,6 +352,19 @@ def render(report: dict[str, Any]) -> str:
     if report.get("waiting_reasons"):
         lines.append("- Τι κράτησε έξω όσες περίμεναν (στον τελευταίο έλεγχο της καθεμιάς): " + "; ".join(
             f"{CHECK_GR.get(r, r)} {n}" for r, n in report["waiting_reasons"].items()))
+    lines += ["", "## Κόστος αναμονής του Miltos (τιμή 09:35 Νέας Υόρκης)"]
+    cost = (report.get("miltos_wait_cost") or {}).get("by_strategy") or []
+    if cost:
+        lines += ["Κόστος = πόσο χειρότερη ήταν η τιμή εισόδου από την τιμή στις 09:35 (θετικό = πληρώσαμε την αναμονή). "
+                  "Κίνηση = 09:35 ως το κλείσιμο, προς την κατεύθυνση της θέσης, για όσες δεν μπήκαν ποτέ.", "",
+                  "| trader | στρατηγική | κατεύθ. | είσοδοι Miltos | μέσο κόστος % | δεν μπήκαν | μέση κίνηση αν έμπαιναν % |",
+                  "|---|---|---|---|---|---|---|"]
+        for c in cost:
+            lines.append(f"| {c['agent']} | {v(c['playbook'])} | {c['direction']} | {c['miltos_entries']} | "
+                         f"{v(c['average_wait_cost_pct'])} | {c['never_entered']} | "
+                         f"{v(c['average_move_if_entered_at_0935_pct'])} |")
+    else:
+        lines.append("- Καμία είσοδος από τον Miltos και καμία που περίμενε.")
     lines += ["", "## Αποτελέσματα ανά στρατηγική (θέσεις που έκλεισαν)"]
     if report.get("per_strategy"):
         lines += ["| trader | στρατηγική | κατεύθυνση | επίπεδο | θέσεις | μέσο % | κερδισμένες |", "|---|---|---|---|---|---|---|"]
@@ -314,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     today = date.today()
     out = args.root / "output"
-    report = build(out, today, spy_session_move(today))
+    report = build(out, today, spy_session_move(today), prices=lambda tickers: session_prices(tickers, today))
     folder = out / "paper_session"
     folder.mkdir(parents=True, exist_ok=True)
     text = render(report)

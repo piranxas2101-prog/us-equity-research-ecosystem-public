@@ -190,3 +190,52 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
                   + f" (close {c:.4f}, previous {'low' if short else 'high'} {edge:.4f}, volume "
                   f"{checks.get('volume_x_average')}x, RSI(14) {checks.get('rsi14_15m')}).")
     return {"confirmed": confirmed, "reason": reason, "checks": checks, "previous": previous, "latest": latest}
+
+
+# T6 (owner 2026-10-27): the SIP bars above arrive 16-31 minutes late on the free plan (48 Miltos entries of 10/26:
+# median 22 minutes after the trigger candle closed, the fill on average 0.45% worse than that close, worse in 43).
+# The free plan's real-time feed is IEX. As a shadow only - recorded on every confirmation, never deciding - the
+# trigger is also judged on 15-minute candles built from today's real-time IEX minute bars, so a few weeks of
+# sessions can show how much earlier, at which price and how often falsely it would fire. Participation and RSI
+# stay on SIP: IEX volume is a small slice of the tape (the AMSF lesson). A candle with fewer than
+# ``IEX_MIN_MINUTES`` traded minutes is too thin to judge and stays unknown.
+IEX_MIN_MINUTES = 5
+
+
+def iex_candles(minute_bars: list[dict[str, Any]] | None, *, now: datetime, parse, tz,
+                minutes: int = 15) -> list[dict[str, Any]]:
+    """Completed ``minutes`` candles of the regular session built from real-time IEX minute bars, oldest first."""
+    groups: dict[datetime, list[tuple[datetime, dict[str, Any]]]] = {}
+    for bar in regular_hours(minute_bars or [], parse=parse, tz=tz):
+        stamp = parse(bar.get("t"))
+        start = stamp.replace(minute=stamp.minute - stamp.minute % minutes, second=0, microsecond=0)
+        if start + timedelta(minutes=minutes) <= now:
+            groups.setdefault(start, []).append((stamp, bar))
+    out = []
+    for start in sorted(groups):
+        bars = [bar for _, bar in sorted(groups[start], key=lambda item: item[0])]
+        o, c = _f(bars[0].get("o")), _f(bars[-1].get("c"))
+        highs = [h for h in (_f(b.get("h")) for b in bars) if h is not None]
+        lows = [low for low in (_f(b.get("l")) for b in bars) if low is not None]
+        if o is None or c is None or not highs or not lows:
+            continue
+        out.append({"t": start, "o": o, "h": max(highs), "l": min(lows), "c": c, "minutes": len(bars)})
+    return out
+
+
+def iex_trigger(direction: str, minute_bars: list[dict[str, Any]] | None, *, now: datetime, parse,
+                tz) -> dict[str, Any]:
+    """The shadow trigger on real-time IEX candles: the same rule as ``trigger`` above (close beyond the previous
+    candle's low/high, in a candle of the trade's colour). Recorded only."""
+    short = str(direction).lower() == "short"
+    candles = iex_candles(minute_bars, now=now, parse=parse, tz=tz)
+    if len(candles) < 2:
+        return {"iex_trigger": None, "iex_reason": "fewer than two completed real-time IEX candles"}
+    previous, latest = candles[-2], candles[-1]
+    edge = previous["l"] if short else previous["h"]
+    out = {"iex_bar_t": latest["t"].isoformat(), "iex_close": latest["c"], "iex_edge": edge,
+           "iex_minutes": latest["minutes"]}
+    if min(previous["minutes"], latest["minutes"]) < IEX_MIN_MINUTES:
+        return {**out, "iex_trigger": None, "iex_reason": f"fewer than {IEX_MIN_MINUTES} traded IEX minutes"}
+    c, o = latest["c"], latest["o"]
+    return {**out, "iex_trigger": (c < edge and c < o) if short else (c > edge and c > o)}

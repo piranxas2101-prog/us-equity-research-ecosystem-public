@@ -439,6 +439,30 @@ def fetch_realtime_minutes(symbol: str, session_date: str) -> list[dict[str, Any
     return fetch_intraday_bars(symbol, "1Min", lookback_hours=hours, feed="iex", end_dt=now)
 
 
+# T6 shadow (owner 2026-10-27): every confirmation of a live session also records the trigger judged on real-time
+# IEX candles, one line per symbol, side and new IEX candle; nothing reads it to decide.
+IEX_SHADOW_DIR = Path(__file__).resolve().parent / "output" / "paper_session"
+_iex_shadow_seen: set[tuple[str, str, str]] = set()  # per process: Miltos and the trader may both write a line
+
+
+def record_iex_shadow(symbol: str, trade_direction: str, session: str, now: datetime, shadow: dict[str, Any],
+                      sip: dict[str, Any]) -> None:
+    # one line per new IEX candle, new SIP candle or change of the SIP decision
+    key = (symbol.upper(), str(trade_direction).lower(),
+           f"{shadow.get('iex_bar_t')}|{sip.get('sip_bar_t')}|{sip.get('confirmed')}")
+    if key in _iex_shadow_seen:
+        return
+    _iex_shadow_seen.add(key)
+    line = {"recorded_at": now.isoformat(), "session": session, "ticker": symbol.upper(),
+            "direction": str(trade_direction).lower(), **shadow, **sip}
+    try:
+        IEX_SHADOW_DIR.mkdir(parents=True, exist_ok=True)
+        with (IEX_SHADOW_DIR / f"iex_trigger_shadow_{session.replace('-', '')}.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:  # the shadow record never stops a confirmation
+        pass
+
+
 def entry_confirmation(
     symbol: str,
     trade_direction: str,
@@ -481,7 +505,23 @@ def entry_confirmation(
         "required_session_date": required_session,
         "observed_session_dates": observed_sessions,
     }
+    now = datetime.now(timezone.utc)
+    live = required_session == now.astimezone(EASTERN_TZ).date().isoformat()
+
+    def iex_shadow(minute_bars: list[dict[str, Any]] | None) -> dict[str, Any]:
+        if minute_bars is None:
+            return {"iex_trigger": None, "iex_reason": "no real-time IEX minutes"}
+        return rules.iex_trigger(trade_direction, minute_bars, now=now, parse=parse_alpaca_timestamp, tz=EASTERN_TZ)
+
     if len(session_bars) < 2:
+        # IEX can have two completed candles at 10:00 New York, SIP only at 10:16: the shadow covers that gap too
+        if live and now.astimezone(EASTERN_TZ).strftime("%H:%M") >= "10:00":
+            try:
+                early = fetch_realtime_minutes(symbol, required_session)
+            except Exception:  # noqa: BLE001 - shadow only
+                early = None
+            record_iex_shadow(symbol, trade_direction, required_session, now, iex_shadow(early),
+                              {"sip_bar_t": None, "sip_trigger": None, "confirmed": False})
         return {
             **base,
             "entry_status": "waiting_confirmation",
@@ -502,6 +542,13 @@ def entry_confirmation(
         profile = {}
     result = rules.evaluate(trade_direction, bars, minute_bars, session_bars=session_bars,
                             parse=parse_alpaca_timestamp, volume_profile=profile, tz=EASTERN_TZ)
+    shadow = iex_shadow(minute_bars)
+    result["checks"].update(shadow)  # T6 shadow: recorded beside the SIP checks, never part of the decision
+    if live:
+        latest = result.get("latest") or session_bars[-1]
+        record_iex_shadow(symbol, trade_direction, required_session, now, shadow, {
+            "sip_bar_t": latest.get("t"), "sip_trigger": result["checks"].get("trigger"),
+            "confirmed": bool(result["confirmed"]), "price_now": result["checks"].get("price_now")})
 
     def compact(bar: dict[str, Any]) -> dict[str, Any]:
         return {key: bar.get(key) for key in ("t", "o", "h", "l", "c", "v")}

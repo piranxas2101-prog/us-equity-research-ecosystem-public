@@ -267,5 +267,53 @@ class TimeOfDayVolumeTests(unittest.TestCase):
         self.assertTrue(r["confirmed"])
 
 
+
+NEW_YORK = ZoneInfo("America/New_York")
+
+
+def minute(k, o, c, low=None, high=None):
+    return {"t": (START + timedelta(minutes=k)).isoformat(), "o": o, "h": high or max(o, c), "l": low or min(o, c),
+            "c": c, "v": 100}
+
+
+class IexShadowTests(unittest.TestCase):
+    """T6 (2026-10-27): the trigger on real-time IEX candles is recorded beside the SIP decision, never deciding."""
+
+    def test_candles_are_built_from_minutes_and_a_forming_candle_is_not_one(self):
+        minutes = [minute(k, 10 + k * 0.01, 10 + k * 0.01 + 0.005) for k in range(35)]   # 09:30-10:04
+        candles = rules.iex_candles(minutes, now=START + timedelta(minutes=35), parse=parse, tz=NEW_YORK)
+        self.assertEqual([c["minutes"] for c in candles], [15, 15])                      # 10:00 still forming
+        self.assertEqual(candles[0]["o"], 10.0)
+        self.assertAlmostEqual(candles[0]["c"], 10.145)
+
+    def test_long_trigger_on_iex_and_thin_candles_stay_unknown(self):
+        first = [minute(k, 10.0, 10.0, 9.9, 10.1) for k in range(15)]
+        rise = [minute(15 + k, 10.0 + k * 0.02, 10.02 + k * 0.02) for k in range(15)]    # closes 10.30 > high 10.1
+        shadow = rules.iex_trigger("long", first + rise, now=START + timedelta(minutes=30), parse=parse, tz=NEW_YORK)
+        self.assertTrue(shadow["iex_trigger"])
+        self.assertEqual(shadow["iex_bar_t"], (START + timedelta(minutes=15)).isoformat())
+        self.assertFalse(rules.iex_trigger("short", first + rise, now=START + timedelta(minutes=30), parse=parse,
+                                           tz=NEW_YORK)["iex_trigger"])
+        thin = first + rise[:3]
+        self.assertIsNone(rules.iex_trigger("long", thin, now=START + timedelta(minutes=30), parse=parse,
+                                            tz=NEW_YORK)["iex_trigger"])
+        self.assertIsNone(rules.iex_trigger("long", [], now=START, parse=parse, tz=NEW_YORK)["iex_trigger"])
+
+    def test_the_shadow_never_changes_the_sip_decision_and_is_written_once_per_candle(self):
+        import alpaca_paper_trader as trader
+
+        day = datetime.now(timezone.utc).astimezone(NEW_YORK).date().isoformat()
+        sip = [{"t": f"{day}T15:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10, "v": 100},
+               {"t": f"{day}T15:15:00Z", "o": 10, "h": 12, "l": 10, "c": 11.5, "v": 120}]
+        with tempfile.TemporaryDirectory() as folder,                 mock.patch.object(trader, "IEX_SHADOW_DIR", Path(folder)),                 mock.patch.object(trader, "_iex_shadow_seen", set()),                 mock.patch.object(trader, "fetch_intraday_bars", return_value=sip),                 mock.patch.object(trader, "fetch_realtime_minutes", return_value=[]),                 mock.patch.object(trader, "volume_profile", return_value={}),                 mock.patch.object(rules, "completed", side_effect=lambda bars, **_: bars):  # bars of "today"
+            first = trader.entry_confirmation("APT", "long", "15Min", expected_session_date=day)
+            trader.entry_confirmation("APT", "long", "15Min", expected_session_date=day)
+            lines = [json.loads(x) for f in Path(folder).glob("*.jsonl") for x in f.read_text(encoding="utf-8").splitlines()]
+        self.assertFalse(first["entry_trigger_confirmed"])                 # SIP decides: participation unknown
+        self.assertIsNone(first["confirmation_checks"]["iex_trigger"])     # no IEX minutes: unknown, recorded
+        self.assertEqual(len(lines), 1)
+        self.assertEqual((lines[0]["ticker"], lines[0]["sip_trigger"], lines[0]["confirmed"]), ("APT", True, False))
+
+
 if __name__ == "__main__":
     unittest.main()

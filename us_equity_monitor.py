@@ -1377,7 +1377,9 @@ def fetch_snapshot(
         rate_limiter=rate_limiter,
     )
     market_elapsed = time.perf_counter() - market_started_at
-    ticker = yf.Ticker(symbol)
+    # Yahoo writes share classes with a dash (BRK-B): with the dot, info, fast_info and news were empty for
+    # every class share (25 names, found 2026-10-29)
+    ticker = yf.Ticker(provider_symbol_candidates(symbol, "yfinance")[0])
     if len(history) < min_history_days:
         history_gap_rows = max(0, min_history_days - len(history))
         raise MarketDataCollectionError(

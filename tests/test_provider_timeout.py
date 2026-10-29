@@ -43,6 +43,21 @@ class CallWithTimeoutTests(unittest.TestCase):
         release.set()
 
 
+class SnapshotSymbolTests(unittest.TestCase):
+    def test_share_class_is_asked_from_yahoo_with_a_dash(self):
+        history = pd.DataFrame({"Close": [90.0] * 260, "Volume": [1000] * 260})
+        ticker = mock.MagicMock()
+        ticker.get_info.return_value = {"marketCap": 5}
+        ticker.fast_info = {}
+        ticker.news = []
+        with mock.patch.object(monitor, "fetch_history_with_routing", return_value=(history, "test", [])),                 mock.patch.object(monitor.yf, "Ticker", return_value=ticker) as made,                 mock.patch.object(monitor, "fetch_sec_recent_filings", return_value=[]):
+            result = monitor.fetch_snapshot(
+                "BRK.B", 30, 1, listing_context={"company_fundamental_eligible": True},
+                data_sources_cfg={"openbb_research": {"enabled": False}})
+        made.assert_called_once_with("BRK-B")
+        self.assertEqual(result["symbol"], "BRK.B")                 # the canonical ticker is kept
+        self.assertEqual(result["fundamentals"]["market_cap"], 5)
+
 class SnapshotTimeoutTests(unittest.TestCase):
     def snapshot(self, ticker):
         history = pd.DataFrame({"Close": [90.0] * 260, "Volume": [1000] * 260})

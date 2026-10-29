@@ -119,7 +119,9 @@ def live_info(symbol: str) -> dict[str, Any]:
     try:
         import yfinance as yf
 
-        details = yf.Ticker(symbol).info or {}
+        from monitor_core import yahoo_symbol
+
+        details = yf.Ticker(yahoo_symbol(symbol)).info or {}  # BRK.B is BRK-B on Yahoo
     except Exception:  # noqa: BLE001 - a provider failure leaves the gate unresolved
         return {}
     return {k: details.get(k) for k in ("shortPercentOfFloat", "floatShares", "sharesOutstanding")}

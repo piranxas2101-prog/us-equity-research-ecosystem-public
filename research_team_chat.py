@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from market_research_provider import ApiFirstResearchProvider
+from monitor_core import yahoo_symbol
 from rule_based_agent_engine import RuleBasedAgentEngine
 
 
@@ -195,7 +196,7 @@ class YFinanceResearchProvider:
         try:
             import yfinance as yf  # type: ignore
 
-            security = yf.Ticker(symbol)
+            security = yf.Ticker(yahoo_symbol(symbol))
             history = security.history(
                 period="1y", interval="1d", auto_adjust=False, timeout=12
             )

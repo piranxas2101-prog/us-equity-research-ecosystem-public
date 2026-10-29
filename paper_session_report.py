@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from monitor_core import yahoo_symbol
+
 ROOT = Path(__file__).resolve().parent
 AGENTS = ("yankos", "periklis")
 NEW_YORK = ZoneInfo("America/New_York")
@@ -84,16 +86,17 @@ def session_prices(tickers: list[str], today: date) -> dict[str, dict[str, float
     out: dict[str, dict[str, float]] = {}
     if not tickers:
         return out
+    names = {yahoo_symbol(t): t for t in set(tickers)}  # Yahoo writes share classes with a dash (BRK-B)
     try:
         import yfinance as yf
 
-        frame = yf.download(sorted(set(tickers)), start=today.isoformat(), interval="1m", group_by="ticker",
+        frame = yf.download(sorted(names), start=today.isoformat(), interval="1m", group_by="ticker",
                             auto_adjust=False, prepost=False, progress=False, threads=True)
     except Exception:  # noqa: BLE001 - unknown, not zero
         return out
-    for ticker in set(tickers):
+    for name, ticker in names.items():
         try:
-            bars = (frame[ticker] if frame.columns.nlevels > 1 else frame).dropna(subset=["Open", "Close"])
+            bars = (frame[name] if frame.columns.nlevels > 1 else frame).dropna(subset=["Open", "Close"])
             index = bars.index.tz_convert(NEW_YORK) if bars.index.tz is not None else bars.index.tz_localize(NEW_YORK)
             bars = bars[(index.date == today)]
             index = index[(index.date == today)]

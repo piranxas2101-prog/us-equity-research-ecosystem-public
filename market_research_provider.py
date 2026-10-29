@@ -311,7 +311,9 @@ class ApiFirstResearchProvider:
             try:
                 import yfinance as yf  # type: ignore
 
-                history = yf.Ticker(symbol).history(
+                from monitor_core import yahoo_symbol
+
+                history = yf.Ticker(yahoo_symbol(symbol)).history(
                     period="1y", interval="1d", auto_adjust=False, timeout=self.timeout_seconds
                 )
                 if history is not None and not history.empty:

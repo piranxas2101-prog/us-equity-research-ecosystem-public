@@ -13,6 +13,7 @@ import yfinance as yf
 
 import market_intel_db
 from common import load_json
+from monitor_core import yahoo_symbol
 
 
 DEFAULT_HORIZONS = [1, 3, 5, 10, 20]
@@ -206,7 +207,7 @@ def completed_session_dates_after(
 
 def close_on_session(ticker: str, session_date: date) -> float | None:
     try:
-        history = yf.Ticker(ticker).history(
+        history = yf.Ticker(yahoo_symbol(ticker)).history(
             start=session_date.isoformat(),
             end=(session_date + timedelta(days=1)).isoformat(),
             interval="1d",

@@ -67,6 +67,12 @@ def provider_symbol_candidates(symbol: str, provider: str) -> list[str]:
     return list(dict.fromkeys(value for value in candidates if value))
 
 
+
+def yahoo_symbol(symbol: str) -> str:
+    """The ticker as Yahoo writes it (BRK.B -> BRK-B, ABR$D -> ABR-PD); callers keep the canonical ticker as the key."""
+    return (provider_symbol_candidates(symbol, "yfinance") or [symbol])[0]
+
+
 def deep_merge_dict(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(base)
     for key, value in overrides.items():

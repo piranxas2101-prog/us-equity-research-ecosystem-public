@@ -33,6 +33,7 @@ import sqlite3
 from typing import Any
 
 from companyfacts_cache import eastern_today, effective_mode, previous_business_day
+from monitor_core import yahoo_symbol
 
 ROOT = Path(__file__).resolve().parent
 MODES = ("off", "populate", "reuse")
@@ -284,7 +285,7 @@ def shadow(cache: Stage1InfoCache, symbols: list[str], *, tolerance: float = 0.0
         else:
             too_recent += 1
     for _, symbol in sorted(aged)[: max(0, limit)]:
-        fresh = yf.Ticker(symbol).get_info() or {}
+        fresh = yf.Ticker(yahoo_symbol(symbol)).get_info() or {}
         price = reference_price(fresh)
         cached, info = reuse.decide(symbol, price)
         if cached is None:

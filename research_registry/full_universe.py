@@ -16,6 +16,9 @@ EXPORTS = PROJECT / 'data/research_universe_exports'
 CLASSIFIER_VERSION = '1.2.0'
 VENUES = {'Q':'Nasdaq','N':'NYSE','A':'NYSE American','P':'NYSE Arca','Z':'Cboe BZX','V':'IEX',
           'F':'Texas Stock Exchange'}
+# Nasdaq's directory began writing the Texas Stock Exchange as TXSE (2026-10-29, was F): same venue, same code,
+# so overrides and lookups keyed on F keep working
+VENUE_ALIASES = {'TXSE': 'F'}
 SECTORS = {'technology':'technology','health care':'healthcare','finance':'financials',
            'consumer discretionary':'consumer_discretionary','consumer staples':'consumer_staples',
            'industrials':'industrials','energy':'energy','basic materials':'materials',
@@ -36,7 +39,7 @@ def parse_directory(text, nasdaq=False):
         ticker=row.get('Symbol') if nasdaq else row.get('ACT Symbol')
         if not ticker or not row.get('Security Name'):
             raise ValueError('Directory row missing identity')
-        venue='Q' if nasdaq else row.get('Exchange')
+        venue='Q' if nasdaq else VENUE_ALIASES.get(row.get('Exchange'), row.get('Exchange'))
         if not venue:
             raise ValueError('Missing exchange code')
         rows.append({'ticker':ticker,'venue_code':venue,'venue':VENUES.get(venue,'unmapped_exchange:'+venue),

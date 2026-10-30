@@ -54,6 +54,15 @@ class UniverseTests(unittest.TestCase):
         self.assertEqual(excluded, 0)
         self.assertEqual(rows[0]['venue'], 'Texas Stock Exchange')
 
+    def test_txse_written_out_is_the_same_venue_and_code(self):
+        # 2026-10-30: the directory began writing TXSE instead of F; the preflight blocked the nightly run
+        text = ('ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol\n'
+                'TCBI|Texas Capital Bancshares, Inc. Common Stock|TXSE|TCBI|N|100|N|TCBI\n'
+                'File Creation Time: 1029202622:03\n')
+        rows, _, _ = universe.parse_directory(text)
+        self.assertEqual((rows[0]['venue_code'], rows[0]['venue']), ('F', 'Texas Stock Exchange'))
+        self.assertEqual(rows[0]['directory_row']['Exchange'], 'TXSE')      # the raw row is kept as read
+
     def test_preferred_bank_is_not_a_preferred_security(self):
         row = {'ticker':'PFBC','venue_code':'Q','venue':'Nasdaq','name':'Preferred Bank - Common Stock','etf':False}
         self.assertEqual(universe.instrument(row, {})[0], 'equity_candidate')

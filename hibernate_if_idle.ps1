@@ -49,6 +49,14 @@ try {
         exit 0
     }
 } catch { }
+# Nor while the fallback research run is (fallback_research.py, owner 2026-10-30).
+try {
+    $fallback = Get-Content -LiteralPath (Join-Path $projectRoot "output\fallback_research_latest.json") -Raw | ConvertFrom-Json
+    if ($fallback.status -in @("started", "running") -and $fallback.pid -and (Get-Process -Id ([int]$fallback.pid) -ErrorAction SilentlyContinue)) {
+        Write-Log "Fallback research $($fallback.run_id) is still active (PID $($fallback.pid)); staying on ($Reason)."
+        exit 0
+    }
+} catch { }
 
 if ($WaitForPattern) {
     $deadline = (Get-Date).AddMinutes($WaitMinutes)

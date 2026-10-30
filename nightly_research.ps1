@@ -4,6 +4,8 @@
 #    fresh answers, may move a store between populate and reuse). It never blocks.
 # 3. Start the research-only full run (no traders, no orders), which notifies on end.
 # 4. Keep the computer awake while the run lives, then hibernate it when idle (hibernate_after_run.ps1).
+#    If the run does not start, fails or is interrupted, the fallback research on the last good shortlist and the
+#    held positions runs first (fallback_research.py, owner 2026-10-30).
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $projectRoot
@@ -78,6 +80,17 @@ Write-Log "Launcher finished with exit code $launchExit."
 if ($launchExit -eq 0) {
     try {
         & ".\hibernate_after_run.ps1" -PointerPath $pointer -LogPath $log -LaunchedAfter $launchedAt
+    } catch {
+        Write-Log "Hibernate step failed (computer stays on): $($_.Exception.Message)"
+    }
+} else {
+    # The run did not start (a check before it blocked it, 2026-10-30: the new TXSE code): the fallback research on
+    # the last good shortlist and the held positions takes its place (owner 2026-10-30), then the usual rest.
+    Write-Log "Full run did not start: fallback research on the shortlist and the held positions..."
+    $fallbackExit = Invoke-Logged { & $python -W ignore "fallback_research.py" "ensure" "--trigger" "nightly" "--wait" }
+    Write-Log "Fallback research step ended with exit code $fallbackExit."
+    try {
+        & ".\hibernate_if_idle.ps1" -LogPath $log -Switch "hibernate_after_nightly" -Reason "Fallback research step finished"
     } catch {
         Write-Log "Hibernate step failed (computer stays on): $($_.Exception.Message)"
     }

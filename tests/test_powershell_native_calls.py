@@ -18,7 +18,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 UNATTENDED = ("nightly_research.ps1", "start_trader_afternoon_session.ps1", "hibernate_after_run.ps1",
-              "hibernate_if_idle.ps1", "start_multi_day_monitor_today.ps1")
+              "hibernate_if_idle.ps1", "start_multi_day_monitor_today.ps1", "fallback_research_on_boot.ps1",
+              "register_fallback_research_task.ps1")
 REDIRECT = re.compile(r"(\*>&1|2>&1)")
 ALLOWED = "& $Block *>&1"
 POWERSHELL = shutil.which("powershell.exe") or shutil.which("powershell")
@@ -148,19 +149,29 @@ class StartProcessPathTests(unittest.TestCase):
 
 
 @unittest.skipUnless(POWERSHELL and sys.platform == "win32", "needs Windows PowerShell")
-class ShortlistRunTests(unittest.TestCase):
-    """2026-10-30 (owner): the nightly run was blocked, so only that day a research-only run on the shortlist and the
-    held positions stands in for it; a run still going, failed or on another date never does."""
+class FallbackSessionTests(unittest.TestCase):
+    """2026-10-30 (owner): when today's nightly run did not complete, the fallback research run stands in for it in
+    the afternoon session; a fallback still going, failed, from another day or switched off never does."""
 
-    def pointer(self, state: dict | None, *, date_offset: int = 0, eastern_hour: int = 9) -> dict:
+    def pointer(self, state: dict | None, *, record_date_offset: int = 0, eastern_hour: int = 9,
+                nightly_done: bool = False, switch: str = "on") -> dict:
         text = (ROOT / "start_trader_afternoon_session.ps1").read_text(encoding="utf-8-sig")
-        wait = text[text.index("    # 0b. One-off"):text.index("    # 1. Pre-open check")]
-        start = text.index("    if ($null -ne $oneOffState -and")
+        wait = text[text.index("    # 0b. Fallback research"):text.index("    # 1. Pre-open check")]
+        late = "$recordDeadline = (Get-Date).AddMinutes(10)"
+        self.assertIn(late, wait)
+        wait = wait.replace(late, "$recordDeadline = (Get-Date).AddSeconds(-1)")  # no record: the 10 minutes are over
+        start = text.index("\n    if ($null -ne $fallbackState -and [string]") + 1
         stand_in = text[start:text.index("\n    }\n", start) + 7]
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
+            (root / "output").mkdir()
             (root / "scanner_config.json").write_text(
-                '{"paper_session": {"shortlist_run": {"date": "DATE", "run_id": "run_x"}}}', encoding="utf-8")
+                json.dumps({"paper_session": {"fallback_research": switch}}), encoding="utf-8")
+            (root / "output" / "nightly.json").write_text(json.dumps(
+                {"run_id": "nightly", "status": "completed_review_required" if nightly_done else "failed",
+                 "finished_at": "FINISHED"}), encoding="utf-8")
+            (root / "output" / "fallback_research_latest.json").write_text(json.dumps(
+                {"date": "DATE", "run_id": "run_x", "reason": "test", "status": "running"}), encoding="utf-8")
             if state is not None:
                 (root / "output" / "pipeline_runs" / "run_x").mkdir(parents=True)
                 (root / "output" / "pipeline_runs" / "run_x" / "pipeline_state.json").write_text(
@@ -169,32 +180,37 @@ class ShortlistRunTests(unittest.TestCase):
                 '$ErrorActionPreference = "Stop"\n'
                 f'$projectRoot = "{root}"\n'
                 '$log = Join-Path $projectRoot "run.log"\n'
+                '$pointerPath = Join-Path $projectRoot "output/nightly.json"\n'
                 'function Write-Log([string]$Text) { $Text | Add-Content -LiteralPath $log }\n'
                 'function Show-Notice($a, $b) { }\n'
-                'function Start-Sleep { }\n'
+                '$script:sleeps = 0\n'
+                'function Start-Sleep { $script:sleeps++; if ($script:sleeps -gt 20) { throw "waited too long" } }\n'
                 f'function Get-Eastern {{ (Get-Date).Date.AddHours({eastern_hour}) }}\n'
-                '$c = Join-Path $projectRoot "scanner_config.json"\n'
-                f'(Get-Content $c -Raw).Replace("DATE", (Get-Date).AddDays({date_offset}).ToString("yyyy-MM-dd")) | Set-Content $c\n'
+                '$r = Join-Path $projectRoot "output/fallback_research_latest.json"\n'
+                f'(Get-Content $r -Raw).Replace("DATE", (Get-Date).AddDays({record_date_offset}).ToString("yyyy-MM-dd")) | Set-Content $r\n'
+                '(Get-Content $pointerPath -Raw).Replace("FINISHED", (Get-Date).ToString("o")) | Set-Content $pointerPath\n'
                 '$pointer = [pscustomobject]@{ run_id = "nightly"; status = "failed"; finished_at = "" }\n'
                 + wait + stand_in +
                 '$pointer | ConvertTo-Json -Compress\n')
             (root / "h.ps1").write_text(harness, encoding="utf-8")
             done = subprocess.run([POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(root / "h.ps1")],
-                                  capture_output=True, text=True, timeout=120)
+                                  capture_output=True, text=True, errors="replace", timeout=120)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             return json.loads(done.stdout.strip().splitlines()[-1])
 
-    def test_finished_run_stands_in_for_the_nightly_pointer_on_its_date(self):
+    def test_finished_fallback_stands_in_for_the_nightly_pointer(self):
         got = self.pointer({"status": "completed_with_warnings", "finished_at": "2026-10-30T12:00:00+00:00"})
         self.assertEqual((got["run_id"], got["status"]), ("run_x", "completed_review_required"))
 
-    def test_a_failed_or_still_running_run_keeps_orders_off(self):
+    def test_a_failed_or_still_running_fallback_keeps_orders_off(self):
         self.assertEqual(self.pointer({"status": "failed"})["status"], "failed")
         self.assertEqual(self.pointer({"status": "running"}, eastern_hour=14)["status"], "running")
 
-    def test_another_date_or_no_state_leaves_the_nightly_pointer(self):
-        self.assertEqual(self.pointer({"status": "completed"}, date_offset=1)["run_id"], "nightly")
-        self.assertEqual(self.pointer(None)["run_id"], "nightly")
+    def test_completed_nightly_another_day_or_switch_off_leave_the_nightly_pointer(self):
+        done = {"status": "completed"}
+        self.assertEqual(self.pointer(done, nightly_done=True)["run_id"], "nightly")
+        self.assertEqual(self.pointer(done, record_date_offset=-1)["run_id"], "nightly")
+        self.assertEqual(self.pointer(done, switch="off")["run_id"], "nightly")
 
 if __name__ == "__main__":
     unittest.main()

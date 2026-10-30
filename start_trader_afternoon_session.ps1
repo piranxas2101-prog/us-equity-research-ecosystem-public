@@ -2,6 +2,8 @@
 # Mon-Fri at 15:00 Athens and waits for 09:00 New York (owner 2026-10-26: one start time for every week of the year,
 # whatever the two clock changes). The nightly research run stays research-only; this is the separate paper workflow.
 # 1. Pre-open check (09:00 New York): pre-market gap and new 8-Ks, candidate -> watch only (preopen_check.py).
+# 0b. When today's nightly run did not complete, the fallback research run on the shortlist and the held positions
+#    (fallback_research.py, owner 2026-10-30) is waited for and stands in for it.
 # 2. Paper orders only if today's nightly run completed, the traders' files come from it and no session started
 #    today: at 09:35 New York, start_trader_paper_trading_today.ps1 on the checked files (preflight, Koulis,
 #    Thymios, Alpaca market clock, traders, Miltos 15Min confirmation, position monitors, same-day flat; leftovers
@@ -135,32 +137,51 @@ try {
     }
     if ($waited) { Write-Log "Done waiting for the research run." }
 
-    # 0b. One-off, owner's choice 2026-10-30 (the nightly run was blocked by the Nasdaq directory's new TXSE code):
-    #     only on paper_session.shortlist_run.date (scanner_config.json) the research-only daily_pipeline.py run on
-    #     the shortlist and the held positions (paper_session.shortlist_run.run_id) stands in for the nightly run.
-    #     It is waited for until 14:00 New York; step 2 then applies the same checks to it. Other days: unchanged.
-    $oneOff = $null
-    $oneOffState = $null
-    try { $oneOff = (Get-Content -LiteralPath (Join-Path $projectRoot "scanner_config.json") -Raw | ConvertFrom-Json).paper_session.shortlist_run } catch { }
-    if ($null -ne $oneOff -and [string]$oneOff.date -eq (Get-Date -Format "yyyy-MM-dd") -and [string]$oneOff.run_id) {
-        $statePath = Join-Path $projectRoot ("output\pipeline_runs\{0}\pipeline_state.json" -f $oneOff.run_id)
+    # 0b. Fallback research (owner's decision 2026-10-30): when today's nightly run did not complete,
+    #     fallback_research.py runs a research-only daily_pipeline.py on the last good shortlist and the held
+    #     positions - started by the nightly script, or when the computer is opened (maybe by this task's own wake-up,
+    #     so its record may appear a few minutes late). Its run is waited for until 14:00 New York; step 2 then applies
+    #     the same checks to it, so orders go only to its symbols. Switch: paper_session.fallback_research.
+    $fallback = $null
+    $fallbackState = $null
+    $fallbackOn = $true
+    try { $fallbackOn = [string](Get-Content -LiteralPath (Join-Path $projectRoot "scanner_config.json") -Raw | ConvertFrom-Json).paper_session.fallback_research -ne "off" } catch { }
+    $nightlyDone = $false
+    try {
+        $night = Get-Content -LiteralPath $pointerPath -Raw | ConvertFrom-Json
+        $nightlyDone = $night.status -in @("completed", "completed_review_required") -and
+            [datetime]::Parse([string]$night.finished_at).Date -eq (Get-Date).Date
+    } catch { }
+    if ($fallbackOn -and -not $nightlyDone) {
+        $today = Get-Date -Format "yyyy-MM-dd"
+        $recordDeadline = (Get-Date).AddMinutes(10)
         $noticed = $false
         while ($true) {
-            try { $oneOffState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json } catch { $oneOffState = $null }
-            if ($null -eq $oneOffState -or $oneOffState.status -ne "running") { break }
+            $fallback = $null
+            $fallbackState = $null
+            try { $fallback = Get-Content -LiteralPath (Join-Path $projectRoot "output\fallback_research_latest.json") -Raw | ConvertFrom-Json } catch { }
+            if ($null -ne $fallback -and [string]$fallback.date -ne $today) { $fallback = $null }
+            if ($null -ne $fallback) {
+                try { $fallbackState = Get-Content -LiteralPath (Join-Path $projectRoot ("output\pipeline_runs\{0}\pipeline_state.json" -f $fallback.run_id)) -Raw | ConvertFrom-Json } catch { }
+                if ($null -ne $fallbackState -and $fallbackState.status -ne "running") { break }
+                if ($null -eq $fallbackState -and $fallback.status -notin @("started", "running")) { break }  # ended before its run began
+            } elseif ((Get-Date) -gt $recordDeadline) { break }  # no fallback research today
             if ((Get-Eastern) -ge (Get-Eastern).Date.AddHours(14)) {
-                Write-Log "Shortlist run $($oneOff.run_id) still running at 14:00 New York; no more waiting."
+                Write-Log "Fallback research still not finished at 14:00 New York; no more waiting."
                 break
             }
-            if (-not $noticed) {
-                Write-Log "Shortlist run $($oneOff.run_id) is still running; waiting for it (until 14:00 New York)."
-                Show-Notice "Paper trading" "Perimeno na teleiosei to run $($oneOff.run_id) prin ton elegxo."
+            if ($null -ne $fallback -and -not $noticed) {
+                Write-Log "Fallback research $($fallback.run_id) is running ($($fallback.reason)); waiting for it (until 14:00 New York)."
+                Show-Notice "Paper trading" "Perimeno na teleiosei i efedriki erevna $($fallback.run_id) prin ton elegxo."
                 $noticed = $true
             }
-            Start-Sleep -Seconds 300
+            Start-Sleep -Seconds 60
         }
-        $seen = if ($null -eq $oneOffState) { "no state file" } else { [string]$oneOffState.status }
-        Write-Log "Shortlist run $($oneOff.run_id): $seen."
+        if ($null -eq $fallback) { Write-Log "No fallback research today." }
+        else {
+            $seen = if ($null -eq $fallbackState) { "no state file" } else { [string]$fallbackState.status }
+            Write-Log "Fallback research $($fallback.run_id): $seen."
+        }
     }
 
     # 1. Pre-open check
@@ -193,12 +214,12 @@ try {
     $reason = $null
     $pointer = $null
     try { $pointer = Get-Content -LiteralPath (Join-Path $projectRoot "output\full_research_control_plane_background_latest.json") -Raw | ConvertFrom-Json } catch { }
-    if ($null -ne $oneOffState -and [string]$oneOffState.run_id -eq [string]$oneOff.run_id) {
-        # step 0b's run stands in for the nightly pointer; "completed_with_warnings" is the runner's word for the
-        # nightly "completed_review_required" (warn-only steps); a failed or unfinished run still means no orders
-        $status = if ($oneOffState.status -eq "completed_with_warnings") { "completed_review_required" } else { [string]$oneOffState.status }
-        $pointer = [pscustomobject]@{ run_id = [string]$oneOffState.run_id; status = $status; finished_at = [string]$oneOffState.finished_at }
-        Write-Log "Paper orders judged on the one-off shortlist run $($pointer.run_id) (paper_session.shortlist_run)."
+    if ($null -ne $fallbackState -and [string]$fallbackState.run_id -eq [string]$fallback.run_id) {
+        # step 0b's fallback run stands in for the nightly pointer; "completed_with_warnings" is the runner's word for
+        # the nightly "completed_review_required" (warn-only steps); a failed or unfinished run still means no orders
+        $status = if ($fallbackState.status -eq "completed_with_warnings") { "completed_review_required" } else { [string]$fallbackState.status }
+        $pointer = [pscustomobject]@{ run_id = [string]$fallbackState.run_id; status = $status; finished_at = [string]$fallbackState.finished_at }
+        Write-Log "Paper orders judged on the fallback research run $($pointer.run_id) (fallback_research.py)."
     }
     if ($checkExit -ne 0) { $reason = "the pre-open check failed (exit $checkExit)" }
     elseif ($null -eq $pointer) { $reason = "no research run pointer" }

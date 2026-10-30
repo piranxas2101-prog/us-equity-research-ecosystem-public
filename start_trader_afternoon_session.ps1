@@ -135,6 +135,34 @@ try {
     }
     if ($waited) { Write-Log "Done waiting for the research run." }
 
+    # 0b. One-off, owner's choice 2026-10-30 (the nightly run was blocked by the Nasdaq directory's new TXSE code):
+    #     only on paper_session.shortlist_run.date (scanner_config.json) the research-only daily_pipeline.py run on
+    #     the shortlist and the held positions (paper_session.shortlist_run.run_id) stands in for the nightly run.
+    #     It is waited for until 14:00 New York; step 2 then applies the same checks to it. Other days: unchanged.
+    $oneOff = $null
+    $oneOffState = $null
+    try { $oneOff = (Get-Content -LiteralPath (Join-Path $projectRoot "scanner_config.json") -Raw | ConvertFrom-Json).paper_session.shortlist_run } catch { }
+    if ($null -ne $oneOff -and [string]$oneOff.date -eq (Get-Date -Format "yyyy-MM-dd") -and [string]$oneOff.run_id) {
+        $statePath = Join-Path $projectRoot ("output\pipeline_runs\{0}\pipeline_state.json" -f $oneOff.run_id)
+        $noticed = $false
+        while ($true) {
+            try { $oneOffState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json } catch { $oneOffState = $null }
+            if ($null -eq $oneOffState -or $oneOffState.status -ne "running") { break }
+            if ((Get-Eastern) -ge (Get-Eastern).Date.AddHours(14)) {
+                Write-Log "Shortlist run $($oneOff.run_id) still running at 14:00 New York; no more waiting."
+                break
+            }
+            if (-not $noticed) {
+                Write-Log "Shortlist run $($oneOff.run_id) is still running; waiting for it (until 14:00 New York)."
+                Show-Notice "Paper trading" "Perimeno na teleiosei to run $($oneOff.run_id) prin ton elegxo."
+                $noticed = $true
+            }
+            Start-Sleep -Seconds 300
+        }
+        $seen = if ($null -eq $oneOffState) { "no state file" } else { [string]$oneOffState.status }
+        Write-Log "Shortlist run $($oneOff.run_id): $seen."
+    }
+
     # 1. Pre-open check
     Write-Log "Pre-open check..."
     $checkExit = Invoke-Logged { & $python -W ignore "preopen_check.py" }
@@ -165,6 +193,13 @@ try {
     $reason = $null
     $pointer = $null
     try { $pointer = Get-Content -LiteralPath (Join-Path $projectRoot "output\full_research_control_plane_background_latest.json") -Raw | ConvertFrom-Json } catch { }
+    if ($null -ne $oneOffState -and [string]$oneOffState.run_id -eq [string]$oneOff.run_id) {
+        # step 0b's run stands in for the nightly pointer; "completed_with_warnings" is the runner's word for the
+        # nightly "completed_review_required" (warn-only steps); a failed or unfinished run still means no orders
+        $status = if ($oneOffState.status -eq "completed_with_warnings") { "completed_review_required" } else { [string]$oneOffState.status }
+        $pointer = [pscustomobject]@{ run_id = [string]$oneOffState.run_id; status = $status; finished_at = [string]$oneOffState.finished_at }
+        Write-Log "Paper orders judged on the one-off shortlist run $($pointer.run_id) (paper_session.shortlist_run)."
+    }
     if ($checkExit -ne 0) { $reason = "the pre-open check failed (exit $checkExit)" }
     elseif ($null -eq $pointer) { $reason = "no research run pointer" }
     elseif ($pointer.status -notin @("completed", "completed_review_required")) { $reason = "the research run $($pointer.run_id) is '$($pointer.status)'" }

@@ -7,6 +7,7 @@ scripts that run unattended must therefore go through Invoke-Logged, which runs 
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import shutil
@@ -144,6 +145,56 @@ class StartProcessPathTests(unittest.TestCase):
             seen = (base / "seen.txt").read_text(encoding="utf-8-sig").strip()
         self.assertEqual(seen, str(base / ".venv-next" / "Scripts" / "python.exe") + "|30")
 
+
+
+@unittest.skipUnless(POWERSHELL and sys.platform == "win32", "needs Windows PowerShell")
+class ShortlistRunTests(unittest.TestCase):
+    """2026-10-30 (owner): the nightly run was blocked, so only that day a research-only run on the shortlist and the
+    held positions stands in for it; a run still going, failed or on another date never does."""
+
+    def pointer(self, state: dict | None, *, date_offset: int = 0, eastern_hour: int = 9) -> dict:
+        text = (ROOT / "start_trader_afternoon_session.ps1").read_text(encoding="utf-8-sig")
+        wait = text[text.index("    # 0b. One-off"):text.index("    # 1. Pre-open check")]
+        start = text.index("    if ($null -ne $oneOffState -and")
+        stand_in = text[start:text.index("\n    }\n", start) + 7]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "scanner_config.json").write_text(
+                '{"paper_session": {"shortlist_run": {"date": "DATE", "run_id": "run_x"}}}', encoding="utf-8")
+            if state is not None:
+                (root / "output" / "pipeline_runs" / "run_x").mkdir(parents=True)
+                (root / "output" / "pipeline_runs" / "run_x" / "pipeline_state.json").write_text(
+                    json.dumps({"run_id": "run_x", **state}), encoding="utf-8")
+            harness = (
+                '$ErrorActionPreference = "Stop"\n'
+                f'$projectRoot = "{root}"\n'
+                '$log = Join-Path $projectRoot "run.log"\n'
+                'function Write-Log([string]$Text) { $Text | Add-Content -LiteralPath $log }\n'
+                'function Show-Notice($a, $b) { }\n'
+                'function Start-Sleep { }\n'
+                f'function Get-Eastern {{ (Get-Date).Date.AddHours({eastern_hour}) }}\n'
+                '$c = Join-Path $projectRoot "scanner_config.json"\n'
+                f'(Get-Content $c -Raw).Replace("DATE", (Get-Date).AddDays({date_offset}).ToString("yyyy-MM-dd")) | Set-Content $c\n'
+                '$pointer = [pscustomobject]@{ run_id = "nightly"; status = "failed"; finished_at = "" }\n'
+                + wait + stand_in +
+                '$pointer | ConvertTo-Json -Compress\n')
+            (root / "h.ps1").write_text(harness, encoding="utf-8")
+            done = subprocess.run([POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(root / "h.ps1")],
+                                  capture_output=True, text=True, timeout=120)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            return json.loads(done.stdout.strip().splitlines()[-1])
+
+    def test_finished_run_stands_in_for_the_nightly_pointer_on_its_date(self):
+        got = self.pointer({"status": "completed_with_warnings", "finished_at": "2026-10-30T12:00:00+00:00"})
+        self.assertEqual((got["run_id"], got["status"]), ("run_x", "completed_review_required"))
+
+    def test_a_failed_or_still_running_run_keeps_orders_off(self):
+        self.assertEqual(self.pointer({"status": "failed"})["status"], "failed")
+        self.assertEqual(self.pointer({"status": "running"}, eastern_hour=14)["status"], "running")
+
+    def test_another_date_or_no_state_leaves_the_nightly_pointer(self):
+        self.assertEqual(self.pointer({"status": "completed"}, date_offset=1)["run_id"], "nightly")
+        self.assertEqual(self.pointer(None)["run_id"], "nightly")
 
 if __name__ == "__main__":
     unittest.main()

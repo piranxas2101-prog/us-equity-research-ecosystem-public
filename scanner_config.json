@@ -6,6 +6,7 @@
   },
   "paper_session": {
     "wait_for_late_run_date": "2026-10-14",
+    "shortlist_run": {"date": "2026-10-30", "run_id": "run_20261030_121157"},
     "held_positions_limit": "none",
     "new_orders_limit": "none",
     "shadow_only_strategies": ["gap_continuation:long", "mean_reversion_overextension:long", "gap_fade:long"]

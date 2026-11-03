@@ -185,7 +185,7 @@ def sec_first_rules(details: list[dict[str, Any]], sec_values: dict[str, float |
     sources = {"sec_edgar": 0, "yfinance_secondary": 0, "missing": 0}
     total = matched = 0.0
     for rule in details:
-        weight = float(rule.get("weight") or 1.0)
+        weight = 1.0 if rule.get("weight") is None else float(rule["weight"])  # 0 = measured, not scored
         total += max(weight, 0.0)
         metric = rule.get("metric")
         sec_value = sec_values.get(metric) if metric in SEC_METRICS else None

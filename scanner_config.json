@@ -201,7 +201,8 @@
       "metric": "debt_to_equity",
       "operator": "<=",
       "value": 150,
-      "weight": 1.0
+      "weight": 0.0,
+      "note": "owner 2026-11-03: measured, not scored - no edge in fundamental_lab.py (docs/RULES_REVIEW.md section 4)"
     },
     {
       "metric": "current_ratio",
@@ -248,7 +249,7 @@
     "giannis_sec_first": true,
     "giannis_catalyst_mode": "content_events",
     "stage1_workers": 1,
-    "babis_sec_first": false,
+    "babis_sec_first": true,
     "stage1_data_profile": "light",
     "stage1_info_cache": {
       "mode": "populate",

@@ -24,6 +24,21 @@ class RuleTests(unittest.TestCase):
         _, _, details = m.evaluate_rules({"forward_pe": None}, [RULE])
         self.assertEqual(details[0]["status"], "missing_data")  # unknown stays unknown
 
+    def test_owner_2026_11_03_a_zero_weight_rule_is_measured_but_never_scored(self):
+        import json
+
+        debt = {"metric": "debt_to_equity", "operator": "<=", "value": 150, "weight": 0.0}
+        roe = {"metric": "roe", "operator": ">=", "value": 0.12, "weight": 2.0}
+        score, coverage, details = m.evaluate_rules({"debt_to_equity": 400.0, "roe": 0.2}, [debt, roe])
+        self.assertEqual((score, coverage, details[0]["status"], details[0]["weight"]), (100.0, 100.0, "failed", 0.0))
+        _, sec_score, _ = sfr.sec_first_rules(details, {"debt_to_equity": 10.0, "roe": 0.05})
+        self.assertEqual(sec_score, 0.0)                                  # debt passing adds nothing
+        self.assertEqual(m.rule_weight(None), 1.0)                        # no weight configured: 1 as before
+        config = json.loads((Path(m.__file__).resolve().parent / "scanner_config.json").read_text(encoding="utf-8"))
+        rules = {r["metric"]: r for r in config["fundamental_rules"]}
+        self.assertEqual(rules["debt_to_equity"]["weight"], 0.0)
+        self.assertTrue(config["pipeline"]["babis_sec_first"])
+
     def test_the_sec_first_path_keeps_the_same_judgement(self):
         _, _, details = m.evaluate_rules({"forward_pe": -6.07}, [RULE])
         out, score, _ = sfr.sec_first_rules(details, {})

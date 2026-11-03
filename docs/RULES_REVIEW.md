@@ -21,9 +21,9 @@ technical analysis, then the fundamental analysis.** This file keeps the list; e
 
 | # | Finding | State |
 |---|---|---|
-| F1 | Negative forward P/E rule (LAES report, 2026-10-22). | Partly done (`valuation_gaps.py`: "failed" plus a gap that keeps being looked for); review the rule itself. |
-| F2 | Foreign issuers: 6-K reading and coverage beyond the shortlist. | Partly done (`press_release_reader.py`); unanchored reads stay `pr_verified=no`. |
-| F3 | Giannis's sensitivity to filing recency; bank revenue definition; empty sector layer (analysis 2026-09-29). | Open. |
+| F1 | Negative forward P/E rule (LAES report, 2026-10-22). | **Done 2026-11-03**: the lab (section 4) confirms negative fails (-4.86% against P/E 0-35, 0/6 years) and supports the 35 line; no change. |
+| F2 | Foreign issuers: 6-K reading and coverage beyond the shortlist. | **Done** (`press_release_reader.py` reads 8-K 2.02 and 6-K of every listed company); unanchored reads stay `pr_verified=no` by design. |
+| F3 | Giannis's sensitivity to filing recency; bank revenue definition; empty sector layer (analysis 2026-09-29). | **Done**: periodic-report freshness (2026-10-01, supported by the lab: 101-200 days -0.73%), bank revenue proxy (docs/BANK_REVENUE_PROXY.md), sector evidence tiers from SEC text (2026-10-06). Owner 2026-11-03 after the lab: Babis judges the rules SEC-first (`pipeline.babis_sec_first`, prefetch coverage 100%; Giannis already did) and debt/equity <= 150 keeps being measured with weight 0 (no edge). |
 | F5 | Held positions are not protected from results gaps: the pre-open check judges new entries only, so GOOGL (10/29) gapped 10.5% through its stop on earnings. | Open (owner 2026-11-03: belongs here, with the missing catalyst dates; same data gap as the `catalyst_timing` short gate). |
 | F4 | Fundamental thesis checks for held positions (risk High, Giannis down 1.0) are starting values from `thesis_exit.py`. | Open: measure on the first held positions. |
 

@@ -1085,6 +1085,13 @@ def fetch_fred_macro_context(data_sources_cfg: dict[str, Any]) -> dict[str, Any]
     return out
 
 
+def rule_weight(value: Any) -> float:
+    """A rule's weight; 1.0 only when none is configured. A weight of 0 keeps a rule measured but out of the score
+    (owner 2026-11-03, debt_to_equity) - ``or 1.0`` used to turn it back into 1."""
+    weight = to_float(value)
+    return 1.0 if weight is None else weight
+
+
 def evaluate_rules(
     metrics: dict[str, Any], rules: list[dict[str, Any]]
 ) -> tuple[float, float, list[dict[str, Any]]]:
@@ -1096,7 +1103,7 @@ def evaluate_rules(
     for rule in rules:
         metric_key = str(rule.get("metric", "")).strip()
         operator = str(rule.get("operator", "")).strip()
-        weight = to_float(rule.get("weight")) or 1.0
+        weight = rule_weight(rule.get("weight"))  # 0 is a weight (measured only), never "missing"
         threshold = to_float(rule.get("value"))
         observed = to_float(metrics.get(metric_key))
 
@@ -2351,8 +2358,8 @@ def scan_market_core(
                             # one, yfinance only as a labelled fallback (forward P/E has no SEC equivalent).
                             fundamental_details, fundamental_score, value_sources = sec_fundamental_ratios.sec_first_rules(
                                 fundamental_details, sec_values)
-                            total = sum(max(to_float(d.get("weight")) or 1.0, 0.0) for d in fundamental_details)
-                            known = sum(max(to_float(d.get("weight")) or 1.0, 0.0) for d in fundamental_details
+                            total = sum(max(rule_weight(d.get("weight")), 0.0) for d in fundamental_details)
+                            known = sum(max(rule_weight(d.get("weight")), 0.0) for d in fundamental_details
                                         if d.get("status") != "missing_data")
                             fundamental_coverage = round(known / total * 100.0, 2) if total > 0 else 0.0
                             row["fundamental_score_basis"] = "sec_first"

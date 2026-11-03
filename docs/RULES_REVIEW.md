@@ -80,3 +80,30 @@ Pass against fail, 60 sessions (spread %, 95% interval, years better):
 * **F3:** a company whose last 10-Q/10-K is 101-200 days old does worse (-0.73% at 60 sessions against +1.4 to
   +1.6% for 0-100 days): the stale-report penalty of 2026-10-01 (135 days) has support.
 
+## 5. Results lab, 2026-11-03 (F5)
+
+`results_lab.py` (research only), on the results journal (`data/earnings_journal.db`: 77,098 periodic reports of
+5,095 companies, five years) and the strategy lab's signals. Report: `output/strategy_lab/results_lab_latest.md`.
+
+* **Calendar:** "the same report a year earlier + 52 weeks" lands within 7 days of the real filing in 89% of
+  60,788 cases (95% within 14, 10%-90% error -5 to +7 days; "last report + 13 weeks" only 38% within 7). The
+  next results date can be estimated from SEC data alone.
+* **Risk of a report:** the results window (close two sessions before the filing day -> close of the session
+  after it) moves a stock 7.1% on average against SPY; 25% of reports cost a long more than 5%, 12% more than 10%.
+* **Sitting through results, 60-session hold, in the trade's direction minus SPY** (what stepping aside saves or
+  gives up):
+
+| strategy, side | mean % | 95% | below -10% |
+|---|---|---|---|
+| support_bounce_swing long (Yankos, held 60) | **+0.96** | 0.51 / 1.39 | 5.5% |
+| momentum_12_1 short (Periklis, held 10) | **+1.09** | 0.47 / 1.67 | 12.6% |
+| gap_continuation short (held 20) | +0.48 | -0.08 / 1.12 | 11.5% |
+| controlled_breakout_swing short (held 60) | **-1.30** | -2.25 / -0.48 | 18.5% |
+| early_accumulation_swing short | **-1.25** | -2.16 / -0.42 | 18.1% |
+| pre_run_breakout_confirmation short | **-1.25** | -2.16 / -0.42 | 18.1% |
+| momentum_12_1 long, rsi2, failed breakdown, 52w high | about 0 | spans 0 | 7-12% |
+
+  The legacy shorts share the same signal days (identical rows), so the last three are one finding, not three.
+  No blanket "out before results": the main held long (support_bounce) and the momentum short gain through
+  results on average - GOOGL's -13% was the 5.5% tail. The legacy shorts lose through results.
+

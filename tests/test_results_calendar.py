@@ -38,6 +38,11 @@ class CalendarTests(unittest.TestCase):
         after_q3 = rc.build({"1": [(d, False) for d in q] + [(date(2025, 11, 5), False)], "_tickers": {"1": ["A"]}},
                             date(2026, 8, 6))["symbols"]["A"]
         self.assertEqual(after_q3["expected_date"], "2026-11-04")                    # not the 2026-08-05 report's twin
+        cart = [date(2025, 5, 7), date(2025, 8, 8), date(2025, 11, 10), date(2026, 5, 7), date(2026, 8, 7)]
+        released = rc.build({"1": [(d, False) for d in cart] + [(date(2026, 2, 26), True)],
+                             "_tickers": {"1": ["CART"]}, "_announced": {"1": date(2026, 10, 29)}},
+                            date(2026, 11, 3))["symbols"]["CART"]                    # Q3 out on 10/29, 10-Q to come
+        self.assertEqual(released["expected_date"], "2027-02-25")
         self.assertEqual(rc.build({}, TODAY)["symbols"], {})
 
     def test_stale_calendar_unknown_symbol_and_long_overdue_report_decide_nothing(self):

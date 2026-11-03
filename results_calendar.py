@@ -65,24 +65,28 @@ def estimate_next(reports: list[tuple[date, Any]], after: date) -> tuple[date | 
 
 def load_reports(db: Path | None = None) -> dict[str, Any]:
     """CIK -> (filing date, annual?) of its periodic reports, oldest first; plus ``_tickers``: CIK -> the journal's
-    tickers. Press-release rows (8-K 2.02, 6-K) are not periodic reports and are left out."""
+    tickers, and ``_announced``: CIK -> its latest results release (8-K 2.02 or 6-K, read since October 2026), which
+    is not a periodic report but tells that the pending quarter is already out."""
     db = db or JOURNAL
     if not db.exists():
         return {}
     out: dict[str, set[tuple[date, bool]]] = {}
     tickers: dict[str, set[str]] = {}
+    announced: dict[str, date] = {}
     with closing(sqlite3.connect(db)) as conn:
         for ticker, cik, form, filed in conn.execute("SELECT ticker, cik, form, filed FROM earnings_event"):
             form = str(form or "")
-            if form.startswith(("8-K", "6-K")):
-                continue
             try:
-                key = str(int(cik))
-                out.setdefault(key, set()).add((date.fromisoformat(str(filed)[:10]), form in ANNUAL_FORMS))
+                key, day = str(int(cik)), date.fromisoformat(str(filed)[:10])
             except (TypeError, ValueError):
                 continue
+            if form.startswith(("8-K", "6-K")):  # a results release: the quarter it belongs to is already out
+                announced[key] = max(day, announced.get(key, day))
+                continue
+            out.setdefault(key, set()).add((day, form in ANNUAL_FORMS))
             tickers.setdefault(key, set()).add(str(ticker).upper())
-    return {**{k: sorted(v) for k, v in out.items()}, "_tickers": {k: sorted(v) for k, v in tickers.items()}}
+    return {**{k: sorted(v) for k, v in out.items()}, "_tickers": {k: sorted(v) for k, v in tickers.items()},
+            "_announced": announced}
 
 
 def share_classes(tickers_file: Path | None = None) -> dict[str, list[str]]:
@@ -98,23 +102,28 @@ def share_classes(tickers_file: Path | None = None) -> dict[str, list[str]]:
 def build(reports: dict[str, Any], today: date, classes: dict[str, list[str]] | None = None) -> dict[str, Any]:
     symbols = {}
     names = reports.get("_tickers") or {}
+    announced = reports.get("_announced") or {}
     for cik, events in reports.items():
-        if cik == "_tickers":
+        if cik.startswith("_"):
             continue
         events = sorted(events)
         past = [e for e in events if e[0] <= today]
         if not past:
             continue
         last = past[-1][0]
-        # from a month after the last report, so that report's own twin a year earlier is not taken for the next
-        expected, method = estimate_next(events, last + timedelta(days=30))
+        release = announced.get(cik)
+        latest = max(last, release) if release is not None and release <= today else last
+        # from a month after the last report or results release (a released quarter whose 10-Q is still to come is
+        # not the next results), so that report's own twin a year earlier is not taken for the next
+        expected, method = estimate_next(events, latest + timedelta(days=30))
         if expected is None:
             continue
         annual = next((a for d, a in events if d + timedelta(weeks=52) == expected), False) \
             if method == "last_year_plus_52_weeks" else False
         lead = ANNUAL_LEAD_DAYS if annual else QUARTERLY_LEAD_DAYS
         item = {"expected_date": expected.isoformat(), "window_start": (expected - timedelta(days=lead)).isoformat(),
-                "annual": annual, "method": method, "last_report": last.isoformat(), "cik": cik}
+                "annual": annual, "method": method, "last_report": last.isoformat(),
+                "last_release": release.isoformat() if release else None, "cik": cik}
         for ticker in set(names.get(cik, [])) | set((classes or {}).get(cik, [])):
             symbols[ticker] = item
     return {"schema": SCHEMA, "as_of": today.isoformat(), "generated_at": datetime.now(timezone.utc).isoformat(),

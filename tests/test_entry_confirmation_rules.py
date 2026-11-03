@@ -277,7 +277,7 @@ def minute(k, o, c, low=None, high=None):
 
 
 class IexShadowTests(unittest.TestCase):
-    """T6 (2026-10-27): the trigger on real-time IEX candles is recorded beside the SIP decision, never deciding."""
+    """T6: the trigger on real-time IEX candles, recorded beside SIP (10/27), passing the trigger (11/03)."""
 
     def test_candles_are_built_from_minutes_and_a_forming_candle_is_not_one(self):
         minutes = [minute(k, 10 + k * 0.01, 10 + k * 0.01 + 0.005) for k in range(35)]   # 09:30-10:04
@@ -298,6 +298,37 @@ class IexShadowTests(unittest.TestCase):
         self.assertIsNone(rules.iex_trigger("long", thin, now=START + timedelta(minutes=30), parse=parse,
                                             tz=NEW_YORK)["iex_trigger"])
         self.assertIsNone(rules.iex_trigger("long", [], now=START, parse=parse, tz=NEW_YORK)["iex_trigger"])
+
+    def iex_case(self, iex_trigger=True, after=(95.4,), trigger_volume=3000, source=None):
+        """SIP's latest candle has no short break yet; the next, real-time IEX candle has one."""
+        bars = falling_session(trigger_volume=trigger_volume, trigger_close=96.55)   # green: no SIP trigger
+        candle = START + timedelta(minutes=15 * 25)
+        iex = {"iex_trigger": iex_trigger, "iex_close": 95.5, "iex_edge": 96.0, "iex_bar_t": candle.isoformat(),
+               "iex_minutes": 15}
+        minutes = [{"t": (candle + timedelta(minutes=15 + k)).isoformat(), "o": c, "h": c, "l": c, "c": c, "v": 100}
+                   for k, c in enumerate(after)]
+        return rules.evaluate("short", bars, minutes, session_bars=bars, parse=parse, iex=iex,
+                              trigger_source=source)
+
+    def test_owner_decision_2026_11_03_the_iex_break_passes_the_trigger(self):
+        result = self.iex_case()
+        self.assertTrue(result["confirmed"], result["reason"])
+        self.assertEqual((result["checks"]["sip_trigger"], result["checks"]["trigger_feed"]), (False, "iex"))
+        self.assertIn("IEX 15m", result["reason"])
+        self.assertEqual(rules.TRIGGER_SOURCE, "iex_or_sip")
+
+    def test_iex_break_still_needs_sip_participation_and_holding_from_the_iex_candle(self):
+        self.assertFalse(self.iex_case(trigger_volume=400)["confirmed"])               # thin on SIP: waits
+        reclaimed = self.iex_case(after=(95.6,))                                        # back above the IEX close
+        self.assertFalse(reclaimed["checks"]["holding_now"])
+        self.assertIsNone(self.iex_case(after=())["checks"]["holding_now"])            # no minute after it yet
+
+    def test_unknown_or_no_iex_break_or_sip_only_leaves_sip_deciding(self):
+        for case in (self.iex_case(iex_trigger=None), self.iex_case(iex_trigger=False),
+                     self.iex_case(source="sip")):
+            self.assertFalse(case["checks"]["trigger"])
+            self.assertEqual(case["checks"]["trigger_feed"], "sip")
+            self.assertFalse(case["confirmed"])
 
     def test_the_shadow_never_changes_the_sip_decision_and_is_written_once_per_candle(self):
         import alpaca_paper_trader as trader

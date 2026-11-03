@@ -6,7 +6,8 @@ the order filled inside a green 15-minute candle with the hour's largest volume 
 51. The confirmation now asks, on completed bars of the consolidated tape:
 
 1. **trigger** - the latest completed 15-minute bar closes beyond the previous bar's low (short) / high (long), in a
-   candle of the trade's colour (as before, now on SIP);
+   candle of the trade's colour (as before, now on SIP; since 2026-11-03 also on the real-time IEX candle, T6
+   below - either feed showing the break passes, and "still holding" then runs from the IEX candle);
 2. **participation** - its volume is at least ``VOLUME_MIN`` x the average of the ``VOLUME_BARS`` regular-session
    bars before it (``PARTICIPATION_BASIS = "last_bars"``). A break on thin volume is not a break. T3 (2026-10-24)
    asked whether the same 15-minute slot of the last ``PROFILE_SESSIONS`` sessions (relative volume by time of day)
@@ -114,9 +115,11 @@ def slot_profile(bars: list[dict[str, Any]], *, before: str, parse, tz,
 
 def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[str, Any]] | None,
              *, session_bars: list[dict[str, Any]], parse, volume_profile: dict[str, list[float]] | None = None,
-             tz=None, basis: str | None = None) -> dict[str, Any]:
+             tz=None, basis: str | None = None, iex: dict[str, Any] | None = None,
+             trigger_source: str | None = None) -> dict[str, Any]:
     """The confirmation of one entry. ``bars``: completed 15-minute SIP bars (several sessions, oldest first);
-    ``session_bars``: those of today's session; ``minute_bars``: today's real-time IEX minute bars."""
+    ``session_bars``: those of today's session; ``minute_bars``: today's real-time IEX minute bars; ``iex``: the
+    trigger judged on real-time IEX candles (``iex_trigger`` below), used as ``TRIGGER_SOURCE`` says."""
     short = str(direction).lower() == "short"
     basis = basis or PARTICIPATION_BASIS
     checks: dict[str, Any] = {}
@@ -127,7 +130,14 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
     edge = _f(previous.get("l") if short else previous.get("h"))
     if None in (o, c, edge):
         return {"confirmed": False, "reason": "the trigger candle is incomplete", "checks": checks}
-    checks["trigger"] = (c < edge and c < o) if short else (c > edge and c > o)
+    checks["sip_trigger"] = checks["trigger"] = (c < edge and c < o) if short else (c > edge and c > o)
+    checks["trigger_feed"] = "sip"
+    end = parse(latest.get("t"))
+    if (trigger_source or TRIGGER_SOURCE) == "iex_or_sip" and not checks["trigger"] \
+            and (iex or {}).get("iex_trigger") is True:
+        # the break is seen first on the real-time IEX candle: the "still holding" check runs from that candle
+        checks.update(trigger=True, trigger_feed="iex")
+        c, edge, end = float(iex["iex_close"]), float(iex["iex_edge"]), datetime.fromisoformat(iex["iex_bar_t"])
 
     index = next((k for k, bar in enumerate(bars) if bar.get("t") == latest.get("t")), None)
     volume = _f(latest.get("v"))
@@ -153,7 +163,6 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
     checks["rsi14_15m"] = None if value is None else round(value, 1)
     checks["momentum"] = None if value is None else (value < RSI_SHORT_BELOW if short else value > RSI_LONG_ABOVE)
 
-    end = parse(latest.get("t"))
     later = [m for m in minute_bars or [] if (p := parse(m.get("t"))) is not None and end is not None
              and p >= end + timedelta(minutes=15)]
     if not later:
@@ -182,7 +191,7 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
     confirmed = not failed and not unknown
     side = "short" if short else "long"
     if confirmed:
-        reason = (f"{side} confirmed on completed SIP 15m: close {c:.4f} beyond previous "
+        reason = (f"{side} confirmed on completed {checks['trigger_feed'].upper()} 15m: close {c:.4f} beyond previous "
                   f"{'low' if short else 'high'} {edge:.4f}, volume {checks['volume_x_average']}x average, "
                   f"RSI(14) {checks['rsi14_15m']}, price now {checks.get('price_now')} still holding.")
     else:
@@ -194,11 +203,15 @@ def evaluate(direction: str, bars: list[dict[str, Any]], minute_bars: list[dict[
 
 # T6 (owner 2026-10-27): the SIP bars above arrive 16-31 minutes late on the free plan (48 Miltos entries of 10/26:
 # median 22 minutes after the trigger candle closed, the fill on average 0.45% worse than that close, worse in 43).
-# The free plan's real-time feed is IEX. As a shadow only - recorded on every confirmation, never deciding - the
-# trigger is also judged on 15-minute candles built from today's real-time IEX minute bars, so a few weeks of
-# sessions can show how much earlier, at which price and how often falsely it would fire. Participation and RSI
-# stay on SIP: IEX volume is a small slice of the tape (the AMSF lesson). A candle with fewer than
-# ``IEX_MIN_MINUTES`` traded minutes is too thin to judge and stays unknown.
+# The free plan's real-time feed is IEX, so the trigger is also judged on 15-minute candles built from today's
+# real-time IEX minute bars. Shadow 10/27-11/02 (5 sessions, output/paper_session/iex_trigger_shadow_*.jsonl): where
+# IEX could judge an entry (90 of 134) it fired a median 23 minutes before the SIP confirmation at a price 0.52%
+# better (median; better in 81); of the 202 candidates IEX fired on without an entry, 199 had the SIP trigger too
+# and waited on participation or momentum - the feeds agree on the break. Owner's decision 2026-11-03: the trigger
+# passes when either feed shows it ("iex_or_sip"; "sip" = SIP only). Participation and RSI stay on SIP: IEX volume
+# is a small slice of the tape (the AMSF lesson). A candle with fewer than ``IEX_MIN_MINUTES`` traded minutes is
+# too thin to judge and stays unknown - then SIP alone decides, as before. Every confirmation is still recorded.
+TRIGGER_SOURCE = "iex_or_sip"
 IEX_MIN_MINUTES = 5
 
 
@@ -225,8 +238,8 @@ def iex_candles(minute_bars: list[dict[str, Any]] | None, *, now: datetime, pars
 
 def iex_trigger(direction: str, minute_bars: list[dict[str, Any]] | None, *, now: datetime, parse,
                 tz) -> dict[str, Any]:
-    """The shadow trigger on real-time IEX candles: the same rule as ``trigger`` above (close beyond the previous
-    candle's low/high, in a candle of the trade's colour). Recorded only."""
+    """The trigger on real-time IEX candles: the same rule as ``trigger`` above (close beyond the previous
+    candle's low/high, in a candle of the trade's colour). ``evaluate`` uses it as ``TRIGGER_SOURCE`` says."""
     short = str(direction).lower() == "short"
     candles = iex_candles(minute_bars, now=now, parse=parse, tz=tz)
     if len(candles) < 2:

@@ -439,8 +439,8 @@ def fetch_realtime_minutes(symbol: str, session_date: str) -> list[dict[str, Any
     return fetch_intraday_bars(symbol, "1Min", lookback_hours=hours, feed="iex", end_dt=now)
 
 
-# T6 shadow (owner 2026-10-27): every confirmation of a live session also records the trigger judged on real-time
-# IEX candles, one line per symbol, side and new IEX candle; nothing reads it to decide.
+# T6 (owner 2026-10-27, deciding since 2026-11-03): every confirmation of a live session records the trigger judged
+# on real-time IEX candles beside the SIP one, one line per symbol, side and new IEX candle; nothing reads the file.
 IEX_SHADOW_DIR = Path(__file__).resolve().parent / "output" / "paper_session"
 _iex_shadow_seen: set[tuple[str, str, str]] = set()  # per process: Miltos and the trader may both write a line
 
@@ -470,8 +470,8 @@ def entry_confirmation(
     *,
     expected_session_date: str | None = None,
 ) -> dict[str, Any]:
-    """Miltos's confirmation (entry_confirmation_rules.py): trigger, participation and momentum on completed SIP
-    15-minute bars, and the real-time price still holding on IEX. Anything unknown waits."""
+    """Miltos's confirmation (entry_confirmation_rules.py): trigger on completed SIP or real-time IEX 15-minute
+    bars, participation and momentum on SIP, and the real-time price still holding on IEX. Anything unknown waits."""
     import entry_confirmation_rules as rules
 
     data_end = datetime.now(timezone.utc) - timedelta(minutes=CONFIRMATION_DELAY_MINUTES)
@@ -540,14 +540,16 @@ def entry_confirmation(
         profile = volume_profile(symbol, required_session)
     except Exception:  # noqa: BLE001 - no history: participation stays unknown and the entry waits
         profile = {}
-    result = rules.evaluate(trade_direction, bars, minute_bars, session_bars=session_bars,
-                            parse=parse_alpaca_timestamp, volume_profile=profile, tz=EASTERN_TZ)
     shadow = iex_shadow(minute_bars)
-    result["checks"].update(shadow)  # T6 shadow: recorded beside the SIP checks, never part of the decision
+    # T6 (owner 2026-11-03): the trigger passes on SIP or on the real-time IEX candle (rules.TRIGGER_SOURCE)
+    result = rules.evaluate(trade_direction, bars, minute_bars, session_bars=session_bars,
+                            parse=parse_alpaca_timestamp, volume_profile=profile, tz=EASTERN_TZ, iex=shadow)
+    result["checks"].update(shadow)
     if live:
         latest = result.get("latest") or session_bars[-1]
         record_iex_shadow(symbol, trade_direction, required_session, now, shadow, {
-            "sip_bar_t": latest.get("t"), "sip_trigger": result["checks"].get("trigger"),
+            "sip_bar_t": latest.get("t"), "sip_trigger": result["checks"].get("sip_trigger"),
+            "trigger_feed": result["checks"].get("trigger_feed"),
             "confirmed": bool(result["confirmed"]), "price_now": result["checks"].get("price_now")})
 
     def compact(bar: dict[str, Any]) -> dict[str, Any]:

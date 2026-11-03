@@ -19,6 +19,7 @@ from thymios_order_intent import (
 )
 from common import load_json
 import alpaca_short_gate_data as short_gates
+import results_calendar
 import strategy_tiers
 
 
@@ -164,7 +165,7 @@ def candidate_rows(
             # owner's choice B (2026-10-24): the gates the signal left open are resolved from today's broker and
             # Giannis data (alpaca_short_gate_data.py); whatever stays unknown keeps the short blocked
             resolved, remaining_gates = short_gates.resolve(
-                list(trade_plan["unresolved_short_gates_at_signal"]), short_gate_data, ticker, today)
+                list(trade_plan["unresolved_short_gates_at_signal"]), short_gate_data, ticker, today, playbook=playbook)
             if not remaining_gates:
                 short_resolution = {"as_of": today, "resolved": resolved}
         if notional_source == "agent_suggestion" and trade_plan is not None:
@@ -205,6 +206,9 @@ def candidate_rows(
         elif f"{playbook}:{direction}" in shadow_only:
             # owner's choice 3 for T5 (2026-10-26): worse than a random entry within days - recorded, never placed
             reason = "shadow_only_strategy"
+        elif results_calendar.entry_results_ahead(short_gate_data, ticker, playbook, direction, today):
+            # owner 2026-11-03 (F5): these shorts lose through results and are closed before them - not opened now
+            reason = "results_ahead"
         elif direction == "short" and remaining_gates:
             reason = "unresolved_short_implementation_gates:" + ",".join(sorted(remaining_gates))
         elif selected_notional <= 0:

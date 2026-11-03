@@ -35,6 +35,8 @@ import random
 import sqlite3
 from typing import Any
 
+from results_calendar import estimate_next  # the nightly calendar uses the same estimate
+
 ROOT = Path(__file__).resolve().parent
 PRICES = ROOT / "data" / "price_history"
 JOURNAL = ROOT / "data" / "earnings_journal.db"
@@ -81,18 +83,6 @@ def load_reports(db: Path | None = None) -> dict[str, list[tuple[date, str | Non
             except ValueError:
                 continue
     return {t: sorted(set(v), key=lambda e: (e[0], e[1] or "")) for t, v in out.items()}
-
-
-def estimate_next(reports: list[tuple[date, str | None]], after: date) -> tuple[date | None, str]:
-    """The expected next report after ``after``: the report filed 49-55 weeks before the next one would fall, + 52
-    weeks; without a year of history, the last report + 13 weeks. (date, method)."""
-    past = [d for d, _ in reports if d <= after]
-    if not past:
-        return None, "unknown"
-    ahead = [g for d in past if after < (g := d + timedelta(weeks=52)) <= after + timedelta(weeks=17)]
-    if ahead:
-        return min(ahead), "last_year_plus_52_weeks"  # the nearest one: the next report, not the one after it
-    return past[-1] + timedelta(weeks=13), "last_report_plus_13_weeks"
 
 
 def calendar_accuracy(reports: dict[str, list[tuple[date, str | None]]]) -> dict[str, Any]:

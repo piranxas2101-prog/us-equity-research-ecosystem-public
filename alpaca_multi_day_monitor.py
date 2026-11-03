@@ -13,6 +13,9 @@ with time counted in trading minutes from the fill (``trading_clock``: nights, w
   last ``SHOCK_WINDOW`` minutes of the session, SPY beyond 2 x its ATR(14) against the position, or the market
   turning from calm to volatile (``thesis_exit.market_shocks`` on SPY's daily bars with today's bar so far) - the
   lab measured it on the close and left at the next open, so live exits come one overnight gap earlier;
+* results ahead (owner 2026-11-03, F5): the three legacy shorts that lose through their company's results
+  (``results_calendar.STEP_ASIDE``) close ``STEP_ASIDE_SESSIONS`` sessions before the expected report, or while it is
+  overdue; every other position sits through results (results_lab.py: they gain through them on average);
 * horizon end: when the agent's horizon has run out, or 5 minutes before the close of the session it ends in.
 
 Paper account only; closes go through the same Alpaca call as the day monitor (``close_position_qty``) and only with
@@ -41,6 +44,7 @@ from alpaca_paper_position_monitor import (
     unrealized_plpc,
 )
 import positions_registry
+import results_calendar
 import thesis_exit
 import trading_clock
 
@@ -79,7 +83,7 @@ def board_rows(agent: str, symbol: str, strategy_dir: Path) -> tuple[str | None,
 
 
 def decide(entry: dict[str, Any], position: dict[str, Any], *, now: datetime, shock: str | None,
-           strategy_dir: Path) -> tuple[str | None, str]:
+           strategy_dir: Path, calendar: dict[str, Any] | None = None) -> tuple[str | None, str]:
     """(exit reason or None, explanation). Updates the entry's thesis state in place."""
     symbol, cls, direction = entry["symbol"], entry["holding_class"], entry["direction"]
     today = now.astimezone(trading_clock.EASTERN).date()
@@ -92,6 +96,10 @@ def decide(entry: dict[str, Any], position: dict[str, Any], *, now: datetime, sh
     stop = thesis_exit.scaled_stop(to_float(entry.get("atr_14_pct")), held)
     if plpc is not None and stop is not None and plpc <= -stop:
         return "scaled_stop", f"{symbol} {plpc:.2%} beyond the {stop:.2%} stop of session {held}."
+    expected = results_calendar.step_aside(calendar, symbol, entry.get("playbook"), direction, today)
+    if expected is not None:
+        return "results_ahead", (f"{symbol}: results expected {expected} (SEC filing dates); {entry.get('playbook')} "
+                                 f"{direction} positions lose through results on average - out before them.")
     run_id, rows = board_rows(entry["agent"], symbol, strategy_dir)
     if run_id and run_id != entry.get("last_thesis_run") and entry["opened_session"] != str(today):
         state = {"weak_nights": int(entry.get("weak_nights") or 0)}
@@ -124,12 +132,14 @@ def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[st
     closes: dict[str, tuple[str, dict[str, Any]]] = {}
     states: dict[str, dict[str, Any]] = {}
     positions = fetch_positions() if entries else {}
+    calendar = results_calendar.load() if entries else None  # written by the nightly run
     for symbol, entry in sorted(entries.items()):
         position = positions.get(symbol)
         if position is None:
             closes[symbol] = ("not_in_account", {})
             continue
-        reason, explanation = decide(entry, position, now=eastern, shock=shock, strategy_dir=Path(args.strategy_dir))
+        reason, explanation = decide(entry, position, now=eastern, shock=shock, strategy_dir=Path(args.strategy_dir),
+                                     calendar=calendar)
         states[symbol] = {key: entry.get(key) for key in ("weak_nights", "last_thesis_run", "last_thesis_check")}
         if reason is None:
             # the session report shows every held position (T7, 2026-10-26): its figures, not only the sentence

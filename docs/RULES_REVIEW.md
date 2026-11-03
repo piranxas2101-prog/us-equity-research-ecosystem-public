@@ -24,7 +24,7 @@ technical analysis, then the fundamental analysis.** This file keeps the list; e
 | F1 | Negative forward P/E rule (LAES report, 2026-10-22). | **Done 2026-11-03**: the lab (section 4) confirms negative fails (-4.86% against P/E 0-35, 0/6 years) and supports the 35 line; no change. |
 | F2 | Foreign issuers: 6-K reading and coverage beyond the shortlist. | **Done** (`press_release_reader.py` reads 8-K 2.02 and 6-K of every listed company); unanchored reads stay `pr_verified=no` by design. |
 | F3 | Giannis's sensitivity to filing recency; bank revenue definition; empty sector layer (analysis 2026-09-29). | **Done**: periodic-report freshness (2026-10-01, supported by the lab: 101-200 days -0.73%), bank revenue proxy (docs/BANK_REVENUE_PROXY.md), sector evidence tiers from SEC text (2026-10-06). Owner 2026-11-03 after the lab: Babis judges the rules SEC-first (`pipeline.babis_sec_first`, prefetch coverage 100%; Giannis already did) and debt/equity <= 150 keeps being measured with weight 0 (no edge). |
-| F5 | Held positions are not protected from results gaps: the pre-open check judges new entries only, so GOOGL (10/29) gapped 10.5% through its stop on earnings. | Open (owner 2026-11-03: belongs here, with the missing catalyst dates; same data gap as the `catalyst_timing` short gate). |
+| F5 | Held positions are not protected from results gaps: the pre-open check judges new entries only, so GOOGL (10/29) gapped 10.5% through its stop on earnings. | **Done 2026-11-03** (owner agreed to all three after the results lab, section 5): `results_calendar.py` every night; the three legacy shorts that lose through results close 3 sessions before the expected report (multi-day monitor, `results_ahead`) and Koulis does not open them inside that window; the expected results date resolves `catalyst_timing` for the shorts that gain through results (`RESULTS_CATALYST`: momentum_12_1, gap_fade, mean_reversion_overextension - of these only mean_reversion_overextension declares the gate). Every other position sits through results. |
 | F4 | Fundamental thesis checks for held positions (risk High, Giannis down 1.0) are starting values from `thesis_exit.py`. | Open: measure on the first held positions. |
 
 ## 3. Month-end review, 2026-11-03 (sessions 10/27-11/02)
@@ -106,4 +106,10 @@ Pass against fail, 60 sessions (spread %, 95% interval, years better):
   The legacy shorts share the same signal days (identical rows), so the last three are one finding, not three.
   No blanket "out before results": the main held long (support_bounce) and the momentum short gain through
   results on average - GOOGL's -13% was the 5.5% tail. The legacy shorts lose through results.
+* **Owner's decisions 2026-11-03 (all three):** the calendar runs every night after the results journal
+  (`results_calendar.py` -> `output/results_calendar_latest.json`, archived with the run); `STEP_ASIDE`
+  (controlled_breakout_swing, early_accumulation_swing, pre_run_breakout_confirmation shorts) closes 3 sessions
+  before the expected report or while it is up to 14 days overdue, and Koulis blocks a new one inside that window
+  (`results_ahead`) so it is not opened only to be closed; `RESULTS_CATALYST` dates the catalyst gate. An unknown,
+  stale (> 4 days) or long-overdue estimate decides nothing.
 

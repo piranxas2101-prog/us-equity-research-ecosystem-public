@@ -238,7 +238,7 @@ def _manifest(ctx: Context) -> list[str]:
                  "output/all_listed_instrument_observations_latest.json", GIANNIS, DEEP,
                  "output/information_ledger_latest.json", PACKET, "output/fundamental_control_plane_batch_latest.json",
                  YANKOS, PERIKLIS, "output/experiment_registry_latest.json", BACKTEST,
-                 "output/macro_environment_latest.json", "output/periodic_results_latest.json", "output/earnings_journal_latest.json", "output/paper_learning/evaluation_latest.json", "output/sokratis_strategy_teacher_latest.json", PETROS, "output/petros_training_latest.md",
+                 "output/macro_environment_latest.json", "output/periodic_results_latest.json", "output/earnings_journal_latest.json", "output/results_calendar_latest.json", "output/paper_learning/evaluation_latest.json", "output/sokratis_strategy_teacher_latest.json", PETROS, "output/petros_training_latest.md",
                  "output/team_decision_latest.json", "output/today_action_report.md", ctx.summary_path, ctx.handoff_log]
     audit = ROOT / "output/research_only_audit_latest.json"
     if ctx.options.full_market and audit.exists() and load_json(audit).get("run_id") == ctx.options.run_id:
@@ -319,6 +319,8 @@ def build_stages() -> list[Stage]:
         Stage("press_release_reader", False, lambda c: _py(c, "press_release_reader.py")),
         Stage("earnings_journal", False, lambda c: _py(c, "earnings_journal.py"),
               outputs=("output/earnings_journal_latest.json",)),
+        Stage("results_calendar", False, lambda c: _py(c, "results_calendar.py"),
+              outputs=("output/results_calendar_latest.json",)),
         Stage("sokratis", False, lambda c: _py(c, "sokratis_strategy_teacher.py", "build", "--backtest", BACKTEST,
                                                "--yankos", YANKOS, "--periklis", PERIKLIS,
                                                "--out-prefix", "output/sokratis_strategy_teacher"),

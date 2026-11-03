@@ -19,16 +19,21 @@ Starting values (owner's approval with choice B; to be measured on the ledger, d
   unresolved);
 * squeeze risk: short interest below ``SQUEEZE_SHORT_FLOAT_BELOW`` of the float **and** a float (shares
   outstanding when the float is unknown) of at least ``LOW_FLOAT_SHARES`` (a crowded short or a small float is
-  where squeezes happen).
+  where squeezes happen);
+* catalyst timing (owner 2026-11-03, F5): the company's expected next results date (``results_calendar.py``, from
+  SEC filing dates) dates the catalyst only for the shorts that gain through results
+  (``results_calendar.RESULTS_CATALYST``) and only within ``results_calendar.CATALYST_WITHIN_DAYS``.
 """
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import date, datetime
 import json
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
+
+import results_calendar
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "output" / "short_gate_data_latest.json"
@@ -55,8 +60,8 @@ def cached_info(symbol: str, directory: Path = INFO_CACHE) -> dict[str, Any]:
 
 
 def build(assets: list[dict[str, Any]], giannis_rows: list[dict[str, Any]], today: str,
-          info: Any = cached_info) -> dict[str, Any]:
-    """``info(symbol)``: yfinance company info for a symbol ({} when unknown)."""
+          info: Any = cached_info, calendar: dict[str, Any] | None = None) -> dict[str, Any]:
+    """``info(symbol)``: yfinance company info for a symbol ({} when unknown); ``calendar``: the results calendar."""
     fundamentals = {str(r.get("ticker") or "").upper(): r for r in giannis_rows if isinstance(r, dict)}
     symbols: dict[str, dict[str, Any]] = {}
     for asset in assets:
@@ -74,14 +79,18 @@ def build(assets: list[dict[str, Any]], giannis_rows: list[dict[str, Any]], toda
                            "short_percent_of_float": short_float,
                            "short_interest_source": source if short_float is not None else None,
                            "float_shares": float_shares,
-                           "shares_outstanding": _f(row.get("shares_outstanding")) or _f(details.get("sharesOutstanding"))}
+                           "shares_outstanding": _f(row.get("shares_outstanding")) or _f(details.get("sharesOutstanding")),
+                           "expected_results_date": (str(found) if (found := results_calendar.expected_date(
+                               calendar, symbol, date.fromisoformat(today))) else None)}
     return {"schema": "ecosystem.short_gate_data.v1", "as_of": today, "generated_at": datetime.now(NEW_YORK).isoformat(),
-            "sources": {"assets": "alpaca /v2/assets (paper)", "fundamentals": "giannis_rule_based_latest.json"},
+            "sources": {"assets": "alpaca /v2/assets (paper)", "fundamentals": "giannis_rule_based_latest.json",
+                        "results_calendar": "results_calendar_latest.json (SEC filing dates)"},
             "thresholds": {"squeeze_short_float_below": SQUEEZE_SHORT_FLOAT_BELOW, "low_float_shares": LOW_FLOAT_SHARES},
             "symbols": symbols}
 
 
-def resolve(gates: list[str], data: dict[str, Any] | None, ticker: str, today: str) -> tuple[dict[str, str], list[str]]:
+def resolve(gates: list[str], data: dict[str, Any] | None, ticker: str, today: str,
+            playbook: str | None = None) -> tuple[dict[str, str], list[str]]:
     """(resolved gate -> evidence, gates still unresolved). Data of another day resolves nothing."""
     if not data or data.get("as_of") != today:
         return {}, list(gates)
@@ -99,6 +108,13 @@ def resolve(gates: list[str], data: dict[str, Any] | None, ticker: str, today: s
                     and shares >= LOW_FLOAT_SHARES):
                 resolved[gate] = (f"short interest {short_float:.1%} of float < {SQUEEZE_SHORT_FLOAT_BELOW:.0%}, "
                                   f"{shares:,.0f} shares >= {LOW_FLOAT_SHARES:,}")
+        elif gate == "catalyst_timing" and (str(playbook or ""), "short") in results_calendar.RESULTS_CATALYST:
+            try:
+                expected = date.fromisoformat(str(facts.get("expected_results_date")))
+            except ValueError:
+                continue
+            if 0 <= (expected - date.fromisoformat(today)).days <= results_calendar.CATALYST_WITHIN_DAYS:
+                resolved[gate] = f"results expected {expected} (SEC filing dates); {playbook} shorts gain through results"
     return resolved, [g for g in gates if g not in resolved]
 
 
@@ -163,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
             details = {**details, **live_info(symbol)}
         return details
 
-    payload = build(assets, giannis, today, info)
+    payload = build(assets, giannis, today, info, calendar=results_calendar.load())
     payload["live_lookups"] = LIVE_LOOKUPS_MAX - live_left[0]
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

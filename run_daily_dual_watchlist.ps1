@@ -636,6 +636,19 @@ if ($journalExitCode -ne 0) {
     Add-PipelineWarning "Results journal failed with exit code $journalExitCode. Log: $journalLog"
 }
 
+# Results calendar (owner 2026-11-03, F5): the expected date of every company's next report, from the journal's SEC
+# filing dates; the multi-day monitor steps three legacy shorts aside before results, Koulis dates short catalysts.
+Mark-PipelineStep -Key "results_calendar" -Agent "system"
+$calendarLog = Join-Path $logDir "results_calendar_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $pythonPath "results_calendar.py" 2>&1 | Tee-Object -FilePath $calendarLog
+$calendarExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorAction
+if ($calendarExitCode -ne 0) {
+    Add-PipelineWarning "Results calendar failed with exit code $calendarExitCode. Log: $calendarLog"
+}
+
 Mark-PipelineStep -Key "sokratis" -Agent "sokratis"
 Write-Host "Building Sokratis trader skill lessons..."
 $sokratisLog = Join-Path $logDir "dual_watchlist_sokratis_$timestamp.log"
@@ -1021,6 +1034,7 @@ $manifestArgs = @(
     "--artifact", "output/macro_environment_latest.json",
     "--artifact", "output/periodic_results_latest.json",
     "--artifact", "output/earnings_journal_latest.json",
+    "--artifact", "output/results_calendar_latest.json",
     "--artifact", "output/paper_learning/evaluation_latest.json",
     "--artifact", "output/sokratis_strategy_teacher_latest.json",
     "--artifact", "output/petros_review_latest.json",

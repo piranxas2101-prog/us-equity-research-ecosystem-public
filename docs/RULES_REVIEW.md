@@ -48,3 +48,35 @@ close to close). Evidence, not proof.
   Alpaca IEX first, then Yahoo, and retries); 154 of 238 symbols had a pre-market price on 11/02, the rest stay
   unknown. No change.
 
+## 4. Fundamental rules lab, 2026-11-03 (F1, F3)
+
+`fundamental_lab.py` (research only): the eight rules of `scanner_config.json` replayed point in time on the
+stored SEC companyfacts (only facts filed by each month's first session) and five years of daily prices; 5,259
+companies, 280,595 observations, 2021-11 to 2026-10; excess = forward return minus that day's median of all
+companies, clipped to the day's 1st-99th percentile; spreads averaged over dates, 95% month-block bootstrap.
+Report: `output/strategy_lab/fundamental_rules_latest.md`. Forward P/E has no history: trailing P/E stands in.
+Survivorship: today's companies only.
+
+Pass against fail, 60 sessions (spread %, 95% interval, years better):
+
+| rule | spread | 95% | years |
+|---|---|---|---|
+| forward P/E <= 35 (trailing) | +4.27 | 1.60 / 6.18 | 6/6 |
+| roe >= 12% | +2.42 | 0.68 / 3.71 | 6/6 |
+| current ratio >= 1 | +2.22 | 0.52 / 4.11 | 4/6 |
+| earnings growth >= 5% | +2.15 | 1.27 / 2.82 | 6/6 |
+| profit margin >= 10% | +1.84 | -0.01 / 3.22 | 6/6 |
+| revenue growth >= 5% | +1.22 | 0.53 / 1.98 | 4/6 |
+| gross margin >= 30% | +0.84 | -0.42 / 2.32 | 4/6 (64% unknown on SEC) |
+| debt/equity <= 150 | **-0.91** | -1.75 / 0.04 | 2/6 |
+
+* The score works: weights passed >= 70% against < 40% gives +3.88% over 60 sessions (2.15 / 5.34, 6/6 years),
+  rising through the five score buckets.
+* **F1:** a negative P/E (losses) does worse than a P/E of 0-35 (-4.86%, 0/6 years): the owner's rule of
+  2026-10-22 (negative fails) is confirmed. Above 35 the excess falls gradually (35-50 +2.9%, 50-100 +2.0%) and
+  turns negative above 100 (-2.0%): 35 is a reasonable line.
+* **Debt/equity <= 150 has no edge** (SEC gives long-term debt only, 47% unknown).
+* Revenue growth above ~60% and current ratio above ~8.6 do worse than the middle (deciles).
+* **F3:** a company whose last 10-Q/10-K is 101-200 days old does worse (-0.73% at 60 sessions against +1.4 to
+  +1.6% for 0-100 days): the stale-report penalty of 2026-10-01 (135 days) has support.
+

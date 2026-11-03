@@ -119,4 +119,11 @@ Pass against fail, 60 sessions (spread %, 95% interval, years better):
   28 days before it for an annual one, and the step-aside works from the window's opening. Share classes share
   their company's calendar (GOOGL had none: the journal files Alphabet under GOOG). The lab's results window
   (2 sessions before the filing) misses part of the annual-report reactions; its quarterly findings stand.
+* **SEC results releases (owner 2026-11-03, "do the dates from the SEC too"):** `sec_results_releases.py` reads
+  every company's SEC submissions file (8-K items) through the shared SEC rate limiter - 800 companies a night,
+  each asked again after 30 days - and stores every 8-K with item 2.02 (`data/sec_results_releases.sqlite3`).
+  The calendar dates each periodic report by the release filed in the 45 days before it; an estimate resting on
+  an exact release a year earlier opens its window 5 days before (not 28 for a 10-K). PTC: expected 2026-11-04
+  from its 8-K of 2025-11-05, instead of the 10-K filing date 2025-11-21. Foreign 6-K filers keep the
+  filing-date estimate.
 

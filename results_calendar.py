@@ -1,9 +1,10 @@
 """Results calendar (F5, owner's decisions 2026-11-03): when every company's next periodic report is expected.
 
 Built every night from the results journal (``data/earnings_journal.db``: the filing dates of every 10-Q/10-K and
-foreign equivalent, five years back). The estimate is the same report a year earlier + 52 weeks (``results_lab.py``:
-within 7 days of the real filing in 89% of 60,788 cases, 95% within 14); without a year of history, the last report
-+ 13 weeks, labelled as the weaker method. A company without reports has no date: unknown stays unknown. Written to
+foreign equivalent, five years back) and the SEC results releases (``sec_results_releases.py``: every 8-K with item
+2.02, which dates the release behind each report exactly). The estimate is the same quarter's results a year
+earlier + 52 weeks (``results_lab.py``: on filing dates, within 7 days in 89% of 60,788 cases, 95% within 14);
+without a year of history, the last report + 13 weeks, labelled as the weaker method. A company without reports has no date: unknown stays unknown. Written to
 ``output/results_calendar_latest.json`` and read by:
 
 * ``alpaca_multi_day_monitor.py`` - the three legacy shorts that lose through results (``STEP_ASIDE``: -1.25 to
@@ -48,6 +49,7 @@ MAX_CALENDAR_AGE_DAYS = 4    # a calendar older than this (a long weekend) decid
 
 ANNUAL_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
 ANNUAL_LEAD_DAYS = 28    # results announced up to four weeks before the annual report is filed (PTC: 16 days)
+RELEASE_BEFORE_DAYS = 45  # a results release belongs to the periodic report filed up to this long after it
 QUARTERLY_LEAD_DAYS = 5  # the estimate's error is -5 to +7 days (10%-90%); 10-Qs follow the release by ~1 day
 
 
@@ -99,10 +101,22 @@ def share_classes(tickers_file: Path | None = None) -> dict[str, list[str]]:
     return out
 
 
-def build(reports: dict[str, Any], today: date, classes: dict[str, list[str]] | None = None) -> dict[str, Any]:
+def dated(events: list[tuple[date, bool]], releases: list[date]) -> list[tuple[date, bool, bool]]:
+    """(results date, annual?, exact?) per periodic report: the latest SEC results release (8-K item 2.02) filed in
+    the ``RELEASE_BEFORE_DAYS`` before the report, else the report's own filing date (not exact)."""
+    out = []
+    for filed, annual in events:
+        near = [r for r in releases if filed - timedelta(days=RELEASE_BEFORE_DAYS) <= r <= filed]
+        out.append((max(near), annual, True) if near else (filed, annual, False))
+    return sorted(out)
+
+
+def build(reports: dict[str, Any], today: date, classes: dict[str, list[str]] | None = None,
+          releases: dict[str, list[date]] | None = None) -> dict[str, Any]:
     symbols = {}
     names = reports.get("_tickers") or {}
     announced = reports.get("_announced") or {}
+    exact_count = 0
     for cik, events in reports.items():
         if cik.startswith("_"):
             continue
@@ -111,23 +125,29 @@ def build(reports: dict[str, Any], today: date, classes: dict[str, list[str]] | 
         if not past:
             continue
         last = past[-1][0]
-        release = announced.get(cik)
-        latest = max(last, release) if release is not None and release <= today else last
+        own = [r for r in (releases or {}).get(cik, []) if r <= today]
+        known = [d for d in (announced.get(cik), own[-1] if own else None) if d is not None and d <= today]
+        release = max(known) if known else None
+        latest = max(last, release) if release is not None else last
+        timeline = dated(events, own)
         # from a month after the last report or results release (a released quarter whose 10-Q is still to come is
         # not the next results), so that report's own twin a year earlier is not taken for the next
-        expected, method = estimate_next(events, latest + timedelta(days=30))
+        expected, method = estimate_next(timeline, latest + timedelta(days=30))
         if expected is None:
             continue
-        annual = next((a for d, a in events if d + timedelta(weeks=52) == expected), False) \
-            if method == "last_year_plus_52_weeks" else False
-        lead = ANNUAL_LEAD_DAYS if annual else QUARTERLY_LEAD_DAYS
+        source = next((e for e in timeline if e[0] + timedelta(weeks=52) == expected), None)             if method == "last_year_plus_52_weeks" else None
+        annual, exact = (source[1], source[2]) if source else (False, False)
+        exact_count += bool(exact)
+        # an exact release date a year earlier needs only the estimate's own error; a 10-K date needs four weeks
+        lead = ANNUAL_LEAD_DAYS if annual and not exact else QUARTERLY_LEAD_DAYS
         item = {"expected_date": expected.isoformat(), "window_start": (expected - timedelta(days=lead)).isoformat(),
-                "annual": annual, "method": method, "last_report": last.isoformat(),
+                "annual": annual, "from_release": exact, "method": method, "last_report": last.isoformat(),
                 "last_release": release.isoformat() if release else None, "cik": cik}
         for ticker in set(names.get(cik, [])) | set((classes or {}).get(cik, [])):
             symbols[ticker] = item
     return {"schema": SCHEMA, "as_of": today.isoformat(), "generated_at": datetime.now(timezone.utc).isoformat(),
-            "source": "SEC periodic report filing dates (data/earnings_journal.db)",
+            "source": "SEC results releases (8-K item 2.02, sec_results_releases.py) and periodic report filing "
+                      "dates (data/earnings_journal.db)", "companies_from_release": exact_count,
             "lead_days": {"annual": ANNUAL_LEAD_DAYS, "quarterly": QUARTERLY_LEAD_DAYS}, "symbols": symbols}
 
 
@@ -214,7 +234,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args(argv)
-    payload = build(load_reports(), date.today(), share_classes())
+    import sec_results_releases
+
+    payload = build(load_reports(), date.today(), share_classes(), sec_results_releases.load_releases())
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=1), encoding="utf-8")
     weak = sum(1 for s in payload["symbols"].values() if s["method"] != "last_year_plus_52_weeks")

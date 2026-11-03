@@ -636,8 +636,18 @@ if ($journalExitCode -ne 0) {
     Add-PipelineWarning "Results journal failed with exit code $journalExitCode. Log: $journalLog"
 }
 
-# Results calendar (owner 2026-11-03, F5): the expected date of every company's next report, from the journal's SEC
-# filing dates; the multi-day monitor steps three legacy shorts aside before results, Koulis dates short catalysts.
+# Results calendar (owner 2026-11-03, F5): the expected date of every company's next results, from the SEC results
+# releases (8-K item 2.02, read within a nightly budget) and the journal's filing dates; the multi-day monitor steps three legacy shorts aside before results, Koulis dates short catalysts.
+Mark-PipelineStep -Key "sec_results_releases" -Agent "system"
+$releasesLog = Join-Path $logDir "sec_results_releases_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $pythonPath "sec_results_releases.py" 2>&1 | Tee-Object -FilePath $releasesLog
+$releasesExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorAction
+if ($releasesExitCode -ne 0) {
+    Add-PipelineWarning "SEC results releases failed with exit code $releasesExitCode. Log: $releasesLog"
+}
 Mark-PipelineStep -Key "results_calendar" -Agent "system"
 $calendarLog = Join-Path $logDir "results_calendar_$timestamp.log"
 $previousErrorAction = $ErrorActionPreference

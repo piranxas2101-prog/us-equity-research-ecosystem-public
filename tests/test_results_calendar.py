@@ -65,6 +65,43 @@ class CalendarTests(unittest.TestCase):
         self.assertIsNone(rc.step_aside(near, "ABC", "momentum_12_1", "short", TODAY))
 
 
+class ReleaseTests(unittest.TestCase):
+    def test_ptc_10k_results_dated_by_last_years_8k_202_with_the_short_window(self):
+        reports = {"1": [(date(2025, 8, 1), False), (date(2025, 11, 21), True), (date(2026, 2, 5), False),
+                         (date(2026, 5, 7), False), (date(2026, 7, 31), False)], "_tickers": {"1": ["PTC"]}}
+        releases = {"1": [date(2025, 7, 30), date(2025, 11, 5), date(2026, 2, 4), date(2026, 5, 6), date(2026, 7, 29)]}
+        item = rc.build(reports, TODAY, releases=releases)["symbols"]["PTC"]
+        self.assertEqual((item["expected_date"], item["window_start"], item["from_release"]),
+                         ("2026-11-04", "2026-10-30", True))
+        without = rc.build(reports, TODAY)["symbols"]["PTC"]                        # filing dates only
+        self.assertEqual((without["expected_date"], without["window_start"]), ("2026-11-20", "2026-10-23"))
+
+    def test_submissions_give_the_8k_with_item_202_and_one_older_page_when_needed(self):
+        import sec_results_releases as srr
+
+        recent = {"filings": {"recent": {"accessionNumber": ["a1", "a2", "a3"], "form": ["8-K", "8-K", "10-Q"],
+                                         "filingDate": ["2026-10-29", "2026-09-01", "2026-10-30"],
+                                         "items": ["2.02,9.01", "5.02", ""]},
+                              "files": [{"name": "CIK0000000001-submissions-001.json"}]}}
+        older = {"accessionNumber": ["a0"], "form": ["8-K/A"], "filingDate": ["2025-10-30"], "items": ["2.02"]}
+        asked = []
+
+        def fetch(url):
+            asked.append(url)
+            return recent if url.endswith("CIK0000000001.json") else older
+
+        found = srr.ask(1, fetch, TODAY)
+        self.assertEqual([r["accession"] for r in found], ["a1", "a0"])            # recent reaches only 2026-09
+        self.assertEqual(len(asked), 2)
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        report = srr.run(conn, [1, 2], fetch=lambda url: fetch(url) if "0000000001" in url else (_ for _ in ()).throw(
+            __import__("urllib.error").error.HTTPError(url, 404, "nf", {}, None)), today=TODAY, budget=10)
+        self.assertEqual((report["counts"]["asked"], report["counts"]["not_found"], report["counts"]["releases_stored"]),
+                         (1, 1, 2))
+        self.assertEqual(srr.due(conn, [1, 2, 3], TODAY), [3])                     # asked ones wait 30 days
+
+
 class MonitorTests(unittest.TestCase):
     def test_a_legacy_short_closes_before_results_and_a_support_bounce_long_sits_through(self):
         short = entry(sessions=60, filled_at="2026-10-20T14:00:00Z", playbook="controlled_breakout_swing",

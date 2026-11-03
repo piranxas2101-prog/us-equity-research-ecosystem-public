@@ -319,6 +319,7 @@ def build_stages() -> list[Stage]:
         Stage("press_release_reader", False, lambda c: _py(c, "press_release_reader.py")),
         Stage("earnings_journal", False, lambda c: _py(c, "earnings_journal.py"),
               outputs=("output/earnings_journal_latest.json",)),
+        Stage("sec_results_releases", False, lambda c: _py(c, "sec_results_releases.py")),
         Stage("results_calendar", False, lambda c: _py(c, "results_calendar.py"),
               outputs=("output/results_calendar_latest.json",)),
         Stage("sokratis", False, lambda c: _py(c, "sokratis_strategy_teacher.py", "build", "--backtest", BACKTEST,

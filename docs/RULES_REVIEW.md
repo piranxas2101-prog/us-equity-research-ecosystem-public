@@ -112,4 +112,11 @@ Pass against fail, 60 sessions (spread %, 95% interval, years better):
   before the expected report or while it is up to 14 days overdue, and Koulis blocks a new one inside that window
   (`results_ahead`) so it is not opened only to be closed; `RESULTS_CATALYST` dates the catalyst gate. An unknown,
   stale (> 4 days) or long-overdue estimate decides nothing.
+* **Correction the same day:** results are announced before the periodic report is filed - for 10-Qs about a day
+  (93% of 216 checked against the 8-K 2.02 of October 2026), for 10-Ks up to weeks (PTC: announced in early
+  November, 10-K on 2025-11-21). The local 8-K index starts in May 2026, too late to date last year's announcements,
+  so the calendar gives a results window: it opens 5 days before the expected filing for a quarterly report and
+  28 days before it for an annual one, and the step-aside works from the window's opening. Share classes share
+  their company's calendar (GOOGL had none: the journal files Alphabet under GOOG). The lab's results window
+  (2 sessions before the filing) misses part of the annual-report reactions; its quarterly findings stand.
 

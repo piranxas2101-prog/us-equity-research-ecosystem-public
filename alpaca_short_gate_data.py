@@ -81,6 +81,8 @@ def build(assets: list[dict[str, Any]], giannis_rows: list[dict[str, Any]], toda
                            "float_shares": float_shares,
                            "shares_outstanding": _f(row.get("shares_outstanding")) or _f(details.get("sharesOutstanding")),
                            "expected_results_date": (str(found) if (found := results_calendar.expected_date(
+                               calendar, symbol, date.fromisoformat(today))) else None),
+                           "results_window_start": (str(start) if (start := results_calendar.window_start(
                                calendar, symbol, date.fromisoformat(today))) else None)}
     return {"schema": "ecosystem.short_gate_data.v1", "as_of": today, "generated_at": datetime.now(NEW_YORK).isoformat(),
             "sources": {"assets": "alpaca /v2/assets (paper)", "fundamentals": "giannis_rule_based_latest.json",

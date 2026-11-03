@@ -3,7 +3,7 @@ results (and not opened inside that window), and the expected results date as th
 gain through results."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import tempfile
@@ -17,19 +17,27 @@ from tests.test_multi_day_positions import entry, ny
 TODAY = date(2026, 11, 3)  # a Tuesday
 
 
-def calendar(expected: str, as_of: str = "2026-11-03", ticker: str = "ABC") -> dict:
-    return {"as_of": as_of, "symbols": {ticker: {"expected_date": expected, "method": "last_year_plus_52_weeks"}}}
+def calendar(expected: str, as_of: str = "2026-11-03", ticker: str = "ABC", lead: int = 5) -> dict:
+    start = (date.fromisoformat(expected) - timedelta(days=lead)).isoformat()
+    return {"as_of": as_of, "symbols": {ticker: {"expected_date": expected, "window_start": start,
+                                                 "method": "last_year_plus_52_weeks"}}}
 
 
 class CalendarTests(unittest.TestCase):
-    def test_next_report_from_last_years_same_report_not_the_last_reports_twin(self):
-        reports = {"ABC": [date(2025, 2, 5), date(2025, 5, 7), date(2025, 8, 6), date(2025, 11, 5),
-                           date(2026, 2, 4), date(2026, 5, 6), date(2026, 8, 5), date(2026, 11, 4)],
-                   "NEW": [date(2026, 8, 12)]}
-        built = rc.build(reports, date(2026, 11, 4))
-        self.assertEqual(built["symbols"]["ABC"]["expected_date"], "2027-02-03")   # 2026-02-04 + 52 weeks
-        self.assertEqual(built["symbols"]["NEW"], {"expected_date": "2026-11-11", "method": "last_report_plus_13_weeks",
-                                                    "last_report": "2026-08-12"})
+    def test_next_report_from_last_years_same_report_window_by_kind_and_share_classes(self):
+        q = [date(2025, 2, 5), date(2025, 5, 7), date(2025, 8, 6), date(2026, 2, 4), date(2026, 5, 6), date(2026, 8, 5)]
+        reports = {"1": [(d, False) for d in q] + [(date(2025, 11, 21), True)],      # a 10-K filed late in November
+                   "2": [(date(2026, 8, 12), False)],
+                   "_tickers": {"1": ["GOOG"], "2": ["NEW"]}}
+        built = rc.build(reports, date(2026, 8, 20), classes={"1": ["GOOG", "GOOGL"]})["symbols"]
+        self.assertEqual((built["GOOGL"]["expected_date"], built["GOOGL"]["window_start"], built["GOOGL"]["annual"]),
+                         ("2026-11-20", "2026-10-23", True))                         # results may come 4 weeks early
+        self.assertEqual(built["GOOG"], built["GOOGL"])
+        self.assertEqual((built["NEW"]["expected_date"], built["NEW"]["window_start"], built["NEW"]["method"]),
+                         ("2026-11-11", "2026-11-06", "last_report_plus_13_weeks"))
+        after_q3 = rc.build({"1": [(d, False) for d in q] + [(date(2025, 11, 5), False)], "_tickers": {"1": ["A"]}},
+                            date(2026, 8, 6))["symbols"]["A"]
+        self.assertEqual(after_q3["expected_date"], "2026-11-04")                    # not the 2026-08-05 report's twin
         self.assertEqual(rc.build({}, TODAY)["symbols"], {})
 
     def test_stale_calendar_unknown_symbol_and_long_overdue_report_decide_nothing(self):
@@ -40,11 +48,14 @@ class CalendarTests(unittest.TestCase):
         self.assertIsNone(rc.expected_date(None, "ABC", TODAY))
 
     def test_step_aside_only_for_the_three_legacy_shorts_within_three_sessions(self):
-        near = calendar("2026-11-06")                                                  # 3 sessions ahead
-        self.assertEqual(rc.step_aside(near, "ABC", "controlled_breakout_swing", "short", TODAY), date(2026, 11, 6))
+        near = calendar("2026-11-11")                                                  # window opens in 3 sessions
+        self.assertEqual(rc.step_aside(near, "ABC", "controlled_breakout_swing", "short", TODAY), date(2026, 11, 11))
         self.assertEqual(rc.step_aside(calendar("2026-10-30"), "ABC", "early_accumulation_swing", "short", TODAY),
                          date(2026, 10, 30))                                           # overdue: still pending
-        self.assertIsNone(rc.step_aside(calendar("2026-11-09"), "ABC", "controlled_breakout_swing", "short", TODAY))
+        self.assertIsNone(rc.step_aside(calendar("2026-11-12"), "ABC", "controlled_breakout_swing", "short", TODAY))
+        annual = calendar("2026-11-27", lead=28)                                       # 10-K based: opens 10-30
+        self.assertEqual(rc.step_aside(annual, "ABC", "pre_run_breakout_confirmation", "short", TODAY),
+                         date(2026, 11, 27))
         self.assertIsNone(rc.step_aside(near, "ABC", "support_bounce_swing", "long", TODAY))     # gains through
         self.assertIsNone(rc.step_aside(near, "ABC", "momentum_12_1", "short", TODAY))
 
@@ -86,6 +97,7 @@ class ShortGateTests(unittest.TestCase):
 
     def test_koulis_does_not_open_a_legacy_short_it_would_close_before_results(self):
         data = self.data("2026-11-05")
+        self.assertEqual(data["symbols"]["ABC"]["results_window_start"], "2026-10-31")
         self.assertEqual(rc.entry_results_ahead(data, "ABC", "pre_run_breakout_confirmation", "short", "2026-11-03"),
                          "2026-11-05")
         self.assertIsNone(rc.entry_results_ahead(data, "ABC", "gap_fade", "short", "2026-11-03"))

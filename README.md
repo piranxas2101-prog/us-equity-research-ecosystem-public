@@ -93,7 +93,9 @@ agents proposed shorts that the market did not support. Each finding became a la
 
 ## Feedback wanted
 
-This is a one-person project and outside eyes help most. Issues and comments are very welcome on:
+This is a one-person project and outside eyes help most. Open an issue for a bug, or start a thread in
+[Discussions](https://github.com/piranxas2101-prog/us-equity-research-ecosystem-public/discussions) for questions, ideas and
+opinions. Feedback is especially welcome on:
 
 1. **The market-state reading** ([market_state.py](market_state.py), [lesson](docs/MARKET_STATE_LESSON.md)): are
    the five sides and their thresholds sensible? What would you add?

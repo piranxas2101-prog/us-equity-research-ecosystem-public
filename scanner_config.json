@@ -9,7 +9,9 @@
     "fallback_research": "on",
     "held_positions_limit": "none",
     "new_orders_limit": "none",
-    "shadow_only_strategies": ["gap_continuation:long", "mean_reversion_overextension:long", "gap_fade:long"]
+    "shadow_only_strategies": ["gap_continuation:long", "mean_reversion_overextension:long", "gap_fade:long"],
+    "swing_long_playbooks": ["support_bounce_swing", "controlled_breakout_swing", "early_accumulation_swing",
+                             "pre_run_breakout_confirmation", "failed_breakdown_reclaim"]
   },
   "preopen": {
     "recheck_at_open": "on"

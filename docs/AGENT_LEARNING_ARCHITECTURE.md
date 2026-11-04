@@ -15,8 +15,12 @@ LLM access and records only:
 - a versioned memory record,
 - candidate lessons when the same gap has enough support.
 
-Candidate lessons do not change active decisions. They require separate shadow
-validation and manual promotion.
+Candidate lessons do not change active decisions. Since 2026-11-05 (owner's
+standing decision) every new lesson goes straight to **shadow**: it is followed on
+the sessions after it entered shadow (`paper_learning.shadow_follow`: confirmed,
+not confirmed or still collecting) and Sokratis teaches it to the agents it
+concerns, as advisory knowledge. Shadow changes no score, policy, limit or order;
+accepting a lesson stays a manual decision of the owner.
 
 ## Sokratis boundary
 
@@ -33,12 +37,13 @@ Learning state is stored in the local SQLite control plane:
 - `agent_memory_items` and `agent_memory_versions`: current memory plus complete
   version history;
 - `agent_learning_outcomes`: delayed, evidence-backed labels;
-- `agent_lesson_candidates`: proposals that remain candidates by default;
+- `agent_lesson_candidates`: proposals, moved to shadow on creation (owner 2026-11-05);
 - `agent_model_registry`: JSON-only model artifacts and manual state changes.
 
 Memory must contain provenance, never credentials. Model promotion follows
 `candidate -> shadow -> champion`; the control plane forbids direct candidate
-promotion and never performs promotion automatically.
+promotion and never performs promotion automatically. For lessons the only
+automatic step is candidate -> shadow; shadow -> accepted is always manual.
 
 ## Design sources
 

@@ -77,7 +77,7 @@ class OutcomeEvaluatorTests(unittest.TestCase):
             self.assertEqual(len(lessons), 1)
             proposal = json.loads(conn.execute("SELECT proposal_json FROM agent_lesson_candidates").fetchone()[0])
             self.assertEqual((proposal["activation"], proposal["changes_active_scores"]), ("candidate_only", False))
-            self.assertEqual(conn.execute("SELECT status FROM agent_lesson_candidates").fetchone()[0], "candidate")
+            self.assertEqual(conn.execute("SELECT status FROM agent_lesson_candidates").fetchone()[0], "shadow")  # owner 2026-11-05
 
     def test_run_reads_episodes_and_outcomes_from_the_learning_tables(self):
         with tempfile.TemporaryDirectory() as tmp:

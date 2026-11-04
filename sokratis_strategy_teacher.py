@@ -453,6 +453,17 @@ def build_paper_trade_lesson(evaluation: dict[str, Any]) -> dict[str, Any]:
         view.setdefault("holding", {})[name] = {
             cell: {k: value.get(k) for k in ("known", "days", "mean_excess_pct", "beat_spy_pct", "status")}
             for cell, value in cells.items() if value.get("known")}
+    # the lessons in shadow (owner 2026-11-05: every lesson goes to shadow and the agents learn from it): each trader
+    # is taught the ones about him or his strategies, with how they held on the sessions after they entered shadow
+    for item in evaluation.get("shadow_follow") or []:
+        criterion = str(item.get("criterion_id") or "")
+        agent = item.get("target_agent")
+        if agent not in ("yankos", "periklis"):
+            agent = next((name for name in ("yankos", "periklis") if f":{name}:" in f":{criterion}:"), None)
+        if agent:
+            traders.setdefault(agent, {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
+                "shadow_lessons", []).append({k: item.get(k) for k in (
+                    "lesson_id", "target_agent", "proposed_change", "shadow_since", "sessions_after", "verdict")})
     return {"status": "ok", "sessions": evaluation.get("sessions"), "traders": traders,
             "authority": "advisory_only: the trader's own playbook still decides; nothing is switched on or off"}
 
@@ -732,6 +743,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
                 lines.append(f"- {trader} | holding {name} | " + "; ".join(
                     f"{cell} {value.get('known')} excess {fmt(value.get('mean_excess_pct'))} {value.get('status')}"
                     for cell, value in cells.items()))
+            for item in view.get("shadow_lessons", []):
+                lines.append(f"- {trader} | shadow lesson | {item.get('proposed_change')} | {item.get('verdict')} "
+                             f"after {item.get('sessions_after')} sessions since {item.get('shadow_since')}")
     results = payload.get("results_lesson") or {}
     lines.extend(["", "## Results Lesson", ""])
     if results.get("status") != "ok":

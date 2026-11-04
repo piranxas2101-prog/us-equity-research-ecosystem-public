@@ -81,6 +81,9 @@ def build_trade_plan(
     policy: dict[str, Any],
     run_id: str,
     curve: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
+    *,
+    swing: set[str] | None = None,
+    estimates: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     notional, factors = suggested_notional(row, policy)
     atr_pct = max(0.0, to_float(row.get("atr_14_pct"))) / 100.0
@@ -126,8 +129,9 @@ def build_trade_plan(
     }
     if str(policy["holding_period_rule"]) == holding_horizon.RULE:
         # owner 2026-10-23: the agent decides how long it holds, from the horizon curve; without a real edge at any
-        # horizon the position stays same-day (holding_horizon.py)
-        horizon = holding_horizon.decide(playbook["playbook_id"], direction, curve or {})
+        # horizon the position stays same-day, except a swing long (owner 2026-11-05; holding_horizon.py)
+        horizon = holding_horizon.decide(playbook["playbook_id"], direction, curve or {}, swing=swing,
+                                         catalog_horizon=playbook.get("holding_horizon"), estimates=estimates)
         immutable["holding_period_rule"] = horizon["rule"]
         immutable["holding_horizon"] = horizon
     immutable["trade_plan_id"] = "plan_" + digest(immutable)[:24]
@@ -145,7 +149,11 @@ def attach_trade_plans(
 ) -> dict[str, Any]:
     validate_policy(policy)
     known = playbook_framework.catalog_by_id(catalog)
-    curve = holding_horizon.load_curve() if str(policy["holding_period_rule"]) == holding_horizon.RULE else None
+    by_horizon = str(policy["holding_period_rule"]) == holding_horizon.RULE
+    curve = holding_horizon.load_curve() if by_horizon else None
+    # owner 2026-11-05: a swing long never closes the same day (holding_horizon.py)
+    swing = holding_horizon.swing_long_playbooks() if by_horizon else None
+    estimates = holding_horizon.load_estimates() if by_horizon else None
     counts: Counter[str] = Counter()
     for row in rows:
         playbook_id = str(row.get("playbook_name") or "")
@@ -154,7 +162,7 @@ def attach_trade_plans(
             row["paper_trade_plan_error"] = "playbook_not_in_catalog"
             counts["error"] += 1
             continue
-        plan = build_trade_plan(agent, row, playbook, policy, run_id, curve)
+        plan = build_trade_plan(agent, row, playbook, policy, run_id, curve, swing=swing, estimates=estimates)
         row["paper_trade_plan"] = plan
         counts[str(row.get("signal_verdict") or "unknown")] += 1
     return {

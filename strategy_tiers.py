@@ -3,7 +3,9 @@
 * **horizon** - a stable edge over a random entry of the same stock at some holding period (the exit lab's horizon
   curve): the position opens and is held for its agent's horizon (holding_horizon.py).
 * **same_day_measured** - no stable edge at any horizon, and not worse than a random entry within the first days:
-  the position opens and closes the same day, and is judged on the ledger (``review``).
+  the position opens and closes the same day, and is judged on the ledger (``review``). A swing long
+  (``paper_session.swing_long_playbooks``, owner 2026-11-05) is never same-day: it is in **horizon** and holds for
+  its catalog range (holding_horizon.py).
 * **shadow_only** - ``paper_session.shadow_only_strategies`` in scanner_config.json (``playbook:direction``):
   worse than a random entry already within the first days (gap_continuation long, mean_reversion_overextension
   long, gap_fade long). Koulis places no order; the candidates are still recorded and learned from.
@@ -39,9 +41,11 @@ def shadow_only(config: Path = CONFIG) -> set[str]:
     return {str(item) for item in items or []}
 
 
-def tier(playbook: str, direction: str, curve: dict, shadow: set[str]) -> str:
+def tier(playbook: str, direction: str, curve: dict, shadow: set[str], swing: set[str] | None = None) -> str:
     if f"{playbook}:{direction}" in shadow:
         return "shadow_only"
+    if direction == "long" and playbook in (holding_horizon.swing_long_playbooks() if swing is None else swing):
+        return "horizon"
     if any(option["edge_pct"] > 0 for option in curve.get((playbook, direction), [])):
         return "horizon"
     return "same_day_measured"

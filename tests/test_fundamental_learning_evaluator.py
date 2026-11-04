@@ -75,7 +75,7 @@ class FundamentalLearningEvaluatorTests(unittest.TestCase):
                 statuses = {row[0] for row in conn.execute(
                     "SELECT status FROM agent_lesson_candidates"
                 )}
-            self.assertEqual(statuses, {"candidate"})
+            self.assertEqual(statuses, {"shadow"})  # owner 2026-11-05: new lessons go straight to shadow
 
     def test_matured_price_outcome_is_linked_without_changing_decision(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

@@ -127,3 +127,24 @@ Pass against fail, 60 sessions (spread %, 95% interval, years better):
   from its 8-K of 2025-11-05, instead of the 10-K filing date 2025-11-21. Foreign 6-K filers keep the
   filing-date estimate.
 
+## 6. Owner's decisions, 2026-11-05
+
+**Swing longs hold for time.** "A swing long needs time; it cannot open and close the same day." The longs of the
+playbooks in `paper_session.swing_long_playbooks` (scanner_config.json: support_bounce_swing,
+controlled_breakout_swing, early_accumulation_swing, pre_run_breakout_confirmation, failed_breakdown_reclaim) are
+never same-day. A real edge in the horizon curve keeps its horizon (support_bounce_swing: 60 sessions). Without one,
+the horizon is the one inside the playbook's own catalog range with the best positive edge per sqrt(session) in the
+curve's point estimates, or the range's lower bound when none is positive; the plan marks it `stable_edge: false`.
+With the curve of 2026-10-22: controlled_breakout_swing 5, early_accumulation_swing 5, pre_run_breakout_confirmation
+5, failed_breakdown_reclaim 3 sessions. The monitors still close earlier on the stop, a broken thesis or a change of
+the market's mood. Shorts and momentum_12_1 / high_52w_breakout / volatility_compression_breakout longs are
+unchanged (their curve is negative at every longer horizon; the owner decides separately). Tests:
+`tests/test_swing_long_hold.py`.
+
+**Every lesson goes to shadow.** New lessons move candidate -> shadow on creation (`AUTO_SHADOW_REASON`), and the
+ones still waiting move with `agent_learning_control_plane.py shadow-candidates`. Each paper-trading lesson is
+followed only on the sessions after it entered shadow (`paper_learning.shadow_follow`: confirmed / not confirmed /
+collecting, from 10 sessions), and Sokratis teaches the traders the lessons about them and their strategies.
+Shadow changes nothing; acceptance stays manual. Tests: `tests/test_shadow_lessons.py`,
+`tests/test_agent_learning_control_plane.py`.
+

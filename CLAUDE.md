@@ -56,7 +56,7 @@ Details: `README.md`, `PIPELINE_OVERVIEW.md`, `ADVANCED_USAGE.md`, `docs/` (lear
 - Unknown stays unknown: a missing value is never silently treated as zero or a default. Preserve explicit unknown fields and evidence-gap reporting.
 - Research packets and run manifests are immutable and hashed; don't mutate them after freezing.
 - Agents keep their documented responsibilities (see role table in `PIPELINE_OVERVIEW.md`). Personality never changes evidence, scoring, risk limits, authority or execution eligibility.
-- Learning is candidate → shadow → champion with **manual** promotion; candidates never change active scores or policies.
+- Learning is candidate → shadow → champion with **manual** promotion. New lessons go straight to shadow (owner's standing decision 2026-11-05): followed out of sample and taught by Sokratis, never changing active scores, policies, limits or orders; accepting one stays the owner's call.
 - Do not change agent thresholds, risk settings or promotion gates without a documented rationale and focused tests.
 - Default/full-universe workflows must stay unable to submit orders.
 - LLMs run only locally through Ollama (never Claude, Anthropic, OpenAI or any hosted model), never start the Ollama app, and never make decisions. `filing_llm_extractor.py` produces quote-verified *candidate* evidence for human review; it writes no Sector Context Packets and nothing downstream reads it until promotion is explicitly decided.

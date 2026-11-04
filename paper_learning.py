@@ -466,6 +466,51 @@ def shadow_lessons(db_path: Path, records: list[dict[str, Any]]) -> list[dict[st
     return out
 
 
+def _shadow_since(evidence: dict[str, Any]) -> str | None:
+    """The session date a lesson entered shadow (Athens/New York date of the decision; None when unknown)."""
+    for decision in reversed(evidence.get("decisions") or []):
+        if decision.get("to") == "shadow" and decision.get("at"):
+            return str(decision["at"])[:10]
+    return None
+
+
+def shadow_follow(db_path: Path, records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None,
+                  legacy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Every paper-trading lesson in shadow, checked on the sessions *after* it entered shadow (owner 2026-11-05):
+    the same evaluation runs on those sessions only, and the lesson is ``confirmed`` when its criterion comes out
+    again, ``not_confirmed`` when it does not although the new sessions are enough (``MIN_DAYS``), and ``collecting``
+    before that. Out-of-sample only, so a lesson cannot confirm itself on the data that created it. Nothing changes
+    a decision; the result is taught by Sokratis and shown to the owner, who alone accepts a lesson."""
+    if not db_path.exists():
+        return []
+    import market_intel_db
+
+    try:
+        with closing(market_intel_db.connect(db_path)) as conn:
+            rows = conn.execute("SELECT lesson_id, target_agent, criterion_id, proposal_json, evidence_json"
+                                " FROM agent_lesson_candidates WHERE status='shadow' AND task_id='paper_trading'"
+                                ).fetchall()
+    except Exception:  # noqa: BLE001 - no learning tables yet
+        return []
+    found: dict[str, set[str]] = {}
+    out = []
+    for lesson_id, agent, criterion, proposal_json, evidence_json in rows:
+        since = _shadow_since(json.loads(evidence_json or "{}"))
+        after = [r for r in records if since is not None and str(r["session_date"]) > since]
+        sessions = len({r["session_date"] for r in after})
+        if since is None or sessions < MIN_DAYS:
+            verdict = "collecting"
+        else:
+            if since not in found:
+                found[since] = {p["criterion_id"] for p in proposals(evaluate(after, lab=lab, legacy=legacy))}
+            verdict = "confirmed" if criterion in found[since] else "not_confirmed"
+        out.append({"lesson_id": lesson_id, "target_agent": agent, "criterion_id": criterion,
+                    "proposed_change": json.loads(proposal_json or "{}").get("proposed_change"),
+                    "shadow_since": since, "sessions_after": sessions, "minimum_sessions": MIN_DAYS,
+                    "verdict": verdict})
+    return out
+
+
 def record_lessons(db_path: Path, items: list[dict[str, Any]], *, task_id: str = "paper_trading",
                    rubric: str = RUBRIC) -> list[dict[str, Any]]:
     if not items:
@@ -605,6 +650,17 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                          f"{cell['with_tag']['known']} | {_v(cell['with_tag']['beat_spy_pct'])} | "
                          f"{_v(cell['rest']['beat_spy_pct'])} | {_v(cell['beat_spy_gap_points'])} | "
                          f"{_v(cell['agrees_with_lesson'])} | {cell['with_tag']['status']} |")
+    follow = evaluation.get("shadow_follow") or []
+    if follow:
+        verdicts = {"confirmed": "επιβεβαιώθηκε", "not_confirmed": "δεν επιβεβαιώθηκε", "collecting": "μαζεύει δείγμα"}
+        counts = {v: sum(1 for f in follow if f["verdict"] == v) for v in verdicts}
+        lines += ["", "## Μαθήματα σε σκιώδη δοκιμή (στις συνεδρίες μετά την είσοδό τους)", "",
+                  f"Κάθε νέο μάθημα μπαίνει κατευθείαν σε σκιώδη δοκιμή (απόφαση 2026-11-05) και δεν αλλάζει καμία "
+                  f"απόφαση. Κρίνεται μόνο στις συνεδρίες μετά την είσοδό του, από {MIN_DAYS} και πάνω: "
+                  + " · ".join(f"{verdicts[v]} {counts[v]}" for v in verdicts) + ".", ""]
+        shown = [f for f in follow if f["verdict"] != "collecting"]
+        lines += [f"- {verdicts[f['verdict']]}: {f['target_agent']}: {f['proposed_change']} "
+                  f"({f['sessions_after']} συνεδρίες από {f['shadow_since']})" for f in shown]
     held = evaluation.get("holding_shadow") or {}
     names_cls = {"day": "ημέρα", "week": "εβδομάδα", "month": "μήνας", "quarter": "τρίμηνο"}
     recheck = evaluation.get("preopen_recheck") or {}
@@ -642,7 +698,7 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                 lines.append(f"  - {title}: {r['session_date']} {r['ticker']} {r['playbook']} {r['direction']} "
                              f"{_v(r.get('outcome_pct'), '%')} · έξοδος {r.get('exit_reason')} · κατάσταση "
                              f"{r.get('market_state')} · pre-market gap {_v(pre.get('gap_pct'), '%')}")
-    lines += ["", "## Υποψήφιες αλλαγές (μόνο με έγκριση)", ""]
+    lines += ["", "## Νέα μαθήματα (σε σκιώδη δοκιμή, η αποδοχή μόνο με έγκριση)", ""]
     lines += [f"- {l['target_agent']}: {l['proposed_change']} ({l['lesson_id']})" for l in lessons] or \
         ["- Καμία ακόμη: δεν υπάρχει αρκετό δείγμα ή καμία διαφορά δεν ξεπερνά το περιθώριο."]
     return "\n".join(lines) + "\n"
@@ -694,6 +750,7 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
     lessons = record_lessons(root / "data" / "market_intel.db", proposals(evaluation) + pr.proposal(recheck))         if write_lessons else []
     evaluation["lesson_candidates"] = lessons
     evaluation["shadow_lessons"] = shadow_lessons(root / "data" / "market_intel.db", records)
+    evaluation["shadow_follow"] = shadow_follow(root / "data" / "market_intel.db", records, lab=lab, legacy=legacy)
     return evaluation, records, trade_review(records)
 
 

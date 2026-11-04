@@ -1,54 +1,109 @@
 # US Equity Research Ecosystem
 
-Local, evidence-first research for the complete US-listed symbol catalog. The project collects market and filing data, routes each instrument to the correct research lane, coordinates specialized agents and preserves the evidence behind every conclusion.
+[![CI](https://github.com/piranxas2101-prog/us-equity-research-ecosystem-public/actions/workflows/ci.yml/badge.svg)](https://github.com/piranxas2101-prog/us-equity-research-ecosystem-public/actions/workflows/ci.yml)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+![No hosted AI](https://img.shields.io/badge/hosted%20AI-none-lightgrey)
 
-> **Research only.** The default and full-universe workflows cannot submit orders. Paper execution is a separate, explicit workflow. This project is not financial advice and does not claim proven investment performance.
+**A team of named, deterministic agents that studies every US-listed stock each night on one Windows PC, explains
+the state of the market in plain words, and tests its ideas with paper trades. Nothing it learns changes its behavior
+until a human approves it.**
 
-**For visitors.** This is a personal research project run on one Windows machine: a team of deterministic agents
-(no hosted AI model; a local Ollama model only extracts candidate evidence for human review) studies every US-listed
-company each night, and a separate paper-trading workflow (Alpaca paper account, no real money) tests the ideas.
-Everything the system learns - from paper trades, shadow trades, five-year labs and company results - stays a
-*candidate* until the owner promotes it by hand. Paper results and backtests here are evidence for that learning,
-not a promise of returns. Credentials live in a local `.env` that is never committed (template: `.env.example`).
+> **Research only. Not financial advice.** The default and full-universe workflows cannot submit orders. Paper
+> trading (Alpaca paper account, no real money) is a separate, explicit workflow. The paper results below are
+> currently *negative* and are shown because they are the evidence the system learns from.
 
-## Current verified state
+## Why it might interest you
 
-The latest completed full run, `full_research_20260924_134838`, produced:
+- **Evidence first, and unknown stays unknown.** A missing value is never quietly turned into zero or a default.
+  Every gap is reported, and a run ends with `review_required` instead of false certainty.
+- **A pipeline of agents with clear jobs.** Each agent has one responsibility and a handoff contract. Research
+  packets are frozen and hashed before the traders see them.
+- **No hosted LLMs.** Scoring, valuation and risk decisions are deterministic code. A local Ollama model may only
+  extract *candidate* evidence from filings, with quotes verified, for a human to review.
+- **Learning with a human in the loop.** Paper trades, shadow trades, five-year labs and company results all feed
+  learning. Every lesson goes candidate → shadow → champion, and promotion is always manual.
+- **It reads the market, not just stocks.** Each night it describes the market on five sides: trend, mood,
+  participation, risk appetite and what the market rewards. It checks which strategies and sectors historically
+  worked in such a market, using a month-block bootstrap, the Benjamini-Hochberg correction and years with the
+  same sign. The risk gate then keeps out the proposals the market stands against.
+- **Statistics before rules.** Strategies, exits, holding horizons, fundamental rules and results-season behavior
+  each have a point-in-time lab (about 1.9 million five-year strategy signals) before any rule may change.
 
-| Measure | Result |
-| --- | ---: |
-| US-listed symbols cataloged and processed | 13,241 |
-| Company fundamental route | 5,494 |
-| Instrument observation routes | 7,747 |
-| Saved company analyses | 1,068 |
-| Fundamental evaluations completed/reused | 898 |
-| Explicitly blocked by evidence/readiness gates | 170 |
-| Stage-1 technical errors | 0 |
-| Agent artifact audit | Pass |
+### What it says about the market each night
 
-The receipt is `review_required` because the system exposes missing evidence and coverage gaps instead of converting them into false certainty.
+The report opens with a paragraph like this one (written in Greek, the owner's language; translated here, from
+the night of 2026-11-03):
 
-## Architecture
+> The market (SPY) is falling: +3.4% from its 200-day average, −2.0% over 3 months. The mood is calm (20-day
+> volatility 11%, 60-day 10%). Participation is narrow: 37% of stocks are above their 50-day average, with 76 new
+> yearly highs and 355 new lows. The market wants risk: small companies +2.6% and technology −6.6% against SPY over
+> 20 days. Last week 45% of stocks rose: the market rewards both longs and shorts. The agents propose 307 longs and
+> 73 shorts. Yesterday I read that the market rewards both; today 44% of stocks rose, so the reading was right.
+> Sectors in such a market (5 years, against the average stock): materials go ahead (+1.8% in 20 sessions when the
+> market falls); real estate (−5.9% in 60 sessions) and consumer staples (−5.1%) fall behind.
+
+## How it works
 
 ```mermaid
-flowchart LR
-  Sources[Market, SEC and macro sources] --> Registry[Identity and evidence registry]
-  Registry --> Babis[Babis: discovery and routing]
-  Babis --> Sector[Sector context]
-  Sector --> Giannis[Giannis: fundamental scoring]
-  Giannis --> Petros[Petros: synthesis and valuation]
-  Petros --> Packet[Frozen research packet]
-  Packet --> Traders[Yankos and Periklis]
-  Traders --> Sokratis[Sokratis: trader teacher]
-  Traders --> Risk[Miltos, Koulis and Thymios]
-  Risk --> Paper[Explicit paper-only execution]
-  Babis --> Learning[Versioned learning control plane]
-  Giannis --> Learning
-  Petros --> Learning
-  Learning --> Evaluator[Independent evidence evaluator]
+flowchart TD
+  SRC["SEC EDGAR, prices, macro"] --> BABIS
+  subgraph night["Every night: research only, cannot trade"]
+    BABIS["Babis: discovery and routing of 13,000+ symbols"] --> SECTOR["12 sector agents: sector context"]
+    SECTOR --> GIANNIS["Giannis: fundamental scoring"]
+    GIANNIS --> PETROS["Petros: synthesis and valuation"]
+    PETROS --> PACKET[("Frozen, hashed research packet")]
+    MARKET["Market state: 5 sides, a paragraph in plain words"]
+  end
+  SRC --> MARKET
+  subgraph day["Trading day: paper account only"]
+    TRADERS["Yankos (short horizon) and Periklis (swing)"] --> MILTOS["Miltos: entry confirmation"]
+    MILTOS --> KOULIS["Koulis: portfolio risk gate"]
+    KOULIS --> THYMIOS["Thymios: intent validation"]
+    THYMIOS --> PAPER["Alpaca paper account"]
+  end
+  PACKET --> TRADERS
+  MARKET --> KOULIS
+  subgraph learn["Learning: candidates only"]
+    LEDGER["Paper and shadow ledger, 5-year labs, company results"] --> CAND["Candidate lessons"]
+    CAND --> HUMAN{{"Human promotion: candidate, shadow, champion"}}
+  end
+  PAPER --> LEDGER
+  HUMAN -. "approved lessons only" .-> TRADERS
 ```
 
-Every packet carries run identity, timestamps, source lineage and explicit unknown fields. A missing value remains unknown; it is never silently treated as zero. Run artifacts are hashed and captured in immutable manifests.
+Every packet carries run identity, timestamps, source lineage and explicit unknown fields. Run artifacts are hashed
+and captured in immutable manifests.
+
+## Where it stands (honestly)
+
+| Measure | Latest |
+| --- | ---: |
+| Symbols cataloged and processed in the nightly run (2026-11-04) | 13,239 |
+| Routed to company fundamental research / instrument observation | 5,320 / 7,919 |
+| Technical errors / agent artifact audit | 0 / pass |
+| Unit and contract tests | 1,000+ |
+| Paper trades closed (14 sessions, 2026-10-15 to 2026-11-03) | 194 |
+| Average paper result per trade / share of winners | **−1.1% / 33%** |
+
+The paper results are not good yet, and the system's own reports explain much of the loss. Waiting for an entry
+confirmation cost about 1.2% per trade. Long-horizon positions were closed after one day. In late October the
+agents proposed shorts that the market did not support. Each finding became a lab and a documented rule review
+([docs/RULES_REVIEW.md](docs/RULES_REVIEW.md)). Changes go in only with a written rationale and tests.
+
+## Feedback wanted
+
+This is a one-person project and outside eyes help most. Issues and comments are very welcome on:
+
+1. **The market-state reading** ([market_state.py](market_state.py), [lesson](docs/MARKET_STATE_LESSON.md)): are
+   the five sides and their thresholds sensible? What would you add?
+2. **The statistics** in the labs: block bootstrap, the Benjamini-Hochberg correction, point-in-time handling.
+   Where could look-ahead or survivorship bias still leak in?
+3. **The architecture**: agents with narrow roles, frozen packets, manual promotion. Is it too much ceremony, or
+   just enough?
+4. **Getting started**: if setup fails on your machine, please open an issue with the error.
+
+If you find the approach useful, a ⭐ helps others find it.
 
 ## Agents
 

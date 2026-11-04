@@ -136,7 +136,7 @@ class StartProcessPathTests(unittest.TestCase):
     @unittest.skipUnless(POWERSHELL, "Windows PowerShell not available")
     def test_quoted_path_with_a_space_reaches_the_child_as_one_parameter(self):
         with tempfile.TemporaryDirectory() as folder:
-            base = Path(folder) / "New project"
+            base = Path(folder).resolve() / "New project"   # long form: CI temp paths come as 8.3 (RUNNER~1)
             base.mkdir()
             (base / "child.ps1").write_text(CHILD, encoding="utf-8")
             (base / "parent.ps1").write_text(PARENT, encoding="utf-8")

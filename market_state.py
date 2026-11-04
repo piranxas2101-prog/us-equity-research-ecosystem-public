@@ -27,6 +27,10 @@ against its strategy and side and none is significantly for it; "supported" in t
 as left out, so the filter's cost or saving shows) and puts "supported" ones first. No risk limit, size or stop
 changes. Every night the report also says whether yesterday's reading of what the market rewards came true.
 
+**Sectors** (owner 2026-11-04, a line in the paragraph, not a rule): each sector agent's companies as an equal-weight
+basket, against the average company, on past sessions whose side of the market matched today's, judged the same way;
+the paragraph names the sectors that went ahead or fell behind with that evidence. Koulis does not use it.
+
 **Continuity** (owner 2026-11-04: "it must be followed, to see whether it changes, so that we change too"): every
 night the reading says what changed since yesterday, how long each side has held, and which strategies Koulis keeps
 out from today or lets through again; ``market_state_review_latest.md`` reads every paper session so far with the
@@ -65,6 +69,7 @@ VALUES = {"trend": ("up", "sideways", "down"), "mood": ("calm", "anxious", "pani
 GREEK = {"up": "ανεβαίνει", "sideways": "κινείται πλάγια", "down": "πέφτει", "calm": "ήρεμη", "anxious": "ανήσυχη",
          "panic": "σε πανικό", "broad": "ευρεία", "mixed": "μικτή", "narrow": "στενή", "on": "θέλει ρίσκο",
          "neutral": "ουδέτερη", "off": "φοβάται", "longs": "τα long", "both": "και τα δύο", "shorts": "τα short"}
+APPETITE_GR = {"on": "θέλει ρίσκο", "neutral": "είναι ουδέτερη στο ρίσκο", "off": "φοβάται το ρίσκο"}
 DIMENSION_GR = {"trend": "τάση", "mood": "διάθεση", "participation": "συμμετοχή", "appetite": "διάθεση για ρίσκο",
                 "rewards": "τι ανταμείβει"}
 # starting levels (owner's approval 2026-11-04 of the five sides; corrected through repetition)
@@ -334,7 +339,7 @@ def paragraph(state: dict[str, Any], *, yesterday: dict[str, Any] | None = None,
     else:
         parts.append("Η συμμετοχή είναι άγνωστη (λίγες εταιρείες με τιμή).")
     appetite = state.get("appetite")
-    parts.append((f"Η διάθεση για ρίσκο είναι {GREEK[appetite]}" if appetite else "Η διάθεση για ρίσκο είναι άγνωστη")
+    parts.append((f"Η αγορά {APPETITE_GR[appetite]}" if appetite else "Η διάθεση για ρίσκο είναι άγνωστη")
                  + f": μικρές εταιρείες {pct('iwm_vs_spy_20d_pts')} και τεχνολογία {pct('qqq_vs_spy_20d_pts')} "
                    f"έναντι του SPY σε 20 μέρες.")
     rewards = state.get("rewards")
@@ -366,6 +371,113 @@ def strategy_view(state: dict[str, Any], evidence: dict[str, Any], horizon: int 
         if verdict in out:
             out[verdict].append(f"{strategy} {side}")
     return out
+
+
+# ---------------------------------------------------------------- sectors (owner 2026-11-04)
+
+SECTOR_GR = {"communication_services": "οι επικοινωνίες", "consumer_discretionary": "η διακριτική κατανάλωση",
+             "consumer_staples": "τα βασικά καταναλωτικά", "energy": "η ενέργεια", "financials": "τα χρηματοοικονομικά",
+             "healthcare": "η υγεία", "industrials": "η βιομηχανία", "materials": "τα υλικά",
+             "real_estate": "τα ακίνητα", "technology": "η τεχνολογία", "utilities": "η κοινή ωφέλεια"}
+CONDITION_GR = {"trend": "όταν η αγορά {v}", "mood": "όταν η διάθεση είναι {v}",
+                "participation": "όταν η συμμετοχή είναι {v}", "appetite": "όταν η αγορά {v}",
+                "rewards": "όταν η αγορά ανταμείβει {v}"}
+
+
+def sector_members(db: Path | None = None) -> dict[str, list[str]]:
+    """Companies of each sector agent, from the latest sector activation (read-only); empty when unknown."""
+    import sqlite3
+    from contextlib import closing
+
+    db = db or ROOT / "data" / "research_registry.db"
+    if not db.exists():
+        return {}
+    out: dict[str, list[str]] = defaultdict(list)
+    try:
+        with closing(sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)) as conn:
+            latest = conn.execute("SELECT activation_id FROM sector_activation_run ORDER BY created_at DESC LIMIT 1"
+                                  ).fetchone()
+            if not latest:
+                return {}
+            for agent, ticker in conn.execute("SELECT agent_id, ticker FROM sector_analysis_queue "
+                                              "WHERE activation_id=?", (latest[0],)):
+                sector = str(agent or "").removeprefix("sector_")
+                if sector in SECTOR_GR:
+                    out[sector].append(str(ticker))
+    except sqlite3.Error:
+        return {}
+    return dict(out)
+
+
+def sector_evidence(closes: pd.DataFrame, history: pd.DataFrame, members: dict[str, list[str]],
+                    state: dict[str, Any], seed: int = 7) -> dict[str, Any]:
+    """How each sector (equal-weight basket of its companies) did against the average company, over every horizon, on
+    the past sessions whose side of the market matched today's - one cell per sector, horizon and known side, judged
+    like the strategies (month-block bootstrap, years with the same sign, Benjamini-Hochberg). Explanation only:
+    Koulis does not use it (owner 2026-11-04: a line in the paragraph, not a rule)."""
+    if history.empty or not members:
+        return {"cells": []}
+    stocks = closes.drop(columns=[c for c in ("SPY", "QQQ", "IWM") if c in closes.columns]).reindex(history.index)
+    daily = stocks.pct_change(fill_method=None).clip(-0.5, 1.0)     # a bad print does not move a basket
+    market = (1 + daily.mean(axis=1).fillna(0)).cumprod()
+    rng = np.random.default_rng(seed)
+    cells: list[dict[str, Any]] = []
+    for sector, tickers in sorted(members.items()):
+        cols = [t for t in tickers if t in daily.columns]
+        if not cols:
+            continue
+        level = (1 + daily[cols].mean(axis=1).fillna(0)).cumprod()
+        for h in HORIZONS:
+            excess = ((level.shift(-h) / level - market.shift(-h) / market) * 100).dropna()
+            for dim in DIMENSIONS:
+                value = state.get(dim)
+                if not value:
+                    continue
+                part = excess.reindex(history.index[history[dim] == value]).dropna()
+                if len(part) < MIN_DATES:
+                    continue
+                low, high, p = _bootstrap(part, rng)
+                years = part.groupby(part.index.year).mean()
+                mean = float(part.mean())
+                same = int((np.sign(years) == np.sign(mean)).sum())
+                cells.append({"sector": sector, "companies": len(cols), "horizon": h, "dimension": dim,
+                              "value": value, "dates": int(len(part)), "excess_pct": round(mean, 2),
+                              "ci95_pct": [round(low, 2), round(high, 2)], "p": round(p, 4),
+                              "years_same_sign": f"{same}/{len(years)}", "_years_ok": same > len(years) / 2})
+    passed = _bh([c["p"] for c in cells])
+    for cell, ok in zip(cells, passed):
+        significant = cell.pop("_years_ok") and ok
+        cell["verdict"] = ("ahead" if cell["excess_pct"] > 0 else "behind") if significant else "unclear"
+    return {"cells": cells}
+
+
+def sector_sentence(evidence: dict[str, Any] | None) -> str:
+    """One Greek sentence: which sectors went ahead of / fell behind the average company in such a market."""
+    cells = (evidence or {}).get("cells")
+    if not cells:
+        return "Οι κλάδοι σε τέτοια αγορά είναι άγνωστοι (δεν βρέθηκαν οι εταιρείες των κλάδων)."
+    best: dict[str, dict[str, Any]] = {}
+    for cell in cells:
+        if cell["verdict"] != "unclear" and abs(cell["excess_pct"]) > abs(
+                best.get(cell["sector"], {}).get("excess_pct", 0.0)):
+            best[cell["sector"]] = cell
+    if not best:
+        return "Σε τέτοια αγορά κανένας κλάδος δεν ξεχώρισε από τη μέση μετοχή με σημαντική ένδειξη."
+
+    def say(cell: dict[str, Any]) -> str:
+        value = APPETITE_GR[cell["value"]] if cell["dimension"] == "appetite" else GREEK[cell["value"]]
+        return (f"{SECTOR_GR[cell['sector']]} ({cell['excess_pct']:+.1f}% σε {cell['horizon']} συνεδρίες "
+                f"{CONDITION_GR[cell['dimension']].format(v=value)})")
+
+    ordered = sorted(best.values(), key=lambda c: -abs(c["excess_pct"]))
+    ahead = [say(c) for c in ordered if c["verdict"] == "ahead"]
+    behind = [say(c) for c in ordered if c["verdict"] == "behind"]
+    text = "Οι κλάδοι σε τέτοια αγορά (5 χρόνια, έναντι της μέσης μετοχής):"
+    if ahead:
+        text += " πάνε καλύτερα " + ", ".join(ahead) + ("·" if behind else ".")
+    if behind:
+        text += " μένουν πίσω " + ", ".join(behind) + "."
+    return text
 
 
 def report_lines(payload: dict[str, Any] | None) -> list[str]:
@@ -547,7 +659,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rebuild", action="store_true", help="rebuild the evidence even when the lab did not change")
     args = parser.parse_args(argv)
-    history = read_history(load_closes())
+    closes = load_closes()
+    history = read_history(closes)
     state = snapshot(history)
     stamp = _signals_stamp()
     evidence = load(EVIDENCE)
@@ -561,9 +674,11 @@ def main(argv: list[str] | None = None) -> int:
     view = strategy_view(state, evidence)
     moves = changes(history)
     koulis = fit_changes(view, strategy_view(yesterday, evidence) if yesterday else {})
+    sectors = sector_evidence(closes, history, sector_members(), state)
     payload = {"schema": SCHEMA, "generated_at": datetime.now(timezone.utc).isoformat(), **state,
-               "paragraph": paragraph(state, yesterday=yesterday, agents=agents) + " " + change_sentence(moves, koulis),
-               "changes": moves, "koulis_changes": koulis,
+               "paragraph": " ".join((paragraph(state, yesterday=yesterday, agents=agents), sector_sentence(sectors),
+                                      change_sentence(moves, koulis))),
+               "changes": moves, "koulis_changes": koulis, "sectors": sectors,
                "agents_candidates": agents, "strategies_today": view,
                "evidence": {"file": str(EVIDENCE.relative_to(ROOT)) if EVIDENCE.is_relative_to(ROOT) else str(EVIDENCE),
                             "cells": len(evidence.get("cells") or []),

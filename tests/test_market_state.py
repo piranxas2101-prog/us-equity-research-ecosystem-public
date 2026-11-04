@@ -180,6 +180,53 @@ class PriceStoreTests(unittest.TestCase):
         self.assertEqual(list(frames["SPY"].index.strftime("%Y-%m-%d")), ["2026-10-30"])
 
 
+class SectorTests(unittest.TestCase):
+    def test_a_sector_ahead_in_falling_markets_is_named_and_nothing_known_is_said_unknown(self):
+        days = pd.bdate_range("2021-01-01", periods=1000)
+        rng = np.random.default_rng(3)
+        falling = pd.Series(np.arange(len(days)) // 40 % 2 == 1, index=days)        # alternating 40-session blocks
+        data = {}
+        for k in range(10):
+            data[f"M{k}"] = 50 * np.cumprod(1 + 0.004 * falling.to_numpy() + rng.normal(0, 0.002, len(days)))
+            data[f"R{k}"] = 50 * np.cumprod(1 - 0.004 * falling.to_numpy() + rng.normal(0, 0.002, len(days)))
+            data[f"T{k}"] = 50 * np.cumprod(1 + rng.normal(0, 0.002, len(days)))
+        prices = pd.DataFrame(data, index=days)
+        history = pd.DataFrame({"trend": np.where(falling, "down", "up"), "mood": None, "participation": None,
+                                "appetite": np.where(falling, "off", "on"), "rewards": None},
+                               index=days)
+        members = {"materials": [f"M{k}" for k in range(10)], "real_estate": [f"R{k}" for k in range(10)],
+                   "technology": [f"T{k}" for k in range(10)]}
+        evidence = ms.sector_evidence(prices, history, members, {"trend": "down"})
+        verdicts = {(c["sector"], c["dimension"], c["horizon"]): c["verdict"] for c in evidence["cells"]}
+        self.assertEqual(verdicts[("materials", "trend", 5)], "ahead")
+        self.assertEqual(verdicts[("real_estate", "trend", 5)], "behind")
+        self.assertNotIn(("materials", "mood", 5), verdicts)                     # an unknown side is not judged
+        text = ms.sector_sentence(evidence)
+        self.assertIn("πάνε καλύτερα τα υλικά", text)
+        self.assertIn("μένουν πίσω τα ακίνητα", text)
+        self.assertIn("όταν η αγορά πέφτει", text)
+        self.assertNotIn("τεχνολογία", text)
+        self.assertIn("άγνωστοι", ms.sector_sentence({"cells": []}))
+        self.assertEqual(ms.sector_evidence(prices, history, {}, {"trend": "down"}), {"cells": []})
+
+    def test_sector_members_come_from_the_latest_activation_and_a_missing_registry_is_unknown(self):
+        import sqlite3
+        from contextlib import closing
+        with tempfile.TemporaryDirectory() as folder:
+            db = Path(folder) / "r.db"
+            with closing(sqlite3.connect(db)) as conn:
+                conn.execute("CREATE TABLE sector_activation_run(activation_id TEXT, created_at TEXT)")
+                conn.execute("CREATE TABLE sector_analysis_queue(activation_id TEXT, agent_id TEXT, ticker TEXT)")
+                conn.executemany("INSERT INTO sector_activation_run VALUES (?,?)", [("old", "2026-01-01"),
+                                                                                     ("new", "2026-09-17")])
+                conn.executemany("INSERT INTO sector_analysis_queue VALUES (?,?,?)", [
+                    ("old", "sector_energy", "XOM"), ("new", "sector_materials", "LIN"),
+                    ("new", "sector_unresolved_classification", "ZZZ"), ("new", None, "YYY")])
+                conn.commit()
+            self.assertEqual(ms.sector_members(db), {"materials": ["LIN"]})
+            self.assertEqual(ms.sector_members(Path(folder) / "missing.db"), {})
+
+
 class MainTests(unittest.TestCase):
     def test_nightly_run_writes_the_reading_and_reuses_unchanged_evidence(self):
         with tempfile.TemporaryDirectory() as folder:

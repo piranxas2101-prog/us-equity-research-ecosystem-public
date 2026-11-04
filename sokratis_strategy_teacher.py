@@ -464,6 +464,11 @@ def build_paper_trade_lesson(evaluation: dict[str, Any]) -> dict[str, Any]:
             traders.setdefault(agent, {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
                 "shadow_lessons", []).append({k: item.get(k) for k in (
                     "lesson_id", "target_agent", "proposed_change", "shadow_since", "sessions_after", "verdict")})
+    # whether each swing long's hold should change (owner 2026-11-05), as the ecosystem judged it
+    for review in evaluation.get("swing_hold_review") or []:
+        traders.setdefault(review["agent"], {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
+            "swing_hold", []).append({k: review.get(k) for k in (
+                "playbook", "planned_sessions", "vs_same_day", "verdict")})
     return {"status": "ok", "sessions": evaluation.get("sessions"), "traders": traders,
             "authority": "advisory_only: the trader's own playbook still decides; nothing is switched on or off"}
 
@@ -743,6 +748,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
                 lines.append(f"- {trader} | holding {name} | " + "; ".join(
                     f"{cell} {value.get('known')} excess {fmt(value.get('mean_excess_pct'))} {value.get('status')}"
                     for cell, value in cells.items()))
+            for item in view.get("swing_hold", []):
+                cell = item.get("vs_same_day") or {}
+                lines.append(f"- {trader} | swing hold {item.get('playbook')} {item.get('planned_sessions')} sessions | "
+                             f"vs same day {fmt(cell.get('mean_gap_pct'))} on {cell.get('records')} | "
+                             f"{item.get('verdict')}")
             for item in view.get("shadow_lessons", []):
                 lines.append(f"- {trader} | shadow lesson | {item.get('proposed_change')} | {item.get('verdict')} "
                              f"after {item.get('sessions_after')} sessions since {item.get('shadow_since')}")

@@ -26,6 +26,7 @@ from pathlib import Path
 import statistics
 from typing import Any, Callable
 
+import holding_horizon
 import holding_shadow as hs
 import preopen_recheck as pr
 import paper_trade_ledger as ledger
@@ -347,7 +348,101 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
             "holding_category_findings": hs.category_findings(records, min_records=MIN_TRADES, min_days=MIN_DAYS),
             # T5 (owner 2026-10-26): the three tiers and the review of the same-day strategies - proposals only
             "strategy_tiers": strategy_tiers.review(trades, signals),
+            # owner 2026-11-05: the swing longs' hold, judged by the ecosystem itself (keep / change)
+            "swing_hold_review": swing_hold_review(records),
             "active_decisions_changed": False}
+
+
+SWING_P = 0.05
+SWING_VERDICT_GR = {"collecting": "μαζεύει δείγμα", "keep": "να μείνει όπως είναι (καμία σαφής διαφορά)",
+                    "keep_confirmed": "να μείνει όπως είναι: το κράτημα είναι καθαρά καλύτερο",
+                    "close_same_day": "να αλλάξει: να κλείνει την ίδια μέρα",
+                    "hold_longer": "να αλλάξει: να κρατά περισσότερο"}
+
+
+def _class_of(sessions: int) -> str:
+    return "week" if sessions <= 5 else "month" if sessions <= 20 else "quarter"
+
+
+def _paired(records: list[dict[str, Any]], longer: str, shorter: str) -> dict[str, Any]:
+    """The same records held for ``longer`` and for ``shorter`` (fixed exit): excess over SPY, record by record."""
+    pairs = []
+    for r in records:
+        holds = r.get("holds") or {}
+        a, b = (holds.get(longer) or {}).get("fixed"), (holds.get(shorter) or {}).get("fixed")
+        if a and b and a.get("excess_pct") is not None and b.get("excess_pct") is not None:
+            pairs.append((r["session_date"], a["excess_pct"] - b["excess_pct"]))
+    n, days = len(pairs), len({d for d, _ in pairs})
+    wins = sum(1 for _, x in pairs if x > 0)
+    p = math.erfc(abs(wins - n / 2) / math.sqrt(n / 4) / math.sqrt(2)) if n else None
+    return {"records": n, "days": days, "mean_gap_pct": round(statistics.fmean(x for _, x in pairs), 3) if n else None,
+            "longer_won_pct": round(100 * wins / n, 1) if n else None, "p_value": None if p is None else round(p, 4),
+            "judged": n >= MIN_TRADES and days >= MIN_DAYS}
+
+
+def swing_hold_review(records: list[dict[str, Any]], swing: set[str] | None = None,
+                      curve: dict | None = None, estimates: dict | None = None,
+                      catalog: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Should a swing long keep holding? (owner 2026-11-05: "the ecosystem itself should say whether it needs to
+    change or not"). For every swing long (``paper_session.swing_long_playbooks``) the hold the agent plans now is
+    compared, on the same records (trades and every candidate, from the shadow holds), with closing the same day
+    and with the next longer class. Verdict:
+
+    * ``collecting`` - fewer than ``MIN_TRADES`` paired records from ``MIN_DAYS`` sessions;
+    * ``close_same_day`` - the hold did worse than the same day by at least ``MARGIN_PCT`` per record, lost on most
+      records and the sign test gives p < ``SWING_P``;
+    * ``hold_longer`` - the next longer class did better by the same standard;
+    * ``keep_confirmed`` - the hold did clearly better than the same day (same standard): no change;
+    * ``keep`` - otherwise: no clear evidence for a change.
+
+    The shadow holds exist for 1, 5, 20 and 60 sessions, so a planned hold is judged on the class that contains it
+    (2-5 sessions: the week).
+
+    A "change" verdict also becomes a lesson (straight to shadow); the owner decides, nothing changes by itself."""
+    swing = holding_horizon.swing_long_playbooks() if swing is None else swing
+    curve = holding_horizon.load_curve() if curve is None else curve
+    estimates = holding_horizon.load_estimates() if estimates is None else estimates
+    if catalog is None:
+        try:
+            catalog = {p["playbook_id"]: p for p in json.loads(
+                (ROOT / "playbook_catalog_v2.json").read_text(encoding="utf-8")).get("playbooks", [])}
+        except (OSError, ValueError):
+            catalog = {}
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for r in records:
+        if r.get("direction") == "long" and r.get("playbook") in swing:
+            groups.setdefault((str(r.get("agent")), str(r["playbook"])), []).append(r)
+    out = []
+    for (agent, playbook), items in sorted(groups.items()):
+        plan = holding_horizon.decide(playbook, "long", curve, swing=swing,
+                                      catalog_horizon=(catalog.get(playbook) or {}).get("holding_horizon"),
+                                      estimates=estimates)
+        if not plan.get("sessions"):
+            continue
+        current = _class_of(int(plan["sessions"]))
+        longer = {"week": "month", "month": "quarter"}.get(current)
+        vs_day = _paired(items, current, "day")
+        vs_longer = _paired(items, longer, current) if longer else None
+
+        def clear(cell: dict[str, Any] | None, sign: int) -> bool:
+            return bool(cell and cell["judged"] and cell["p_value"] is not None and cell["p_value"] < SWING_P
+                        and sign * cell["mean_gap_pct"] >= MARGIN_PCT and sign * (cell["longer_won_pct"] - 50) > 0)
+
+        if not vs_day["judged"]:
+            verdict = "collecting"
+        elif clear(vs_day, -1):
+            verdict = "close_same_day"
+        elif clear(vs_longer, 1):
+            verdict = "hold_longer"
+        elif clear(vs_day, 1):
+            verdict = "keep_confirmed"
+        else:
+            verdict = "keep"
+        out.append({"agent": agent, "playbook": playbook, "direction": "long", "planned_sessions": plan["sessions"],
+                    "planned_class": current, "stable_edge": plan.get("stable_edge"), "vs_same_day": vs_day,
+                    "longer_class": longer, "vs_longer": vs_longer,
+                    "trades": sum(1 for r in items if r.get("kind") == "trade"), "verdict": verdict})
+    return out
 
 
 def proposals(evaluation: dict[str, Any]) -> list[dict[str, Any]]:
@@ -378,6 +473,16 @@ def proposals(evaluation: dict[str, Any]) -> list[dict[str, Any]]:
                         "proposed_change": f"For candidates with {f['tag']} = {f['value']}, {lean} the {f['class']} hold: "
                                            "there a longer hold beat closing the same day more often than elsewhere.",
                         "support": f["records"], "evidence": f})
+    for review in evaluation.get("swing_hold_review") or []:
+        if review["verdict"] in ("close_same_day", "hold_longer"):
+            what = ("close it the same day: the hold did worse" if review["verdict"] == "close_same_day"
+                    else f"hold it for a {review['longer_class']}: the longer hold did better")
+            cell = review["vs_same_day"] if review["verdict"] == "close_same_day" else review["vs_longer"]
+            out.append({"target_agent": review["agent"],
+                        "criterion_id": f"swing_hold_review:{review['agent']}:{review['playbook']}:long:"
+                                        f"{review['verdict']}",
+                        "proposed_change": f"Change the hold of {review['playbook']} (long): {what}.",
+                        "support": cell["records"], "evidence": review})
     texts = {"preopen_check": ("preopen", "Loosen the pre-open gap rule (1.5x ATR instead of 1x): the candidates it "
                                           "took down did better than the ones it kept."),
              "koulis": ("koulis", "Review Koulis's ranking: the candidates left out did better than the approved ones."),
@@ -650,6 +755,19 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                          f"{cell['with_tag']['known']} | {_v(cell['with_tag']['beat_spy_pct'])} | "
                          f"{_v(cell['rest']['beat_spy_pct'])} | {_v(cell['beat_spy_gap_points'])} | "
                          f"{_v(cell['agrees_with_lesson'])} | {cell['with_tag']['status']} |")
+    swing_review = evaluation.get("swing_hold_review") or []
+    if swing_review:
+        lines += ["", "## Χρειάζεται αλλαγή η διάρκεια των swing long;", "",
+                  "Κάθε swing long κρατιέται όσο λέει το σχέδιό του. Εδώ συγκρίνεται, στις ίδιες εγγραφές (trades και "
+                  "όλα τα candidates), με το κλείσιμο την ίδια μέρα και με τη μεγαλύτερη διάρκεια. Αλλαγή προτείνεται "
+                  f"μόνο με {MIN_TRADES}+ εγγραφές από {MIN_DAYS}+ συνεδρίες, διαφορά {MARGIN_PCT}%+ και p < {SWING_P}.",
+                  "", "| trader · στρατηγική | κράτημα | εγγραφές (μέρες) | έναντι ίδιας μέρας % | κράτημα κέρδισε % "
+                  "| p | συμπέρασμα |", "|---|---|---|---|---|---|---|"]
+        for r in swing_review:
+            cell = r["vs_same_day"]
+            lines.append(f"| {r['agent']} · {r['playbook']} | {r['planned_sessions']} συνεδρίες | {cell['records']} "
+                         f"({cell['days']}) | {_v(cell['mean_gap_pct'])} | {_v(cell['longer_won_pct'])} | "
+                         f"{_v(cell['p_value'])} | **{SWING_VERDICT_GR[r['verdict']]}** |")
     follow = evaluation.get("shadow_follow") or []
     if follow:
         verdicts = {"confirmed": "επιβεβαιώθηκε", "not_confirmed": "δεν επιβεβαιώθηκε", "collecting": "μαζεύει δείγμα"}

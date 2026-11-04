@@ -102,5 +102,49 @@ class TierAndPlanTests(unittest.TestCase):
         self.assertFalse(plan["execution_authority"])
 
 
+def held(day: int, same_day: float, week: float, playbook: str = "early_accumulation_swing") -> dict:
+    return {"session_date": f"2026-11-{day:02d}", "agent": "periklis", "playbook": playbook, "direction": "long",
+            "kind": "shadow_candidate", "holds": {"day": {"fixed": {"excess_pct": same_day}},
+                                                  "week": {"fixed": {"excess_pct": week}}}}
+
+
+class SwingHoldReviewTests(unittest.TestCase):
+    """Owner 2026-11-05: the ecosystem itself says whether a swing long's hold should change or not."""
+
+    def review(self, records: list[dict]) -> dict:
+        import paper_learning as pl
+
+        catalog = {"early_accumulation_swing": {"holding_horizon": "3-10 sessions"}}
+        return pl.swing_hold_review(records, SWING, {}, ESTIMATES, catalog)[0]
+
+    def test_collecting_until_enough_records_and_sessions(self):
+        got = self.review([held(1 + i % 9, 0.0, -2.0) for i in range(60)])  # 9 sessions only
+        self.assertEqual((got["verdict"], got["planned_sessions"], got["planned_class"]), ("collecting", 5, "week"))
+
+    def test_clearly_worse_hold_says_close_the_same_day_and_becomes_a_lesson(self):
+        import paper_learning as pl
+
+        got = self.review([held(1 + i % 12, 0.5, -1.0 if i % 5 else 2.0) for i in range(60)])
+        self.assertEqual(got["verdict"], "close_same_day")
+        self.assertLess(got["vs_same_day"]["mean_gap_pct"], -0.5)
+        lessons = [p for p in pl.proposals({"strategies": {}, "control_team": [], "swing_hold_review": [got]})]
+        self.assertEqual([p["criterion_id"] for p in lessons],
+                         ["swing_hold_review:periklis:early_accumulation_swing:long:close_same_day"])
+
+    def test_clearly_better_hold_is_kept_and_no_difference_is_kept_without_a_lesson(self):
+        import paper_learning as pl
+
+        better = self.review([held(1 + i % 12, 0.0, 1.5 if i % 5 else -1.0) for i in range(60)])
+        unclear = self.review([held(1 + i % 12, 0.0, 1.0 if i % 2 else -1.0) for i in range(60)])
+        self.assertEqual((better["verdict"], unclear["verdict"]), ("keep_confirmed", "keep"))
+        self.assertEqual(pl.proposals({"strategies": {}, "control_team": [],
+                                       "swing_hold_review": [better, unclear]}), [])
+
+    def test_unknown_holds_are_left_out_not_counted_as_zero(self):
+        records = [held(1 + i % 12, 0.0, 1.5) for i in range(60)]
+        records += [{**held(3, 0.0, 0.0), "holds": {"day": {"fixed": {"excess_pct": None}}}} for _ in range(50)]
+        self.assertEqual(self.review(records)["vs_same_day"]["records"], 60)
+
+
 if __name__ == "__main__":
     unittest.main()

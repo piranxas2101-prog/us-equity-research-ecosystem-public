@@ -148,3 +148,13 @@ collecting, from 10 sessions), and Sokratis teaches the traders the lessons abou
 Shadow changes nothing; acceptance stays manual. Tests: `tests/test_shadow_lessons.py`,
 `tests/test_agent_learning_control_plane.py`.
 
+
+**The ecosystem says whether a swing hold should change.** `paper_learning.swing_hold_review`, every evaluation:
+each swing long's planned hold is compared, on the same records (trades and every candidate, from the shadow
+holds), with closing the same day and with the next longer class. Verdict: collecting (fewer than 30 paired records
+from 10 sessions), close_same_day or hold_longer (difference of 0.5%+ per record, most records on that side, sign
+test p < 0.05; it also becomes a lesson, straight to shadow), keep_confirmed (the hold clearly better) or keep (no
+clear difference). Shown in the learning report ("Χρειάζεται αλλαγή η διάρκεια των swing long;") and taught by
+Sokratis. First reading (2026-11-05, 10 sessions): early_accumulation_swing +0.8% vs the same day (p 0.013),
+pre_run_breakout_confirmation +2.2% (p 0.019), controlled_breakout_swing +1.2% (p 0.17): keep;
+failed_breakdown_reclaim −1.6% (p 0.001) on 9 sessions: collecting, a change verdict likely after one more session.

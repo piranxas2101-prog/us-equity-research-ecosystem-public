@@ -156,6 +156,9 @@ def _base(session: date, kind: str, agent: str, row: dict[str, Any], context: di
             "session_date": session.isoformat(), "kind": kind, "agent": agent, "ticker": ticker,
             "playbook": playbook, "direction": direction, "holding_class": context["holding_class"],
             "run_id": context["run_id"], "market_state": context["market_state"],
+            # owner 2026-11-04: the five-sided reading of the market and how the proposal fitted it (market_state.py)
+            "market_reading": context.get("market_reading"),
+            "market_state_fit": (merged.get("market_state_fit") or {}).get("fit"),
             "signal_score": _float(merged.get("signal_score")),
             "strategy_rank_pct": row.get("strategy_rank_pct"), "preopen": preopen,
             "stop_loss_pct": _float(plan.get("stop_loss_pct")) or context.get("default_stop"),
@@ -218,6 +221,7 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
             preopen[(r.get("agent"), str(r.get("ticker") or "").upper(), r.get("playbook"), r.get("direction"))] = {
                 "decision": r.get("decision"), "gap_pct": r.get("gap_pct"), "reasons": r.get("demote_reasons") or []}
     macro = _load(out / "macro_environment_latest.json")
+    reading = _load(out / "market_state_latest.json")
     signals: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for agent in AGENTS:  # the checked trader rows: every candidate, with its own fields for the tags
         payload = _load(out / "preopen" / f"{agent}_strategy_preopen_latest.json") if checked else {}
@@ -231,6 +235,8 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
               _load(out / "petros_review_latest.json").get("results") or [] if isinstance(r, dict)}
     context = {"holding_class": HOLDING_CLASS.get(rule, rule), "run_id": koulis.get("run_id"),
                "market_state": (macro.get("market") or {}).get("state"), "preopen": preopen,
+               "market_reading": {k: reading.get(k) for k in ("session", "trend", "mood", "participation", "appetite",
+                                                               "rewards")} if reading else None,
                "signals": signals, "companies": companies, "petros": petros,
                "default_stop": stop or 0.03, "default_take": take or 0.06,
                "features": feature_registry.load(out),  # every registered data source adds its tags
@@ -348,7 +354,9 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
     # best standing first; a missing standing or score sorts last (it is not read as a value)
     left.sort(key=lambda b: (b.get("strategy_rank_pct") is None, -(b.get("strategy_rank_pct") or 0.0),
                              b.get("signal_score") is None, -(b.get("signal_score") or 0.0)))
-    for item in left[:LEFT_OUT_KEPT]:
+    # owner 2026-11-04: every proposal the market's state kept out is measured, so the filter's cost or saving shows
+    against = [b for b in koulis.get("blocked_intents") or [] if b.get("block_reason") == "market_state_against"]
+    for item in left[:LEFT_OUT_KEPT] + against:
         record = _base(session, "koulis_left_out", str(item.get("agent") or ""), item, context)
         record["block_reason"] = item.get("block_reason")
         records.append(record)

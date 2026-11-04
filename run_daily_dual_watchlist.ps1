@@ -594,6 +594,19 @@ if ($macroExitCode -ne 0) {
     Add-PipelineWarning "Macro environment failed with exit code $macroExitCode. Log: $macroLog"
 }
 
+# The state of the market (owner 2026-11-04): read every night from the price store, explained in Greek at the top
+# of the reports, and used by Koulis (market_state.py; the evidence is rebuilt when the strategy lab changes).
+Mark-PipelineStep -Key "market_state" -Agent "system"
+$marketLog = Join-Path $logDir "market_state_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $pythonPath "market_state.py" 2>&1 | Tee-Object -FilePath $marketLog
+$marketExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorAction
+if ($marketExitCode -ne 0) {
+    Add-PipelineWarning "Market state failed with exit code $marketExitCode. Log: $marketLog"
+}
+
 # Results per period (quarters / half-years / years) of every shortlisted company from the stored SEC companyfacts,
 # shadow only (owner decision 2026-10-22). A failure never stops the run.
 Mark-PipelineStep -Key "periodic_results" -Agent "system"
@@ -1042,6 +1055,7 @@ $manifestArgs = @(
     "--artifact", "output/experiment_registry_latest.json",
     "--artifact", "output/strategy_backtest_latest.json",
     "--artifact", "output/macro_environment_latest.json",
+    "--artifact", "output/market_state_latest.json",
     "--artifact", "output/periodic_results_latest.json",
     "--artifact", "output/earnings_journal_latest.json",
     "--artifact", "output/results_calendar_latest.json",

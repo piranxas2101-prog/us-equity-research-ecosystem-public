@@ -181,6 +181,7 @@ def build(out: Path, today: date, spy_move: float | None,
     monitors = {a: _today(_load(out / f"{a}_position_monitor_latest.json"), today, "run_timestamp") for a in AGENTS}
     multi = _today(_load(out / "multi_day_monitor_latest.json"), today, "run_timestamp")
     curve, shadow = _tiers()
+    market = _load(out / "market_state_latest.json")
 
     # every entry of the day, with who placed it and when (the trader at the start, Miltos later)
     entries, waiting, by_key, waited = [], Counter(), {}, []
@@ -276,6 +277,10 @@ def build(out: Path, today: date, spy_move: float | None,
     return {
         "schema": "ecosystem.paper_session_report.v2", "session_date": today.isoformat(),
         "spy_open_to_close_pct": spy_move,
+        # owner 2026-11-04: the reading of the market the session traded on (market_state.py, the night before)
+        "market_state": {k: market.get(k) for k in ("session", "trend", "mood", "participation", "appetite",
+                                                     "rewards", "paragraph")} if market else None,
+        "market_state_kept_out": blocked.get("market_state_against", 0),
         "preopen": None if preopen is None else {"counts": preopen.get("counts"), "demoted": [
             r for r in preopen.get("rows") or [] if r.get("decision") == "demoted_to_watch"]},
         "koulis": None if koulis is None else {
@@ -316,6 +321,12 @@ def render(report: dict[str, Any]) -> str:
 
     lines = [f"# Συνεδρία paper trading · {report['session_date']}", "",
              f"S&P 500 (SPY) από το άνοιγμα στο κλείσιμο: {v(report['spy_open_to_close_pct'])}%", ""]
+    market = report.get("market_state")
+    if market:
+        lines += [f"## Η κατάσταση της αγοράς (ανάγνωση της {v(market.get('session'))})", "",
+                  market.get("paragraph") or "Άγνωστη.", "",
+                  f"- Προτάσεις που ο Koulis κράτησε έξω επειδή η αγορά ήταν κατά: "
+                  f"{report.get('market_state_kept_out', 0)} (μετρώνται ως δοκιμαστικές).", ""]
     pre = report["preopen"]
     lines.append("## Έλεγχος πριν το άνοιγμα")
     if pre is None:

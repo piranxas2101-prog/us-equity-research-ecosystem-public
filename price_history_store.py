@@ -71,6 +71,10 @@ def _download(symbols: list[str], start: date) -> dict[str, pd.DataFrame]:
         except KeyError:
             continue
         frame = frame[[c for c in COLUMNS if c in frame.columns]].dropna(how="all")
+        if "Close" in frame.columns:
+            # a session Yahoo answers without its close (2026-11-02: 1 in 5 symbols, SPY among them) is not stored:
+            # unknown stays unknown, and the next night's overlap asks for it again
+            frame = frame[frame["Close"].notna()]
         if not frame.empty:
             frame.index = pd.to_datetime(frame.index).tz_localize(None).normalize()
             frame.index.name = "Date"

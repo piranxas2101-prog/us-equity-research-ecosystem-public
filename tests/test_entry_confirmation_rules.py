@@ -167,7 +167,6 @@ class ShortGateTests(unittest.TestCase):
         self.assertEqual(sg.resolve(self.GATES, None, "ABC", self.TODAY)[1], self.GATES)
 
     def test_koulis_approves_and_thymios_accepts_a_resolved_lab_short(self):
-        from datetime import date
         from thymios_order_intent import IntentValidationError, validate_intent_payload
         catalog = playbook_framework.load_catalog(ROOT / "playbook_catalog_v2.json")
         policy = json.loads((ROOT / "yankos_playbooks.json").read_text(encoding="utf-8"))["paper_sizing_policy"]
@@ -179,7 +178,7 @@ class ShortGateTests(unittest.TestCase):
         row["paper_trade_plan"] = trader_trade_plan.build_trade_plan(
             "yankos", row, playbook_framework.catalog_by_id(catalog)["gap_fade"], policy, "run_test", {})
         self.assertTrue(row["paper_trade_plan"]["unresolved_short_gates_at_signal"])
-        today = date.today().isoformat()
+        today = datetime.now(timezone.utc).date().isoformat()  # Koulis and Thymios date the session in UTC
         sg, data = self.data()
         data["as_of"] = today
 

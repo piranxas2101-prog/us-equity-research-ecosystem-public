@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from thymios_order_intent import (
 )
 from common import load_json
 import alpaca_short_gate_data as short_gates
+import market_state
 import results_calendar
 import strategy_tiers
 
@@ -142,11 +143,19 @@ def prefilter_strategy_rows(payload: dict[str, Any], agent: str) -> tuple[list[d
     return execution_candidates, filtered
 
 
+def _day(text: str | None) -> date | None:
+    try:
+        return date.fromisoformat(str(text)[:10])
+    except ValueError:
+        return None
+
+
 def candidate_rows(
     payload: dict[str, Any], agent: str, min_score: float, notional_usd: float,
     notional_source: str = "default", expected_run_id: str = "",
     short_gate_data: dict[str, Any] | None = None, today: str = "",
     shadow_only: set[str] | frozenset[str] = frozenset(),
+    market: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -170,6 +179,9 @@ def candidate_rows(
                 short_resolution = {"as_of": today, "resolved": resolved}
         if notional_source == "agent_suggestion" and trade_plan is not None:
             selected_notional = as_float(trade_plan.get("suggested_notional_usd"), 0.0)
+        market_fit = market_state.fit((market or {}).get("state"), (market or {}).get("evidence"), playbook, direction,
+                                      ((trade_plan or {}).get("holding_horizon") or {}).get("sessions"),
+                                      _day(today))
         reason = None
         if not ticker or direction not in {"long", "short"} or not playbook:
             reason = "invalid_trade_identity"
@@ -206,6 +218,10 @@ def candidate_rows(
         elif f"{playbook}:{direction}" in shadow_only:
             # owner's choice 3 for T5 (2026-10-26): worse than a random entry within days - recorded, never placed
             reason = "shadow_only_strategy"
+        elif market_fit["fit"] == "against":
+            # owner 2026-11-04 (option A): the market's state stands against this strategy and side with five years'
+            # evidence (market_state.py) - not sent, recorded and measured as left out
+            reason = "market_state_against"
         elif results_calendar.entry_results_ahead(short_gate_data, ticker, playbook, direction, today):
             # owner 2026-11-03 (F5): these shorts lose through results and are closed before them - not opened now
             reason = "results_ahead"
@@ -224,6 +240,7 @@ def candidate_rows(
             "notional_source": notional_source,
             "trade_plan": trade_plan,
             "short_gate_resolution": short_resolution,
+            "market_state_fit": market_fit,
             "fundamental_packet_hash": raw.get("fundamental_packet_hash"),
             "fundamental_thesis_id": raw.get("fundamental_thesis_id"),
             "fundamental_thesis_hash": raw.get("fundamental_thesis_hash"),
@@ -278,6 +295,7 @@ def build_gate(
     short_gate_data: dict[str, Any] | None = None,
     today: str | None = None,
     shadow_only: set[str] | frozenset[str] = frozenset(),
+    market: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if selection not in SELECTION_MODES:
         raise ValueError(f"selection must be one of {SELECTION_MODES}.")
@@ -313,18 +331,24 @@ def build_gate(
             filtered_payload, agent, min_score, notional_per_trade,
             notional_source=notional_source, expected_run_id=run_id,
             short_gate_data=short_gate_data, today=today or datetime.now(timezone.utc).date().isoformat(),
-            shadow_only=shadow_only,
+            shadow_only=shadow_only, market=market,
         )
         all_candidates.extend(fresh)
         blocked.extend(rejected)
 
     attach_strategy_ranks(all_candidates)
+
+    def supported_first(row: dict[str, Any]) -> int:
+        # owner 2026-11-04: a proposal today's market supports goes before the others (market_state.py)
+        return 0 if (row.get("market_state_fit") or {}).get("fit") == "supported" else 1
+
     if selection == "strategy_rank":
         def priority(row: dict[str, Any]) -> tuple:
-            return (-row["strategy_rank_pct"], -row["signal_score"], row["ticker"], row["agent"], row["playbook_name"])
+            return (supported_first(row), -row["strategy_rank_pct"], -row["signal_score"], row["ticker"], row["agent"],
+                    row["playbook_name"])
     else:
         def priority(row: dict[str, Any]) -> tuple:
-            return (-row["signal_score"], row["ticker"], row["agent"], row["playbook_name"])
+            return (supported_first(row), -row["signal_score"], row["ticker"], row["agent"], row["playbook_name"])
 
     exposure = existing_exposure_symbols(preflight)
     eligible: list[dict[str, Any]] = []
@@ -439,6 +463,8 @@ def build_gate(
             "selection": selection,
             "max_per_strategy": max_per_strategy,
         },
+        "market_state": {key: ((market or {}).get("state") or {}).get(key)
+                         for key in ("session", *market_state.DIMENSIONS)},
         "existing_exposure_symbols": sorted(exposure),
         "held_multi_day_positions": [item.get("symbol") for item in held],
         "held_positions_limit": held_limit,
@@ -473,6 +499,10 @@ def main() -> int:
     parser.add_argument("--max-short-orders", type=int, default=2)
     parser.add_argument("--selection", choices=SELECTION_MODES, default="strategy_rank",
                         help="strategy_rank: standing inside each strategy (owner 2026-10-15); score: raw signal score")
+    parser.add_argument("--market-state", default="output/market_state_latest.json",
+                        help="tonight's reading of the market (market_state.py)")
+    parser.add_argument("--market-state-evidence", default="output/market_state_evidence.json",
+                        help="what works in which state of the market (market_state.py)")
     parser.add_argument("--short-gate-data", default="output/short_gate_data_latest.json",
                         help="broker and short-interest data that resolves the SHORT gates (alpaca_short_gate_data.py)")
     parser.add_argument("--max-per-strategy", type=int, default=DEFAULT_MAX_PER_STRATEGY,
@@ -505,6 +535,8 @@ def main() -> int:
         held_limit=held_limit_mode(),
         short_gate_data=load_json(Path(args.short_gate_data)) if Path(args.short_gate_data).is_file() else None,
         shadow_only=strategy_tiers.shadow_only(),
+        market={"state": market_state.load(Path(args.market_state)),
+                "evidence": market_state.load(Path(args.market_state_evidence))},
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

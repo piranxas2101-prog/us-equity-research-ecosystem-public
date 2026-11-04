@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import macro_environment
+import market_state
 
 ROOT = Path(__file__).resolve().parent
 TOP = 10
@@ -32,7 +33,7 @@ MEMBERSHIP_REASON_GR = {
 }
 LANE_GR = {"etf_lane": "ETF/funds", "spac_lane": "SPAC", "issuer_card": "τίτλοι εκδότη"}
 STEP_GR = {
-    "sec_prefetch": "SEC companyfacts για όλες τις εταιρείες", "price_history": "Τιμές shortlist στην αποθήκη", "macro_environment": "Περιβάλλον οικονομίας και αγοράς", "babis_refresh": "Babis · σάρωση συμβόλων", "giannis_triage": "Giannis · πρώτη διαλογή",
+    "sec_prefetch": "SEC companyfacts για όλες τις εταιρείες", "price_history": "Τιμές shortlist στην αποθήκη", "macro_environment": "Περιβάλλον οικονομίας και αγοράς", "market_state": "Κατάσταση της αγοράς", "babis_refresh": "Babis · σάρωση συμβόλων", "giannis_triage": "Giannis · πρώτη διαλογή",
     "information_ledger": "Καταγραφή πληροφοριών",
     "control_plane_batch": "Προφίλ, τομεακοί agents, οικονομικά SEC, ανάλυση",
     "petros_synthesis": "Petros · σύνθεση", "deep_research": "Βαθιά έρευνα εταιρειών",
@@ -309,6 +310,7 @@ def build_report(run_dir: Path, timings: dict[str, Any] | None = None, state: di
 
     route_map = _by_ticker(_load(art / "all_listed_universe_routes_latest.json"), "routes")
     previous = _previous_run(run_dir)
+    lines += market_state.report_lines(_load(art / "market_state_latest.json"))  # owner 2026-11-04: first, in Greek
     lines += _attention_section(run_dir, previous, state, outcome_evaluation)
     lines += _paper_learning_lines(_load(art / "evaluation_latest.json"))
     lines += macro_environment.report_lines(_load(art / "macro_environment_latest.json"),

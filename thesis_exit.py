@@ -140,6 +140,23 @@ def scaled_stop(atr_pct: float | None, sessions: int) -> float | None:
     return min(max(STOP_ATR_MULT * atr_pct / 100 * math.sqrt(sessions), STOP_FLOOR), STOP_CAP)
 
 
+def market_move_atr(spy: pd.DataFrame | None, day: date) -> float | None:
+    """SPY's move on ``day`` (today's bar so far) from the previous close, in units of its ATR(14) up to the previous
+    session - the same ATR the shock uses. None (unknown) without the bars."""
+    if spy is None or spy.empty or not {"High", "Low", "Close"} <= set(spy.columns):
+        return None
+    frame = spy[["High", "Low", "Close"]].dropna()
+    prev = frame["Close"].shift(1)
+    tr = pd.concat([frame["High"] - frame["Low"], (frame["High"] - prev).abs(), (frame["Low"] - prev).abs()],
+                   axis=1).max(axis=1)
+    atr = (tr.rolling(14).mean() / frame["Close"] * 100).shift(1)
+    move = frame["Close"].pct_change() * 100
+    stamp = pd.Timestamp(day)
+    if stamp not in frame.index or not np.isfinite(atr[stamp]) or not np.isfinite(move[stamp]) or atr[stamp] <= 0:
+        return None
+    return float(move[stamp] / atr[stamp])
+
+
 def market_shocks(spy: pd.DataFrame | None) -> dict[date, str]:
     """Sessions when the market's mood changed abruptly (owner 2026-10-22: every position is watched, whatever its
     holding class): SPY closing beyond ``SHOCK_ATR`` x its ATR(14) (ATR up to the previous session) - "down" or

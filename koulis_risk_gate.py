@@ -156,6 +156,7 @@ def candidate_rows(
     short_gate_data: dict[str, Any] | None = None, today: str = "",
     shadow_only: set[str] | frozenset[str] = frozenset(),
     market: dict[str, Any] | None = None,
+    calendar: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -222,8 +223,8 @@ def candidate_rows(
             # owner 2026-11-04 (option A): the market's state stands against this strategy and side with five years'
             # evidence (market_state.py) - not sent, recorded and measured as left out
             reason = "market_state_against"
-        elif results_calendar.entry_results_ahead(short_gate_data, ticker, playbook, direction, today):
-            # owner 2026-11-03 (F5): these shorts lose through results and are closed before them - not opened now
+        elif results_calendar.entry_results_ahead(short_gate_data, ticker, playbook, direction, today, calendar):
+            # owner 2026-11-03 (F5) and 2026-11-06: these positions are closed before results - not opened now
             reason = "results_ahead"
         elif direction == "short" and remaining_gates:
             reason = "unresolved_short_implementation_gates:" + ",".join(sorted(remaining_gates))
@@ -296,6 +297,7 @@ def build_gate(
     today: str | None = None,
     shadow_only: set[str] | frozenset[str] = frozenset(),
     market: dict[str, Any] | None = None,
+    calendar: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if selection not in SELECTION_MODES:
         raise ValueError(f"selection must be one of {SELECTION_MODES}.")
@@ -331,7 +333,7 @@ def build_gate(
             filtered_payload, agent, min_score, notional_per_trade,
             notional_source=notional_source, expected_run_id=run_id,
             short_gate_data=short_gate_data, today=today or datetime.now(timezone.utc).date().isoformat(),
-            shadow_only=shadow_only, market=market,
+            shadow_only=shadow_only, market=market, calendar=calendar,
         )
         all_candidates.extend(fresh)
         blocked.extend(rejected)
@@ -537,6 +539,7 @@ def main() -> int:
         shadow_only=strategy_tiers.shadow_only(),
         market={"state": market_state.load(Path(args.market_state)),
                 "evidence": market_state.load(Path(args.market_state_evidence))},
+        calendar=results_calendar.load(),
     )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

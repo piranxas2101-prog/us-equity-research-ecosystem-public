@@ -12,8 +12,11 @@ without a year of history, the last report + 13 weeks, labelled as the weaker me
   results window opens, or inside it while the report is pending; the window opens ``QUARTERLY_LEAD_DAYS`` before
   the expected date, ``ANNUAL_LEAD_DAYS`` when the estimate rests on an annual report (results come up to weeks
   before a 10-K is filed, and the local 8-K index starts in May 2026, too late to date last year's). Koulis does
-  not open them inside that window (``entry_results_ahead``). Every other held position sits through results as
-  before (support_bounce long +0.96%, momentum short +1.09% through results);
+  not open them inside that window (``entry_results_ahead``). Since 2026-11-06 the support_bounce long does the same
+  (owner, after MNTN -45.59% through its results on 2026-11-05): on average it gains through results (+0.83 to
+  +0.96%, ``results_lab.py``), and that average is given up on purpose, because no measure known beforehand separates
+  the rare collapse (0.6% below -25%; MNTN's own past reactions were only 3-5%). Every other held position sits
+  through results as before (momentum short +1.09% through results);
 * share classes share their company's calendar (GOOG and GOOGL, by CIK);
 * ``alpaca_short_gate_data.py`` / Koulis - the expected results date resolves the "catalyst timing" gate of a short
   only for the strategies whose shorts gain through results (``RESULTS_CATALYST``) and only when it falls within
@@ -38,7 +41,8 @@ JOURNAL = ROOT / "data" / "earnings_journal.db"
 OUT = ROOT / "output" / "results_calendar_latest.json"
 SCHEMA = "ecosystem.results_calendar.v1"
 STEP_ASIDE = frozenset({("controlled_breakout_swing", "short"), ("early_accumulation_swing", "short"),
-                        ("pre_run_breakout_confirmation", "short")})
+                        ("pre_run_breakout_confirmation", "short"),
+                        ("support_bounce_swing", "long")})  # owner 2026-11-06, see the module's docstring
 RESULTS_CATALYST = frozenset({("momentum_12_1", "short"), ("gap_fade", "short"),
                               ("mean_reversion_overextension", "short")})
 STEP_ASIDE_SESSIONS = 3      # the results window starts 2 sessions before the filing day; the estimate is +-5-7 days
@@ -206,10 +210,18 @@ def step_aside(calendar: dict[str, Any] | None, ticker: str, playbook: str | Non
 
 
 def entry_results_ahead(short_gate_data: dict[str, Any] | None, ticker: str, playbook: str | None, direction: str,
-                        today: str) -> str | None:
+                        today: str, calendar: dict[str, Any] | None = None) -> str | None:
     """Koulis: the expected results date when a new position of a ``STEP_ASIDE`` strategy would only be closed again
-    before them (read from today's short gate data, which carries the calendar's dates per symbol)."""
-    if (str(playbook or ""), str(direction).lower()) not in STEP_ASIDE or not short_gate_data:
+    before them (read from today's short gate data, which carries the calendar's dates per symbol; a long is not in
+    that file, so it is read from the calendar itself)."""
+    if (str(playbook or ""), str(direction).lower()) not in STEP_ASIDE:
+        return None
+    if str(direction).lower() == "long":
+        day = date.fromisoformat(today)
+        start = window_start(calendar, ticker, day)
+        return (str(expected_date(calendar, ticker, day))
+                if start is not None and close_to_results(start, day) else None)
+    if not short_gate_data:
         return None
     if short_gate_data.get("as_of") != today:
         return None

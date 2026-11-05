@@ -28,9 +28,9 @@ from monitor_core import yahoo_symbol
 ROOT = Path(__file__).resolve().parent
 AGENTS = ("yankos", "periklis")
 NEW_YORK = ZoneInfo("America/New_York")
-CHECKS = ("trigger", "participation", "momentum", "holding_now")
-CHECK_GR = {"trigger": "χωρίς σπάσιμο", "participation": "χαμηλός όγκος", "momentum": "λάθος ορμή",
-            "holding_now": "η τιμή γύρισε"}
+CHECKS = ("market_mood", "trigger", "participation", "momentum", "holding_now")
+CHECK_GR = {"market_mood": "η αγορά κόντρα", "trigger": "χωρίς σπάσιμο", "participation": "χαμηλός όγκος",
+            "momentum": "λάθος ορμή", "holding_now": "η τιμή γύρισε"}
 TIER_GR = {"horizon": "με διάρκεια agent", "same_day_measured": "ίδιας μέρας, μετριέται", "shadow_only": "μόνο καταγραφή"}
 
 

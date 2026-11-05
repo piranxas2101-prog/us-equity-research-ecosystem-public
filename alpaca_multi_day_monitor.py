@@ -16,7 +16,10 @@ with time counted in trading minutes from the fill (``trading_clock``: nights, w
 * results ahead (owner 2026-11-03, F5): the three legacy shorts that lose through their company's results
   (``results_calendar.STEP_ASIDE``) close ``STEP_ASIDE_SESSIONS`` sessions before the expected report, or while it is
   overdue; every other position sits through results (results_lab.py: they gain through them on average);
-* horizon end: when the agent's horizon has run out, or 5 minutes before the close of the session it ends in.
+* horizon end: when the agent's horizon has run out, or 5 minutes before the close of the session it ends in;
+* the owner's request (2026-11-06): ``output/owner_close_requests.json`` names symbols to close in one session only
+  (``{"session": "2026-11-06", "symbols": {"EFX": "why"}}``), at the first cycle of that session. A file of another
+  day closes nothing. Written by hand for a decision the owner took; no part of the ecosystem writes it.
 
 Paper account only; closes go through the same Alpaca call as the day monitor (``close_position_qty``) and only with
 ``--submit``. Every action is written to output/multi_day_monitor_latest.{json,md} and the day's action journal.
@@ -51,6 +54,19 @@ import trading_clock
 DATA_URL = "https://data.alpaca.markets"
 SHOCK_WINDOW = 15  # minutes before the close
 CLOSE_MARGIN = 5  # minutes before the close
+OWNER_CLOSE = Path("output/owner_close_requests.json")
+
+
+def owner_close_requests(path: Path, today: date) -> dict[str, str]:
+    """Symbol -> the owner's reason, for today's session only ({} when missing, unreadable or of another day)."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(payload, dict) or payload.get("session") != today.isoformat():
+        return {}
+    symbols = payload.get("symbols")
+    return {str(k).upper(): str(v) for k, v in symbols.items()} if isinstance(symbols, dict) else {}
 
 
 def spy_daily(today: date) -> pd.DataFrame | None:
@@ -83,7 +99,8 @@ def board_rows(agent: str, symbol: str, strategy_dir: Path) -> tuple[str | None,
 
 
 def decide(entry: dict[str, Any], position: dict[str, Any], *, now: datetime, shock: str | None,
-           strategy_dir: Path, calendar: dict[str, Any] | None = None) -> tuple[str | None, str]:
+           strategy_dir: Path, calendar: dict[str, Any] | None = None,
+           owner_close: dict[str, str] | None = None) -> tuple[str | None, str]:
     """(exit reason or None, explanation). Updates the entry's thesis state in place."""
     symbol, cls, direction = entry["symbol"], entry["holding_class"], entry["direction"]
     today = now.astimezone(trading_clock.EASTERN).date()
@@ -96,6 +113,9 @@ def decide(entry: dict[str, Any], position: dict[str, Any], *, now: datetime, sh
     stop = thesis_exit.scaled_stop(to_float(entry.get("atr_14_pct")), held)
     if plpc is not None and stop is not None and plpc <= -stop:
         return "scaled_stop", f"{symbol} {plpc:.2%} beyond the {stop:.2%} stop of session {held}."
+    hours = trading_clock.session(today)
+    if symbol in (owner_close or {}) and left and hours is not None and now >= hours[0]:  # only with the market open
+        return "owner_close", f"{symbol}: the owner's decision for this session - {owner_close[symbol]}"
     expected = results_calendar.step_aside(calendar, symbol, entry.get("playbook"), direction, today)
     if expected is not None:
         return "results_ahead", (f"{symbol}: results expected {expected} (SEC filing dates); {entry.get('playbook')} "
@@ -133,13 +153,14 @@ def monitor_once(args: argparse.Namespace, spy_cache: dict[str, Any]) -> dict[st
     states: dict[str, dict[str, Any]] = {}
     positions = fetch_positions() if entries else {}
     calendar = results_calendar.load() if entries else None  # written by the nightly run
+    owner_close = owner_close_requests(Path(getattr(args, "owner_close", OWNER_CLOSE)), today)
     for symbol, entry in sorted(entries.items()):
         position = positions.get(symbol)
         if position is None:
             closes[symbol] = ("not_in_account", {})
             continue
         reason, explanation = decide(entry, position, now=eastern, shock=shock, strategy_dir=Path(args.strategy_dir),
-                                     calendar=calendar)
+                                     calendar=calendar, owner_close=owner_close)
         states[symbol] = {key: entry.get(key) for key in ("weak_nights", "last_thesis_run", "last_thesis_check")}
         if reason is None:
             # the session report shows every held position (T7, 2026-10-26): its figures, not only the sentence

@@ -352,6 +352,31 @@ class MultiDayDecisionTests(unittest.TestCase):
                        for x in closed.read_text(encoding="utf-8").splitlines()}
             self.assertEqual(reasons, {"ABC": "horizon_end", "GONE": "not_in_account"})
 
+    def test_owner_close_only_for_its_session_and_only_the_named_symbols(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "requests.json"
+            self.assertEqual(mdm.owner_close_requests(path, ny("2026-11-06 10:00").date()), {})
+            path.write_text(json.dumps({"session": "2026-11-06", "symbols": {"abc": "research"}}), encoding="utf-8")
+            self.assertEqual(mdm.owner_close_requests(path, ny("2026-11-06 10:00").date()), {"ABC": "research"})
+            self.assertEqual(mdm.owner_close_requests(path, ny("2026-11-09 10:00").date()), {})
+            path.write_text("not json", encoding="utf-8")
+            self.assertEqual(mdm.owner_close_requests(path, ny("2026-11-06 10:00").date()), {})
+
+    def test_owner_close_decides_in_session_and_never_touches_others(self):
+        e = entry(sessions=60, filled_at="2026-11-03T14:00:00Z")
+        now = ny("2026-11-06 09:40")
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "yankos_strategy_latest.json").write_text("{}", encoding="utf-8")
+
+            def decide(when, wanted):
+                return mdm.decide(dict(e), {"unrealized_plpc": "0.01"}, now=when, shock=None,
+                                  strategy_dir=Path(folder), owner_close=wanted)
+
+            self.assertEqual(decide(now, {"ABC": "research"})[0], "owner_close")
+            self.assertIsNone(decide(now, {"XYZ": "research"})[0])
+            self.assertIsNone(decide(now, None)[0])
+            self.assertIsNone(decide(ny("2026-11-06 20:00"), {"ABC": "research"})[0], "the market is closed")
+
     def test_market_shocks_reused_on_spy_frame(self):
         index = pd.bdate_range("2025-01-01", periods=260)
         close = pd.Series(100.0, index=index)
@@ -374,6 +399,47 @@ class MiltosWindowTests(unittest.TestCase):
     def test_live_config_has_the_horizon_window(self):
         config = json.loads((ROOT / "trading_window_config.json").read_text(encoding="utf-8"))
         self.assertEqual(config["agent_horizon_entry_until_eastern"], "15:45")
+
+
+class MiltosMarketMoodTests(unittest.TestCase):
+    """Owner 2026-11-06: the entry weighs the market's mood at that moment, not only the night's reading."""
+
+    def test_only_against_the_position_and_unknown_blocks_nothing(self):
+        against = miltos_entry_stalker.mood_against
+        self.assertTrue(against("long", -1.5))
+        self.assertTrue(against("short", 2.0))
+        self.assertFalse(against("long", -1.4))
+        self.assertFalse(against("long", 3.0))
+        self.assertFalse(against("short", -3.0))
+        self.assertFalse(against("long", None))
+
+    def test_a_waiting_entry_is_not_sent_or_confirmed_and_says_why(self):
+        with tempfile.TemporaryDirectory() as folder:
+            report = Path(folder) / "yankos_paper_trades_latest.json"
+            item = {"ticker": "ABC", "trade_direction": "long", "order_status": "waiting_confirmation",
+                    "approved_intent_id": "i1", "playbook_name": "support_bounce_swing"}
+            report.write_text(json.dumps({"agent_name": "yankos", "openings": [item]}), encoding="utf-8")
+            args = SimpleNamespace(submit=True, approved_intent_ids={"yankos": {"i1"}}, market_move_atr=-2.1,
+                                   entry_timeframe="15Min", notional_per_trade=250.0)
+            with mock.patch.object(miltos_entry_stalker, "entry_confirmation") as confirm, \
+                    mock.patch.object(miltos_entry_stalker, "submit_paper_order") as send:
+                _, result = miltos_entry_stalker.process_report("yankos", report, {}, args, True, "open")
+            confirm.assert_not_called()
+            send.assert_not_called()
+            self.assertIn("SPY -2.1", result["still_waiting"][0]["entry_trigger_reason"])
+            saved = json.loads(report.read_text(encoding="utf-8"))["openings"][0]
+            self.assertEqual(saved["order_status"], "waiting_confirmation")
+            self.assertIs(saved["confirmation_checks"]["market_mood"], False)
+
+    def test_market_move_in_atr_units(self):
+        index = pd.bdate_range("2026-01-01", periods=30)
+        close = pd.Series(100.0, index=index)
+        close.iloc[-1] = 98.0
+        frame = pd.DataFrame({"High": close + 0.5, "Low": close - 0.5, "Close": close})
+        move = mdm.thesis_exit.market_move_atr(frame, index[-1].date())
+        self.assertAlmostEqual(move, -2.0, places=6)  # -2% against an ATR of 1%
+        self.assertIsNone(mdm.thesis_exit.market_move_atr(frame, ny("2027-01-04 10:00").date()))
+        self.assertIsNone(mdm.thesis_exit.market_move_atr(None, index[-1].date()))
 
 
 class LedgerTests(unittest.TestCase):

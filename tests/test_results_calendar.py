@@ -52,7 +52,7 @@ class CalendarTests(unittest.TestCase):
         self.assertIsNone(rc.expected_date(calendar("2026-10-15"), "ABC", TODAY))   # 19 days late: not trusted
         self.assertIsNone(rc.expected_date(None, "ABC", TODAY))
 
-    def test_step_aside_only_for_the_three_legacy_shorts_within_three_sessions(self):
+    def test_step_aside_only_for_the_listed_strategies_within_three_sessions(self):
         near = calendar("2026-11-11")                                                  # window opens in 3 sessions
         self.assertEqual(rc.step_aside(near, "ABC", "controlled_breakout_swing", "short", TODAY), date(2026, 11, 11))
         self.assertEqual(rc.step_aside(calendar("2026-10-30"), "ABC", "early_accumulation_swing", "short", TODAY),
@@ -61,8 +61,7 @@ class CalendarTests(unittest.TestCase):
         annual = calendar("2026-11-27", lead=28)                                       # 10-K based: opens 10-30
         self.assertEqual(rc.step_aside(annual, "ABC", "pre_run_breakout_confirmation", "short", TODAY),
                          date(2026, 11, 27))
-        self.assertIsNone(rc.step_aside(near, "ABC", "support_bounce_swing", "long", TODAY))     # gains through
-        self.assertIsNone(rc.step_aside(near, "ABC", "momentum_12_1", "short", TODAY))
+        self.assertIsNone(rc.step_aside(near, "ABC", "momentum_12_1", "short", TODAY))           # gains through
 
 
 class ReleaseTests(unittest.TestCase):
@@ -103,19 +102,38 @@ class ReleaseTests(unittest.TestCase):
 
 
 class MonitorTests(unittest.TestCase):
-    def test_a_legacy_short_closes_before_results_and_a_support_bounce_long_sits_through(self):
+    def test_a_legacy_short_closes_before_results_and_a_momentum_short_sits_through(self):
         short = entry(sessions=60, filled_at="2026-10-20T14:00:00Z", playbook="controlled_breakout_swing",
                       direction="short")
-        long = entry(sessions=60, filled_at="2026-10-20T14:00:00Z")
+        stays = entry(sessions=60, filled_at="2026-10-20T14:00:00Z", playbook="momentum_12_1", direction="short")
         with tempfile.TemporaryDirectory() as folder:
             (Path(folder) / "yankos_strategy_latest.json").write_text(json.dumps({"results": []}), encoding="utf-8")
-            for e, expected in ((short, "results_ahead"), (long, None)):
+            for e, expected in ((short, "results_ahead"), (stays, None)):
                 reason, _ = mdm.decide(e, {"unrealized_plpc": "0.0"}, now=ny("2026-11-03 10:00"), shock=None,
                                        strategy_dir=Path(folder), calendar=calendar("2026-11-05"))
                 self.assertEqual(reason, expected)
             reason, _ = mdm.decide(short, {"unrealized_plpc": "0.0"}, now=ny("2026-11-03 10:00"), shock=None,
                                    strategy_dir=Path(folder))                       # no calendar: unknown, held
             self.assertIsNone(reason)
+
+
+class SupportBounceLongStepsAsideTests(unittest.TestCase):
+    """Owner 2026-11-06, after MNTN -45.59%: the support bounce long is out before results, not opened near them."""
+
+    def test_held_position_closes_before_results_other_longs_still_sit_through(self):
+        cal = calendar("2026-11-05")
+        today = date(2026, 11, 3)
+        self.assertEqual(rc.step_aside(cal, "ABC", "support_bounce_swing", "long", today), date(2026, 11, 5))
+        self.assertIsNone(rc.step_aside(cal, "ABC", "momentum_12_1", "long", today))
+        self.assertIsNone(rc.step_aside(calendar("2026-12-20"), "ABC", "support_bounce_swing", "long", today))
+
+    def test_koulis_reads_the_calendar_for_a_long(self):
+        cal = calendar("2026-11-05")
+        self.assertEqual(rc.entry_results_ahead(None, "ABC", "support_bounce_swing", "long", "2026-11-03", cal),
+                         "2026-11-05")
+        self.assertIsNone(rc.entry_results_ahead(None, "ABC", "support_bounce_swing", "long", "2026-11-03", None))
+        self.assertIsNone(rc.entry_results_ahead(None, "ABC", "momentum_12_1", "long", "2026-11-03", cal))
+        self.assertIsNone(rc.entry_results_ahead(None, "XYZ", "support_bounce_swing", "long", "2026-11-03", cal))
 
 
 class ShortGateTests(unittest.TestCase):

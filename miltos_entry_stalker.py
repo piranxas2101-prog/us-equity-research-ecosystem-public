@@ -24,6 +24,7 @@ from alpaca_paper_trader import (
 from thymios_order_intent import intents_for_agent, load_approved_intents
 import holding_horizon
 import pandas as pd
+import thesis_exit
 import trading_clock
 
 
@@ -33,6 +34,33 @@ DEFAULT_TRADER_REPORTS = {
 }
 ATHENS_TZ = ZoneInfo("Europe/Athens")
 EASTERN_TZ = ZoneInfo("America/New_York")
+# owner 2026-11-06: "entries must weigh the market's sentiment before deciding to open". The night's reading (Koulis,
+# market_state.py) cannot see today: on 2026-11-05 SPY was already -2.5% (2 x ATR) at 10:30 New York and 8 longs still
+# opened until 12:07. While SPY stands this many ATR against the position an entry waits, and may still open if the
+# market recovers. 1.5: last year's entries beyond it lost most to the close (-0.60%, 3 days only, wide interval), so
+# this rests on the owner's decision more than on proof; those left out stay measured as approved, not entered.
+MOOD_ATR = 1.5
+MOOD_REFRESH_SECONDS = 240
+_MOOD_CACHE: dict[str, Any] = {}
+
+
+def mood_against(direction: str, move_atr: float | None) -> bool:
+    """SPY today beyond ``MOOD_ATR`` x its ATR against the position. An unknown market blocks nothing: it is unknown,
+    and the night's reading and the other gates still stand."""
+    if move_atr is None:
+        return False
+    return move_atr <= -MOOD_ATR if str(direction).lower() == "long" else move_atr >= MOOD_ATR
+
+
+def market_move_today(today: Any) -> float | None:
+    """SPY's move today in ATR units, read at most every ``MOOD_REFRESH_SECONDS`` (read-only market data)."""
+    if (_MOOD_CACHE.get("day") != today or _MOOD_CACHE.get("at") is None
+            or time.monotonic() - _MOOD_CACHE["at"] > MOOD_REFRESH_SECONDS):
+        from alpaca_multi_day_monitor import spy_daily
+
+        _MOOD_CACHE.update(day=today, at=time.monotonic(),
+                           move=thesis_exit.market_move_atr(spy_daily(today), today))
+    return _MOOD_CACHE.get("move")
 
 
 def candidate_key(agent_name: str, opening: dict[str, Any], session_date: str | None = None) -> str:
@@ -293,6 +321,20 @@ def process_report(
             )
             continue
 
+        direction = str(opening.get("trade_direction") or "long")
+        move_atr = getattr(args, "market_move_atr", None)
+        if mood_against(direction, move_atr):
+            reason = (f"The market is against this {direction} now: SPY {move_atr:+.1f} x its ATR today "
+                      f"(limit {MOOD_ATR}); waits.")
+            if args.submit:
+                opening.update({"entry_status": "waiting_confirmation", "entry_trigger_confirmed": False,
+                                "entry_trigger_reason": reason, "confirmation_checks": {"market_mood": False}})
+                opening["order_status"] = "waiting_confirmation"
+                changed = True
+            result["still_waiting"].append({"agent_name": report_agent, "ticker": ticker,
+                                            "trade_direction": direction, "entry_trigger_reason": reason})
+            continue
+
         try:
             confirmation = entry_confirmation(
                 ticker,
@@ -415,6 +457,12 @@ def run_once(args: argparse.Namespace, state: dict[str, Any]) -> dict[str, Any]:
     horizon_allowed, horizon_reason = entry_window_open(horizon_window)
     entry_finished = entry_window_finished(horizon_window)
     args.horizon_entry = (horizon_allowed, horizon_reason)
+    args.market_move_atr = None
+    if entry_allowed or horizon_allowed:
+        try:
+            args.market_move_atr = market_move_today(datetime.now(EASTERN_TZ).date())
+        except Exception as exc:  # noqa: BLE001 - unknown blocks nothing; the next cycle reads it again
+            print(f"[MILTOS] market mood unknown: {exc}", flush=True)
     aggregate = {"submitted": [], "still_waiting": [], "skipped": [], "failed": []}
     checked_count = 0
     for agent_name, report_path in reports.items():
@@ -436,6 +484,7 @@ def run_once(args: argparse.Namespace, state: dict[str, Any]) -> dict[str, Any]:
         "entry_window_open": entry_allowed,
         "entry_window_finished": entry_finished,
         "entry_window_reason": entry_window_reason,
+        "market_move_atr": getattr(args, "market_move_atr", None),
         "checked_count": checked_count,
         "submitted_count": len(aggregate["submitted"]),
         "still_waiting_count": len(aggregate["still_waiting"]),

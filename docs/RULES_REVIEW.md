@@ -158,3 +158,14 @@ clear difference). Shown in the learning report ("Χρειάζεται αλλα�
 Sokratis. First reading (2026-11-05, 10 sessions): early_accumulation_swing +0.8% vs the same day (p 0.013),
 pre_run_breakout_confirmation +2.2% (p 0.019), controlled_breakout_swing +1.2% (p 0.17): keep;
 failed_breakdown_reclaim −1.6% (p 0.001) on 9 sessions: collecting, a change verdict likely after one more session.
+
+## 7. Owner's decisions, 2026-11-06 (after SPY -4.4% on 2026-11-05)
+
+Research behind them: five years of lab signals around the 14 SPY down shocks. Shocks up to -3% out of a calm market were followed by a rise after 5 sessions in all 8 cases; of the 4 of -3.4% or more, 3 were still falling after 5 sessions. The -4.4% came out of a calm market with the size of the second group, so the history does not settle the direction.
+
+- **Three shorts closed for one session.** EFX, TW, ARQT (support_bounce_swing short: -6.0% over 5 sessions after a shock, 0 of 10 positive, and losing on ordinary days too). The owner chose these three over the 10 and the 13 offered; the momentum and gap shorts stay. Mechanism: `output/owner_close_requests.json`, valid only for the session it names, read by `alpaca_multi_day_monitor.py` (exit rule `owner_close`).
+- **Support bounce long leaves before results.** MNTN lost 45.59% through its results on 2026-11-05. It was no fault: the calendar knew the date, and the position stayed by the F5 decision of 2026-11-03. No measure known beforehand flags it (its past reactions were 3-5%; below -25% happens in 0.6%). `results_calendar.STEP_ASIDE` now holds `support_bounce_swing long`: closed 3 sessions before the results window, not opened near it (Koulis reads the calendar for longs). Cost, accepted on purpose: the average +0.83% through results, and holds of 60 sessions now usually end at the next report.
+- **Entries weigh the market at that moment.** Koulis uses the night's reading, which cannot see the day: on 2026-11-05 SPY was -2.5% (2 x ATR) at 10:30 New York and 8 longs still opened until 12:07. Miltos now waits while SPY stands 1.5 x ATR or more against the position (`MOOD_ATR`), and may still enter if the market recovers. Unknown market data blocks nothing. The 1.5 rests on the owner's decision more than on proof: last year's long entries beyond it lost most to the close (-0.60%), but on 3 days only, with a wide interval. Those left out stay measured as approved, not entered.
+
+Still open: `failed_breakdown_reclaim` (the review says close the same day) and the other three swing longs that now sit through results with no proven gain.
+

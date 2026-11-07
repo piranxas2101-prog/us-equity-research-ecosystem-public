@@ -169,3 +169,11 @@ Research behind them: five years of lab signals around the 14 SPY down shocks. S
 
 Still open: `failed_breakdown_reclaim` (the review says close the same day) and the other three swing longs that now sit through results with no proven gain.
 
+
+## 8. Owner's decision, 2026-11-07: the opposite position after a direction flip, in shadow
+
+The direction-flip exit closed 9 of 9 shorts at a gain in the week of 2026-11-02 (+7.08% on average). The owner asks whether the short should become a long. A flip is one stock's reading (a candidate in the opposite direction on tonight's board), not the market's direction. First look at 12 flips, long from that day's open: -1.94% the same day (3 of 12 positive); to 2026-11-06 -0.14% against SPY -2.16%; too small a sample and one market.
+
+Decision: the short still closes as it does; the long is not opened automatically. It would be an ordinary entry through Koulis and Miltos, and `flip_shadow.py` measures it first at 1, 3, 5, 10 and 20 sessions, with no order and no change to Koulis, Miltos or the monitor. Report: `output/paper_learning/flip_shadow_latest.md`, a section in the session report, run with the nightly learning evaluation of each session. The holding time is decided later from this evidence.
+
+To pass (30 flips on 10 sessions, as every learning judgement; judged on the entries that pass Koulis and Miltos, with the stop): mean excess over SPY at least 0.5% and the Wilson lower bound of "beat SPY" above 50% at some horizon, because five horizons are looked at. Then a lesson candidate is proposed and going into the main code stays the owner's decision. That step needs Koulis to let the candidate through its own `existing_account_exposure` block (on 2026-11-06 it blocked AMSC, NFLX, VICR for it) and the monitor to wait for the close to fill.

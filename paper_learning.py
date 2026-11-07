@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 import holding_horizon
 import holding_shadow as hs
+import flip_shadow as fs
 import preopen_recheck as pr
 import paper_trade_ledger as ledger
 import strategy_tiers
@@ -789,6 +790,11 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                   f"{recheck.get('restored')} · μέσο {_v(restored.get('mean_pct'), '%')} · υπέρβαση SPY "
                   f"{_v(restored.get('mean_excess_pct'), '%')} · συμπέρασμα: {recheck.get('verdict')}. "
                   "Πλήρης ανάλυση: `output/paper_learning/preopen_recheck_latest.md`."]
+    flip = evaluation.get("flip_shadow") or {}
+    if flip:
+        lines += ["", "## Αντίθετη θέση μετά από αλλαγή κατεύθυνσης (χωρίς εντολές)", "",
+                  f"- Αλλαγές {flip.get('flips')} · περνούν Koulis και Miltos {flip.get('gated')} · συμπέρασμα: "
+                  f"{flip.get('verdict')}. Πλήρης ανάλυση: `output/paper_learning/flip_shadow_latest.md`."]
     lines += ["", "## Σκιώδη κρατήματα πολλών ημερών (χωρίς εντολές)", "",
               "Κάθε εγγραφή κρατημένη από το άνοιγμα της συνεδρίας της για ημέρα / εβδομάδα / μήνα / τρίμηνο: fixed (ως το "
               "τέλος), atr_bracket (τα δικά της stop/take-profit) και thesis (όσο ισχύει ο λόγος, για εβδομάδα/μήνα/τρίμηνο). Μια διάρκεια μετρά μόλις υπάρχει η τελευταία της "
@@ -850,6 +856,8 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         attach_held_spy(records, prices)
         attach_counterfactuals(conn, records)
         hs.attach(conn, records)
+        # owner 2026-11-07: the opposite position after a direction flip, measured only (its own report)
+        flip = fs.run(root, conn, everything, frames, metrics, MARGIN_PCT, write=write_lessons)
     lab_dir = root / "output" / "strategy_lab"
     lab = json.loads((lab_dir / "strategy_lab_latest.json").read_text(encoding="utf-8")) \
         if (lab_dir / "strategy_lab_latest.json").is_file() else {}
@@ -865,7 +873,9 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         out.mkdir(parents=True, exist_ok=True)
         (out / "preopen_recheck_latest.json").write_text(json.dumps(recheck, ensure_ascii=False, indent=2), encoding="utf-8")
         (out / "preopen_recheck_latest.md").write_text(pr.render(recheck), encoding="utf-8")
-    lessons = record_lessons(root / "data" / "market_intel.db", proposals(evaluation) + pr.proposal(recheck))         if write_lessons else []
+    evaluation["flip_shadow"] = {k: flip[k] for k in ("flips", "candidates", "passes_koulis", "koulis_unknown",
+                                                      "miltos_entered", "gated", "passed_horizons", "verdict")}
+    lessons = record_lessons(root / "data" / "market_intel.db", proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip))         if write_lessons else []
     evaluation["lesson_candidates"] = lessons
     evaluation["shadow_lessons"] = shadow_lessons(root / "data" / "market_intel.db", records)
     evaluation["shadow_follow"] = shadow_follow(root / "data" / "market_intel.db", records, lab=lab, legacy=legacy)

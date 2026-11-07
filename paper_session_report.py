@@ -309,6 +309,8 @@ def build(out: Path, today: date, spy_move: float | None,
         "closed_positions": closes,
         "per_strategy": per_strategy,
         "held_positions": held,
+        # as of the last evaluation: it runs after this report, so today's flips join it tonight
+        "flip_shadow": _load(out / "paper_learning" / "flip_shadow_latest.json"),
         "day_result": {"positions": len(closes), "with_result": len(known),
                        "average_result_pct": _mean(known),
                        "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0)},
@@ -414,6 +416,17 @@ def render(report: dict[str, Any]) -> str:
         lines.append(f"\nΣύνολο: {d['positions']} θέσεις, μέσο αποτέλεσμα {v(d['average_result_pct'])}%, "
                      f"κερδισμένες {d['winners']}, χαμένες {d['losers']}. (Η σύγκριση με το SPY είναι προσεγγιστική: "
                      "οι είσοδοι έγιναν μετά το άνοιγμα.)")
+    flip = report.get("flip_shadow")
+    if flip:
+        lines += ["", "## Αντίθετη θέση μετά από αλλαγή κατεύθυνσης (δοκιμαστικά, χωρίς εντολές)",
+                  f"- Ως την τελευταία αξιολόγηση: αλλαγές {v(flip.get('flips'))}, περνούν Koulis και Miltos "
+                  f"{v(flip.get('gated'))}, συμπέρασμα: {v(flip.get('verdict'))}.", ""]
+        lines += ["| είσοδος | διάρκεια | με αποτέλεσμα | μέσο % | υπέρβαση SPY % |", "|---|---|---|---|---|"]
+        for name, cell in (flip.get("summary") or {}).items():
+            entry, rule, horizon = name.split(" · ")
+            if entry in ("gated", "open") and rule == "stop":
+                lines.append(f"| {'Koulis και Miltos' if entry == 'gated' else 'στο άνοιγμα'} | {horizon} | {cell['known']} | "
+                             f"{v(cell['mean_pct'])} | {v(cell['mean_excess_pct'])} |")
     return "\n".join(lines) + "\n"
 
 

@@ -73,6 +73,21 @@ class SessionReportTests(unittest.TestCase):
             self.assertIn("άγνωστο", psr.render(report))
 
 
+class FlipShadowSectionTests(unittest.TestCase):
+    def test_the_flip_measurement_shows_when_it_exists_and_only_then(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            self.assertNotIn("Αντίθετη θέση", psr.render(psr.build(out, TODAY, spy_move=0.5)))
+            cell = {"known": 3, "mean_pct": None, "mean_excess_pct": 1.2}
+            write(out, "paper_learning/flip_shadow_latest.json", {
+                "flips": 12, "gated": 1, "verdict": "insufficient_sample",
+                "summary": {"gated · stop · 5": cell, "miltos · stop · 5": {**cell, "known": 99}}})
+            text = psr.render(psr.build(out, TODAY, spy_move=0.5))
+            self.assertIn("Αντίθετη θέση", text)
+            self.assertIn("| Koulis και Miltos | 5 | 3 | άγνωστο | 1.2 |", text)
+            self.assertNotIn("| 99 |", text)
+
+
 class WholeDayTests(unittest.TestCase):
     """T7 (2026-10-26): the whole day, not the last cycle."""
 

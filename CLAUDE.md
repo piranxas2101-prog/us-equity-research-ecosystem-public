@@ -36,6 +36,7 @@ Use the locked runtime `.venv-next` (Python 3.12):
 .\.venv-next\Scripts\python.exe companyfacts_cache.py status|shadow           # SEC companyfacts store; mode in scanner_config (off/populate/reuse)
 .\.venv-next\Scripts\python.exe run_performance_log.py backfill|record --run-id <id>  # per-run performance history: output/run_performance_history.csv (+ .md), written at the end of every run
 .\.venv-next\Scripts\python.exe exit_lab.py --horizon-curve                 # evidence for the agents' holding horizons (output/strategy_lab/horizon_curve_latest.json, read-only, ~5 min)
+.\.venv-next\Scripts\python.exe flip_shadow.py                            # the opposite position after a direction flip, in shadow (output/paper_learning/flip_shadow_latest.md)
 .\.venv-next\Scripts\python.exe market_state.py [--rebuild]                 # the state of the market: reading, Greek paragraph, evidence Koulis uses (owner 2026-11-04)
 ```
 
@@ -59,6 +60,7 @@ Details: `README.md`, `PIPELINE_OVERVIEW.md`, `ADVANCED_USAGE.md`, `docs/` (lear
 - Learning is candidate → shadow → champion with **manual** promotion. New lessons go straight to shadow (owner's standing decision 2026-11-05): followed out of sample and taught by Sokratis, never changing active scores, policies, limits or orders; accepting one stays the owner's call.
 - Do not change agent thresholds, risk settings or promotion gates without a documented rationale and focused tests.
 - Default/full-universe workflows must stay unable to submit orders.
+- General note (owner 2026-11-07): the opposite position after a direction flip (a short closed by `thesis_direction_flip` becoming a long) is measured in shadow by `flip_shadow.py` and is meant to move into the main code at some point, once its cases pass the test in `docs/RULES_REVIEW.md` section 8. Until then it sends no order. When the verdict passes, raise it with the owner; moving it stays the owner's call.
 - LLMs run only locally through Ollama (never Claude, Anthropic, OpenAI or any hosted model), never start the Ollama app, and never make decisions. `filing_llm_extractor.py` produces quote-verified *candidate* evidence for human review; it writes no Sector Context Packets and nothing downstream reads it until promotion is explicitly decided.
 
 ## Repo layout

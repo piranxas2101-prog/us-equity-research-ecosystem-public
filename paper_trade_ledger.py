@@ -393,6 +393,103 @@ def complete_held(conn: sqlite3.Connection, closed_log: Path) -> int:
     return completed
 
 
+TERMINAL_ORDER = frozenset({"filled", "canceled", "expired", "rejected"})
+FILL_READ_ERRORS_MAX = 3  # the broker does not answer: stop, the rest is tried on the next run
+
+
+def _closed_rows(closed_log: Path) -> list[dict[str, Any]]:
+    if not closed_log.is_file():
+        return []
+    rows = []
+    for line in closed_log.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if row.get("exit_order_id"):
+            rows.append(row)
+    return rows
+
+
+def _ensure_fill_table(conn: sqlite3.Connection) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS paper_exit_fills (exit_order_id TEXT PRIMARY KEY, symbol TEXT NOT NULL,"
+                 " status TEXT NOT NULL, filled_avg_price REAL, filled_qty REAL, filled_at TEXT, read_at TEXT NOT NULL)")
+
+
+def record_exit_fills(conn: sqlite3.Connection, closed_log: Path, order: Callable[[str], dict[str, Any]]) -> dict[str, int]:
+    """What each exit of a position held over several sessions really got (owner 2026-11-07). The closed log keeps the
+    position's % at the close decision and the order's answer at sending (``pending_new``, no price). Each order is
+    read once it is final; one not final or not readable stays pending, never a price. Read-only, no order is sent;
+    the ledger's results are not rewritten."""
+    _ensure_fill_table(conn)
+    known = {r[0] for r in conn.execute("SELECT exit_order_id FROM paper_exit_fills").fetchall()}
+    counts, errors = {"read": 0, "not_final": 0, "unreadable": 0}, 0
+    for row in _closed_rows(closed_log):
+        order_id = str(row["exit_order_id"])
+        if order_id in known:
+            continue
+        known.add(order_id)
+        try:
+            answer = order(order_id)
+        except Exception:  # noqa: BLE001 - the broker read is optional: pending, tried again on the next run
+            counts["unreadable"] += 1
+            errors += 1
+            if errors >= FILL_READ_ERRORS_MAX:
+                break
+            continue
+        errors = 0
+        status = str(answer.get("status") or "")
+        if status not in TERMINAL_ORDER:
+            counts["not_final"] += 1
+            continue
+        price, filled_at = _fill(answer)
+        conn.execute("INSERT INTO paper_exit_fills VALUES (?,?,?,?,?,?,?)",
+                     (order_id, str(row.get("symbol") or "").upper(), status, price, _float(answer.get("filled_qty")),
+                      filled_at, datetime.now().astimezone().isoformat()))
+        counts["read"] += 1
+    conn.commit()
+    return counts
+
+
+def exit_fill_summary(conn: sqlite3.Connection, closed_log: Path) -> dict[str, Any]:
+    """The result at the decision against the result at the real fill, overall and by exit rule. Negative difference:
+    the fill was worse than the decision showed. An exit without a fill, entry price or % is counted, never averaged."""
+    _ensure_fill_table(conn)
+    fills = {r[0]: r for r in conn.execute("SELECT exit_order_id, status, filled_avg_price FROM paper_exit_fills")}
+    groups: dict[str, list[tuple[float, float]]] = {}
+    pending = not_filled = no_comparison = 0
+    for row in _closed_rows(closed_log):
+        fill = fills.get(str(row["exit_order_id"]))
+        if fill is None:
+            pending += 1
+            continue
+        if fill[2] is None:
+            not_filled += 1
+            continue
+        entry = _float(row.get("entry_price"))
+        try:
+            plpc = float(row.get("exit_plpc"))  # a loss is negative: _float would read it as unknown
+        except (TypeError, ValueError):
+            plpc = None
+        if not entry or plpc is None or plpc != plpc or row.get("direction") not in ("long", "short"):
+            no_comparison += 1
+            continue
+        sign = 1.0 if row["direction"] == "long" else -1.0
+        pair = (plpc * 100, sign * (fill[2] / entry - 1) * 100)
+        groups.setdefault("all", []).append(pair)
+        groups.setdefault(str(row.get("close_reason")), []).append(pair)
+
+    def cell(pairs: list[tuple[float, float]]) -> dict[str, Any]:
+        n = len(pairs)
+        decision, real = sum(p[0] for p in pairs) / n, sum(p[1] for p in pairs) / n
+        return {"exits": n, "mean_at_decision_pct": round(decision, 3), "mean_at_fill_pct": round(real, 3),
+                "mean_difference_pct": round(real - decision, 3),
+                "worst_difference_pct": round(min(p[1] - p[0] for p in pairs), 3)}
+    summary = {name: cell(pairs) for name, pairs in groups.items()}
+    return {"schema": "ecosystem.exit_fills.v1", "overall": summary.pop("all", None), "by_exit_rule": summary,
+            "pending": pending, "not_filled": not_filled, "no_comparison": no_comparison}
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -448,6 +545,20 @@ def alpaca_closed_orders(key_id: str, secret: str) -> Orders:
     return fetch
 
 
+def alpaca_order(key_id: str, secret: str) -> Callable[[str], dict[str, Any]]:
+    """Read-only: one order of the paper account by its id (no order is ever sent)."""
+    from urllib import parse, request
+
+    def fetch(order_id: str) -> dict[str, Any]:
+        req = request.Request(f"https://paper-api.alpaca.markets/v2/orders/{parse.quote(order_id, safe='')}",
+                              headers={"APCA-API-KEY-ID": key_id, "APCA-API-SECRET-KEY": secret,
+                                       "Accept": "application/json"})
+        with request.urlopen(req, timeout=20) as response:
+            payload = json.loads(response.read() or b"{}")
+        return payload if isinstance(payload, dict) else {}
+    return fetch
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -462,7 +573,14 @@ def main(argv: list[str] | None = None) -> int:
     records = build_records(args.root / "output", session, orders=orders)
     with connect(args.root / "data" / "paper_learning.db") as conn:
         counts = store(conn, records)
-        counts["held_completed"] = complete_held(conn, args.root / "data" / "paper_positions_closed.jsonl")
+        closed_log = args.root / "data" / "paper_positions_closed.jsonl"
+        counts["held_completed"] = complete_held(conn, closed_log)
+        if key_id and secret:
+            counts["exit_fills"] = record_exit_fills(conn, closed_log, alpaca_order(key_id, secret))
+        fills = exit_fill_summary(conn, closed_log)
+    folder = args.root / "output" / "paper_learning"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "exit_fills_latest.json").write_text(json.dumps(fills, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"session": session.isoformat(), "records": len(records),
                       "by_kind": {k: sum(r["kind"] == k for r in records) for k in sorted({r["kind"] for r in records})},
                       **counts}))

@@ -311,6 +311,7 @@ def build(out: Path, today: date, spy_move: float | None,
         "held_positions": held,
         # as of the last evaluation: it runs after this report, so today's flips join it tonight
         "flip_shadow": _load(out / "paper_learning" / "flip_shadow_latest.json"),
+        "exit_fills": _load(out / "paper_learning" / "exit_fills_latest.json"),
         "day_result": {"positions": len(closes), "with_result": len(known),
                        "average_result_pct": _mean(known),
                        "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0)},
@@ -416,6 +417,18 @@ def render(report: dict[str, Any]) -> str:
         lines.append(f"\nΣύνολο: {d['positions']} θέσεις, μέσο αποτέλεσμα {v(d['average_result_pct'])}%, "
                      f"κερδισμένες {d['winners']}, χαμένες {d['losers']}. (Η σύγκριση με το SPY είναι προσεγγιστική: "
                      "οι είσοδοι έγιναν μετά το άνοιγμα.)")
+    fills = report.get("exit_fills")
+    if fills and fills.get("overall"):
+        lines += ["", "## Πραγματικές τιμές εξόδου (θέσεις πολλών ημερών, ως χθες)",
+                  "Το αποτέλεσμα τη στιγμή της απόφασης, που μετρούν οι αναφορές, έναντι της τιμής εκτέλεσης. "
+                  "Αρνητική διαφορά: η εκτέλεση ήταν χειρότερη.", "",
+                  "| έξοδος | θέσεις | στην απόφαση % | στην εκτέλεση % | διαφορά % | χειρότερη % |",
+                  "|---|---|---|---|---|---|"]
+        for name, cell in [("όλες", fills["overall"]), *sorted((fills.get("by_exit_rule") or {}).items())]:
+            lines.append(f"| {name} | {cell['exits']} | {cell['mean_at_decision_pct']} | {cell['mean_at_fill_pct']} | "
+                         f"{cell['mean_difference_pct']} | {cell['worst_difference_pct']} |")
+        lines.append(f"\nΕκκρεμούν {v(fills.get('pending'))} · χωρίς εκτέλεση {v(fills.get('not_filled'))} · "
+                     f"χωρίς σύγκριση {v(fills.get('no_comparison'))}.")
     flip = report.get("flip_shadow")
     if flip:
         lines += ["", "## Αντίθετη θέση μετά από αλλαγή κατεύθυνσης (δοκιμαστικά, χωρίς εντολές)",

@@ -88,6 +88,22 @@ class FlipShadowSectionTests(unittest.TestCase):
             self.assertNotIn("| 99 |", text)
 
 
+class ExitFillsSectionTests(unittest.TestCase):
+    def test_the_real_exit_prices_show_when_they_exist(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            write(out, "paper_learning/exit_fills_latest.json", {"overall": None, "by_exit_rule": {}, "pending": 3})
+            self.assertNotIn("Πραγματικές τιμές εξόδου", psr.render(psr.build(out, TODAY, spy_move=0.5)))
+            cell = {"exits": 2, "mean_at_decision_pct": 1.0, "mean_at_fill_pct": 0.8, "mean_difference_pct": -0.2,
+                    "worst_difference_pct": -0.3}
+            write(out, "paper_learning/exit_fills_latest.json", {
+                "overall": cell, "by_exit_rule": {"scaled_stop": cell}, "pending": 1, "not_filled": 0, "no_comparison": 0})
+            text = psr.render(psr.build(out, TODAY, spy_move=0.5))
+            self.assertIn("| όλες | 2 | 1.0 | 0.8 | -0.2 | -0.3 |", text)
+            self.assertIn("| scaled_stop | 2 |", text)
+            self.assertIn("Εκκρεμούν 1", text)
+
+
 class WholeDayTests(unittest.TestCase):
     """T7 (2026-10-26): the whole day, not the last cycle."""
 

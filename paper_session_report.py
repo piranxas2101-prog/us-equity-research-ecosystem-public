@@ -314,6 +314,8 @@ def build(out: Path, today: date, spy_move: float | None,
         "exit_fills": _load(out / "paper_learning" / "exit_fills_latest.json"),
         # owner 2026-11-09: headlines for held positions and candidates (the pre-open read, else last night's)
         "news": _load(out / "news_watch_latest.json"),
+        # owner 2026-11-09: favourable pre-market gap and one trader on both sides, as of the last evaluation
+        "gap_conflict": _load(out / "paper_learning" / "gap_conflict_shadow_latest.json"),
         "day_result": {"positions": len(closes), "with_result": len(known),
                        "average_result_pct": _mean(known),
                        "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0)},
@@ -436,6 +438,15 @@ def render(report: dict[str, Any]) -> str:
                              f"{v(item.get('published_at'))} | {str(item.get('title') or '').replace('|', '/')} |")
             if len(material) > 15:
                 lines.append(f"…και {len(material) - 15} ακόμη: `output/news_watch_latest.md`.")
+    gaps = report.get("gap_conflict")
+    if gaps:
+        lines += ["", "## Κενό υπέρ της θέσης και long + short στην ίδια μετοχή (δοκιμαστικά, χωρίς εντολές)",
+                  "Ως την τελευταία αξιολόγηση:", ""]
+        for name, title in (("favourable_gap", "κενό υπέρ ≥ 1 ATR"), ("both_directions", "long και short ίδια νύχτα")):
+            cell = gaps.get(name) or {}
+            flagged, rest = cell.get("flagged") or {}, cell.get("rest") or {}
+            lines.append(f"- {title}: {v(flagged.get('known'))} με μέσο {v(flagged.get('mean_pct'))}% έναντι "
+                         f"{v(rest.get('known'))} με {v(rest.get('mean_pct'))}% · συμπέρασμα: {v(cell.get('verdict'))}.")
     fills = report.get("exit_fills")
     if fills and fills.get("overall"):
         lines += ["", "## Πραγματικές τιμές εξόδου (θέσεις πολλών ημερών, ως χθες)",

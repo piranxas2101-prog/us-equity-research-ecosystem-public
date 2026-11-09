@@ -88,6 +88,21 @@ class FlipShadowSectionTests(unittest.TestCase):
             self.assertNotIn("| 99 |", text)
 
 
+class NewsSectionTests(unittest.TestCase):
+    def test_the_headlines_show_with_their_read_status(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            self.assertNotIn("Ειδήσεις για θέσεις", psr.render(psr.build(out, TODAY, spy_move=0.5)))
+            write(out, "news_watch_latest.json", {
+                "run_label": "preopen", "fetched_at": "2026-10-13T13:00:00+00:00", "symbols": 3,
+                "statuses": {"found": 1, "none": 1, "no_answer": 1, "not_read": 0},
+                "material": [{"symbol": "NVDA", "roles": ["held"], "category_id": "regulatory_legal",
+                              "published_at": "2026-10-12T20:00:00+00:00", "title": "Probe | CEO"}]})
+            text = psr.render(psr.build(out, TODAY, spy_move=0.5))
+            self.assertIn("δεν απάντησε 1", text)
+            self.assertIn("| NVDA | held | regulatory_legal | 2026-10-12T20:00:00+00:00 | Probe / CEO |", text)
+
+
 class ExitFillsSectionTests(unittest.TestCase):
     def test_the_real_exit_prices_show_when_they_exist(self):
         with tempfile.TemporaryDirectory() as folder:

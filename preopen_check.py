@@ -499,6 +499,15 @@ def main(argv: list[str] | None = None) -> int:
     (history / f"preopen_check_{datetime.now(NEW_YORK):%Y%m%d}.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(json.dumps({**report["counts"], **report["timings"]}), flush=True)
+    # owner 2026-11-09: the overnight headlines, read and recorded only, after the check's own outputs are written;
+    # the feed alone with its own time limit, so the check and the session never wait on it
+    try:
+        import news_watch
+
+        news = news_watch.run(root, "preopen", second=None, budget_seconds=news_watch.PREOPEN_BUDGET_SECONDS)
+        print(f"[PREOPEN] news: {json.dumps(news['statuses'])} material {len(news['material'])}", flush=True)
+    except Exception as exc:  # noqa: BLE001 - the headlines are optional; the check's result stands
+        print(f"[PREOPEN] news not read: {type(exc).__name__}", flush=True)
     if ABANDONED_WORK:  # a hung source thread must not keep the process (and the afternoon session) waiting
         sys.stdout.flush()
         os._exit(0)

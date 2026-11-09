@@ -312,6 +312,8 @@ def build(out: Path, today: date, spy_move: float | None,
         # as of the last evaluation: it runs after this report, so today's flips join it tonight
         "flip_shadow": _load(out / "paper_learning" / "flip_shadow_latest.json"),
         "exit_fills": _load(out / "paper_learning" / "exit_fills_latest.json"),
+        # owner 2026-11-09: headlines for held positions and candidates (the pre-open read, else last night's)
+        "news": _load(out / "news_watch_latest.json"),
         "day_result": {"positions": len(closes), "with_result": len(known),
                        "average_result_pct": _mean(known),
                        "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0)},
@@ -417,6 +419,23 @@ def render(report: dict[str, Any]) -> str:
         lines.append(f"\nΣύνολο: {d['positions']} θέσεις, μέσο αποτέλεσμα {v(d['average_result_pct'])}%, "
                      f"κερδισμένες {d['winners']}, χαμένες {d['losers']}. (Η σύγκριση με το SPY είναι προσεγγιστική: "
                      "οι είσοδοι έγιναν μετά το άνοιγμα.)")
+    news = report.get("news")
+    if news and news.get("statuses"):
+        s = news["statuses"]
+        lines += ["", "## Ειδήσεις για θέσεις και υποψήφιους (μόνο ανάγνωση, χωρίς εντολές)",
+                  f"Ανάγνωση {v(news.get('run_label'))} στις {v(news.get('fetched_at'))} UTC: σύμβολα {v(news.get('symbols'))} · "
+                  f"με ειδήσεις {v(s.get('found'))} · χωρίς {v(s.get('none'))} · δεν απάντησε {v(s.get('no_answer'))} · "
+                  f"δεν διαβάστηκαν {v(s.get('not_read'))}.", ""]
+        material = news.get("material") or []
+        if not material:
+            lines.append("- Κανένας σημαντικός τίτλος τις τελευταίες 3 μέρες.")
+        else:
+            lines += ["| μετοχή | ρόλος | κατηγορία | δημοσίευση UTC | τίτλος |", "|---|---|---|---|---|"]
+            for item in material[:15]:
+                lines.append(f"| {item.get('symbol')} | {', '.join(item.get('roles') or [])} | {item.get('category_id')} | "
+                             f"{v(item.get('published_at'))} | {str(item.get('title') or '').replace('|', '/')} |")
+            if len(material) > 15:
+                lines.append(f"…και {len(material) - 15} ακόμη: `output/news_watch_latest.md`.")
     fills = report.get("exit_fills")
     if fills and fills.get("overall"):
         lines += ["", "## Πραγματικές τιμές εξόδου (θέσεις πολλών ημερών, ως χθες)",

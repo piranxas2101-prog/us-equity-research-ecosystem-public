@@ -607,6 +607,20 @@ if ($marketExitCode -ne 0) {
     Add-PipelineWarning "Market state failed with exit code $marketExitCode. Log: $marketLog"
 }
 
+# Headlines for the held positions and tonight's candidates (owner 2026-11-09): read and recorded only, measured in
+# shadow by the learning evaluation (news_watch.py). A failure never stops the run.
+Mark-PipelineStep -Key "news_watch" -Agent "system"
+Write-Host "Reading headlines for held positions and candidates (read-only)..."
+$newsLog = Join-Path $logDir "news_watch_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $pythonPath "news_watch.py" "--label" "nightly" 2>&1 | Tee-Object -FilePath $newsLog
+$newsExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorAction
+if ($newsExitCode -ne 0) {
+    Add-PipelineWarning "News watch failed with exit code $newsExitCode. Log: $newsLog"
+}
+
 # Results per period (quarters / half-years / years) of every shortlisted company from the stored SEC companyfacts,
 # shadow only (owner decision 2026-10-22). A failure never stops the run.
 Mark-PipelineStep -Key "periodic_results" -Agent "system"

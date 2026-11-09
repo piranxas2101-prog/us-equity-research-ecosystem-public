@@ -315,6 +315,9 @@ def build_stages() -> list[Stage]:
         Stage("macro_environment", False, lambda c: _py(c, "macro_environment.py", "--update-store"),
               outputs=("output/macro_environment_latest.json",)),
         Stage("market_state", False, lambda c: _py(c, "market_state.py"), outputs=("output/market_state_latest.json",)),
+        # owner 2026-11-09: headlines for held positions and candidates, read and recorded only
+        Stage("news_watch", False, lambda c: _py(c, "news_watch.py", "--label", "nightly"),
+              outputs=("output/news_watch_latest.json",)),
         Stage("periodic_results", False, lambda c: _py(c, "periodic_results.py"),
               outputs=("output/periodic_results_latest.json",)),
         Stage("press_release_reader", False, lambda c: _py(c, "press_release_reader.py")),

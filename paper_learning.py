@@ -29,6 +29,7 @@ from typing import Any, Callable
 import holding_horizon
 import holding_shadow as hs
 import flip_shadow as fs
+import news_watch as nw
 import preopen_recheck as pr
 import paper_trade_ledger as ledger
 import strategy_tiers
@@ -795,6 +796,13 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
         lines += ["", "## Αντίθετη θέση μετά από αλλαγή κατεύθυνσης (χωρίς εντολές)", "",
                   f"- Αλλαγές {flip.get('flips')} · περνούν Koulis και Miltos {flip.get('gated')} · συμπέρασμα: "
                   f"{flip.get('verdict')}. Πλήρης ανάλυση: `output/paper_learning/flip_shadow_latest.md`."]
+    news = evaluation.get("news_shadow") or {}
+    if news:
+        flagged, clear = news.get("flagged") or {}, news.get("clear") or {}
+        lines += ["", "## Ειδήσεις πριν το άνοιγμα (χωρίς εντολές)", "",
+                  f"- Με σημαντική είδηση {flagged.get('known')} (μέσο {flagged.get('mean_pct')}%) · χωρίς "
+                  f"{clear.get('known')} (μέσο {clear.get('mean_pct')}%) · χωρίς γνωστή ανάγνωση {news.get('unknown')} · "
+                  f"συμπέρασμα: {news.get('verdict')}. Πλήρης ανάλυση: `output/paper_learning/news_shadow_latest.md`."]
     lines += ["", "## Σκιώδη κρατήματα πολλών ημερών (χωρίς εντολές)", "",
               "Κάθε εγγραφή κρατημένη από το άνοιγμα της συνεδρίας της για ημέρα / εβδομάδα / μήνα / τρίμηνο: fixed (ως το "
               "τέλος), atr_bracket (τα δικά της stop/take-profit) και thesis (όσο ισχύει ο λόγος, για εβδομάδα/μήνα/τρίμηνο). Μια διάρκεια μετρά μόλις υπάρχει η τελευταία της "
@@ -858,6 +866,8 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         hs.attach(conn, records)
         # owner 2026-11-07: the opposite position after a direction flip, measured only (its own report)
         flip = fs.run(root, conn, everything, frames, metrics, MARGIN_PCT, write=write_lessons)
+    # owner 2026-11-09: candidates with a material headline before the open, against the rest (measured only)
+    news = nw.run_shadow(root, records, metrics, MARGIN_PCT, write=write_lessons)
     lab_dir = root / "output" / "strategy_lab"
     lab = json.loads((lab_dir / "strategy_lab_latest.json").read_text(encoding="utf-8")) \
         if (lab_dir / "strategy_lab_latest.json").is_file() else {}
@@ -875,7 +885,9 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         (out / "preopen_recheck_latest.md").write_text(pr.render(recheck), encoding="utf-8")
     evaluation["flip_shadow"] = {k: flip[k] for k in ("flips", "candidates", "passes_koulis", "koulis_unknown",
                                                       "miltos_entered", "gated", "passed_horizons", "verdict")}
-    lessons = record_lessons(root / "data" / "market_intel.db", proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip))         if write_lessons else []
+    evaluation["news_shadow"] = {k: news[k] for k in ("flagged", "clear", "unknown", "flagged_minus_clear_pct", "verdict")}
+    found = proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news)
+    lessons = record_lessons(root / "data" / "market_intel.db", found) if write_lessons else []
     evaluation["lesson_candidates"] = lessons
     evaluation["shadow_lessons"] = shadow_lessons(root / "data" / "market_intel.db", records)
     evaluation["shadow_follow"] = shadow_follow(root / "data" / "market_intel.db", records, lab=lab, legacy=legacy)

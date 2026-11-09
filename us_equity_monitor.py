@@ -89,13 +89,13 @@ import unknown_data
 import catalyst_content_review
 import symbol_identity
 from provider_rate_limiter import SharedProviderRateLimiter
+from news_watch import parse_yfinance as parse_yfinance_news
 from monitor_core import (
     ATHENS_TZ,
     age_days,
     classify_instrument,
     deep_merge_dict,
     evaluate_risk_level,
-    format_datetime_from_epoch,
     format_metric_line,
     normalize_symbol,
     now_athens,
@@ -1460,21 +1460,18 @@ def fetch_snapshot(
             raw_news, news_status = [], "provider_timeout"
             provider_timeouts.append("news")
         except Exception:
-            raw_news = []
+            # a failed call is unknown, never "no news" (2026-11-09: yfinance answered "Yahoo is down")
+            raw_news, news_status = [], "provider_error"
     else:
         news_status = "not_fetched_outside_watchlist"
     info_elapsed = time.perf_counter() - info_started_at
 
-    news_items: list[dict[str, Any]] = []
-    for item in raw_news[:6]:
-        news_items.append(
-            {
-                "title": item.get("title"),
-                "publisher": item.get("publisher"),
-                "link": item.get("link"),
-                "published_at": format_datetime_from_epoch(item.get("providerPublishTime")),
-            }
-        )
+    # yfinance 1.x nests the headline under "content"; the older flat shape is read too (news_watch.parse_yfinance)
+    news_items: list[dict[str, Any]] = [
+        {"title": item["title"], "publisher": item.get("publisher"), "link": item.get("link"),
+         "published_at": item.get("published_at")}
+        for item in parse_yfinance_news(raw_news)[:6]
+    ]
 
     fundamentals = {
         "market_cap": to_float(info.get("marketCap") or fast_info.get("market_cap") or fast_info.get("marketCap")),

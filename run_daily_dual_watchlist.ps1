@@ -297,7 +297,10 @@ if ($FullMarket) {
     Mark-PipelineStep -Key "sec_prefetch" -Agent "babis"
     Write-Host "Prefetching SEC companyfacts for the company universe..."
     $prefetchLog = Join-Path $logDir "companyfacts_prefetch_$timestamp.log"
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & $pythonPath "companyfacts_prefetch.py" 2>&1 | Tee-Object -FilePath $prefetchLog
+    $ErrorActionPreference = $previousErrorAction
     if ($LASTEXITCODE -ne 0) {
         Add-PipelineWarning "SEC companyfacts prefetch failed with exit code $LASTEXITCODE. Log: $prefetchLog"
     }
@@ -378,7 +381,10 @@ $informationArgs = @(
     "--giannis", "output/giannis_rule_based_latest.json",
     "--out", "output/information_ledger_latest.json"
 )
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $pythonPath @informationArgs 2>&1 | Tee-Object -FilePath $informationLog
+$ErrorActionPreference = $previousErrorAction
 if ($LASTEXITCODE -ne 0) {
     throw "Information ledger recording failed. Log: $informationLog"
 }
@@ -428,10 +434,13 @@ if ($petrosExitCode -ne 0) {
 Mark-PipelineStep -Key "deep_research" -Agent "petros"
 Write-Host "Running evidence-first deep company research for Petros candidates and manual reviews..."
 $deepResearchLog = Join-Path $logDir "dual_watchlist_company_deep_research_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $pythonPath "company_deep_research.py" `
     "--petros" "output/petros_review_latest.json" `
     "--output" "output/company_deep_research_latest.json" `
     "--markdown" "output/company_deep_research_latest.md" 2>&1 | Tee-Object -FilePath $deepResearchLog
+$ErrorActionPreference = $previousErrorAction
 if ($LASTEXITCODE -ne 0) {
     throw "Company deep research failed. Fundamental packet creation is blocked. Log: $deepResearchLog"
 }
@@ -447,7 +456,10 @@ $fundamentalPacketArgs = @(
     "--deep-research", "output/company_deep_research_latest.json",
     "--out-prefix", "output/fundamental_research_packet"
 )
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $pythonPath @fundamentalPacketArgs 2>&1 | Tee-Object -FilePath $fundamentalPacketLog
+$ErrorActionPreference = $previousErrorAction
 if ($LASTEXITCODE -ne 0) {
     throw "Fundamental Research Packet build failed. Trader stages are blocked. Log: $fundamentalPacketLog"
 }
@@ -457,7 +469,10 @@ if ($LASTEXITCODE -ne 0) {
 Mark-PipelineStep -Key "price_history" -Agent "system"
 Write-Host "Updating stored daily prices for the shortlist..."
 $priceLog = Join-Path $logDir "price_history_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $pythonPath "price_history_store.py" "--shortlist" (Join-Path $outputDir "babis_shortlist_latest.json") 2>&1 | Tee-Object -FilePath $priceLog
+$ErrorActionPreference = $previousErrorAction
 if ($LASTEXITCODE -ne 0) {
     Add-PipelineWarning "Price history update failed with exit code $LASTEXITCODE. Log: $priceLog"
 }

@@ -34,6 +34,22 @@ class StaticTests(unittest.TestCase):
                     with self.subTest(script=name, line=number):
                         self.assertIn(ALLOWED, code, f"{name}:{number} redirects a call outside Invoke-Logged")
 
+    def test_the_run_script_redirects_only_while_errors_continue(self):
+        # 2026-11-12: the SEC prefetch wrote a traceback to stderr under "Stop" and that ended the whole nightly run,
+        # although a failure of that step is only a warning. Every redirected call runs with "Continue".
+        state = "Stop"
+        lines = (ROOT / "run_daily_dual_watchlist.ps1").read_text(encoding="utf-8-sig").splitlines()
+        redirected = 0
+        for number, line in enumerate(lines, 1):
+            code = line.split("#", 1)[0]
+            if code.strip().startswith("$ErrorActionPreference ="):
+                state = "Continue" if '"Continue"' in code else "Stop"
+            if REDIRECT.search(code):
+                redirected += 1
+                with self.subTest(line=number):
+                    self.assertEqual(state, "Continue", f"line {number} redirects a native call under Stop")
+        self.assertGreater(redirected, 10)
+
     def test_scripts_that_redirect_define_invoke_logged_with_continue(self):
         for name in ("nightly_research.ps1", "start_trader_afternoon_session.ps1"):
             text = (ROOT / name).read_text(encoding="utf-8-sig")

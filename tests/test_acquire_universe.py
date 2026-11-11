@@ -102,6 +102,47 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(self.fetch(DIRECTORY, refused, previous)["status"], "http_error")
 
 
+class TransportTests(unittest.TestCase):
+    """2026-11-12: the screener answered 403 to urllib and 200 to requests in the same minute."""
+
+    def test_the_second_transport_is_asked_when_the_first_is_refused(self):
+        asked = []
+
+        def good(url):
+            asked.append("good")
+            return b"{}"
+
+        def bad(url):
+            asked.append("bad")
+            return refused(url)
+
+        self.assertEqual(au.download("u", (bad, good)), b"{}")
+        self.assertEqual(au.download("u", (good, bad)), b"{}")
+        self.assertEqual(asked, ["bad", "good", "good"])
+
+    def test_all_refused_raises_the_http_refusal(self):
+        def broken(url):
+            raise OSError("no network")
+
+        with self.assertRaises(HTTPError) as caught:
+            au.download("u", (broken, refused))
+        self.assertEqual(caught.exception.code, 403)
+        with self.assertRaises(OSError):
+            au.download("u", (broken,))
+
+    def test_requests_comes_first_and_a_bad_status_is_a_refusal(self):
+        from unittest import mock
+
+        self.assertEqual(au.TRANSPORTS, (au.via_requests, au.via_urllib))
+        answer = mock.Mock(status_code=403, reason="Forbidden", content=b"")
+        with mock.patch("requests.get", return_value=answer) as get:
+            with self.assertRaises(HTTPError) as caught:
+                au.via_requests("https://example.test/x")
+        self.assertEqual((caught.exception.code, get.call_args.kwargs["timeout"]), (403, 25))
+        with mock.patch("requests.get", return_value=mock.Mock(status_code=200, content=b"{}")):
+            self.assertEqual(au.via_requests("https://example.test/x"), b"{}")
+
+
 class BuildReadsTheSameRuleTests(unittest.TestCase):
     """2026-11-12: the fetch reused the profiles and the universe build still refused them."""
 

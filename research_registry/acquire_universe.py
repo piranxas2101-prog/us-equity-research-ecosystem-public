@@ -13,6 +13,10 @@ written only after a download that parsed, so its time is when it was retrieved 
 The screener refused two nights running around 00:35 Athens and answered at noon, so the pre-open check also asks
 for the profiles on weekday afternoons (``refresh_profiles``, owner 2026-11-12): the night then has a copy of the
 same day to fall back on. A refusal there changes nothing.
+
+What the refusals were (measured 2026-11-12, same minute, same headers): the screener answers 403 to Python's
+urllib and 200 to requests and to curl. It was never the hour. Each attempt therefore asks with requests first and
+with urllib second (``TRANSPORTS``); the retries, the reuse and the daytime copy stay as the safety net.
 """
 import concurrent.futures
 import hashlib
@@ -35,11 +39,35 @@ STALE_MAX_HOURS = 72.0               # the profiles only: three days
 STALE = 'stale_reused'
 
 
-def download(url):
-    req = Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json,text/plain,*/*',
-                                'Origin': 'https://www.nasdaq.com'})
-    with urlopen(req, timeout=25) as response:
+HEADERS = {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json,text/plain,*/*', 'Origin': 'https://www.nasdaq.com'}
+
+
+def via_requests(url):
+    import requests
+
+    response = requests.get(url, headers=HEADERS, timeout=25)
+    if response.status_code != 200:
+        raise HTTPError(url, response.status_code, response.reason or '', None, None)
+    return response.content
+
+
+def via_urllib(url):
+    with urlopen(Request(url, headers=HEADERS), timeout=25) as response:
         return response.read()
+
+
+TRANSPORTS = (via_requests, via_urllib)
+
+
+def download(url, transports=None):
+    """The first transport that answers; if none does, the first one's error (an HTTP refusal when there was one)."""
+    errors = []
+    for transport in transports or TRANSPORTS:
+        try:
+            return transport(url)
+        except Exception as exc:  # noqa: BLE001 - the next transport is asked; the error is raised below
+            errors.append(exc)
+    raise next((e for e in errors if isinstance(e, HTTPError)), errors[0])
 
 
 def _age_hours(stamp, now):

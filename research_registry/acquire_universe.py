@@ -5,6 +5,10 @@ run and the fallback research stood in; the same request worked hours later). If
 come, the last good file is used again while it is at most ``STALE_MAX_HOURS`` old and the manifest says so
 (``stale_reused``, with the time it was really retrieved) - owner's decision 2026-11-11. The two symbol directories
 decide which symbols exist and must always be fresh.
+
+When the last manifest holds no good row for the profiles (the night before failed too, as on 2026-11-12, when the
+reuse never applied because the manifest only remembered the failure), the age is the file's own time: the file is
+written only after a download that parsed, so its time is when it was retrieved (``age_from: file_time``).
 """
 import concurrent.futures
 import hashlib
@@ -47,11 +51,14 @@ def _age_hours(stamp, now):
 def reuse_last_good(name, previous, dest, now):
     """The last good profiles file when it is recent enough, else None. ``previous``: its row in the last manifest."""
     path = dest / name
-    if name != PROFILES or not path.is_file() or not isinstance(previous, dict):
+    if name != PROFILES or not path.is_file():
         return None
-    if previous.get('status') not in ('ok', STALE):
-        return None
-    age = _age_hours(previous.get('retrieved_at'), now)
+    if isinstance(previous, dict) and previous.get('status') in ('ok', STALE):
+        retrieved_at, age_from = previous.get('retrieved_at'), 'manifest'
+    else:
+        retrieved_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
+        age_from = 'file_time'
+    age = _age_hours(retrieved_at, now)
     if age is None or age < 0 or age > STALE_MAX_HOURS:
         return None
     raw = path.read_bytes()
@@ -59,7 +66,7 @@ def reuse_last_good(name, previous, dest, now):
         json.loads(raw)
     except ValueError:
         return None
-    return {'status': STALE, 'retrieved_at': previous['retrieved_at'], 'age_hours': round(age, 2),
+    return {'status': STALE, 'retrieved_at': retrieved_at, 'age_hours': round(age, 2), 'age_from': age_from,
             'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
 
 

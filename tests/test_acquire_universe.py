@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -47,13 +48,32 @@ class FetchTests(unittest.TestCase):
         again = self.fetch(PROFILE, refused, out)                           # a second bad night: still its real age
         self.assertEqual(again["retrieved_at"], previous["retrieved_at"])
 
+    def aged_file(self, hours):
+        path = self.dest / au.PROFILES
+        path.write_bytes(b'{"data": "old"}')
+        stamp = (NOW - timedelta(hours=hours)).timestamp()
+        os.utime(path, (stamp, stamp))
+
     def test_too_old_or_unknown_is_not_reused(self):
-        (self.dest / au.PROFILES).write_bytes(b'{"data": "old"}')
+        self.aged_file(73)
         old = {"name": au.PROFILES, "status": "ok", "retrieved_at": (NOW - timedelta(hours=73)).isoformat()}
         self.assertEqual(self.fetch(PROFILE, refused, old)["status"], "http_error")
         self.assertEqual(self.fetch(PROFILE, refused, None)["status"], "http_error")
         failed = {"name": au.PROFILES, "status": "http_error", "retrieved_at": NOW.isoformat()}
         self.assertEqual(self.fetch(PROFILE, refused, failed)["status"], "http_error")
+        (self.dest / au.PROFILES).unlink()
+        self.assertEqual(self.fetch(PROFILE, refused, failed)["status"], "http_error")       # no file at all
+
+    def test_a_second_bad_night_reuses_by_the_files_own_time(self):
+        # 2026-11-12: the night before had failed, the manifest held only that failure and the reuse never applied
+        self.aged_file(48)
+        failed = {"name": au.PROFILES, "status": "http_error", "http_status": 403, "retrieved_at": NOW.isoformat()}
+        out = self.fetch(PROFILE, refused, failed)
+        self.assertEqual((out["status"], out["age_hours"], out["age_from"]), (au.STALE, 48.0, "file_time"))
+        self.assertEqual(out["retrieved_at"], (NOW - timedelta(hours=48)).isoformat())
+        self.assertEqual(self.fetch(PROFILE, refused, None)["status"], au.STALE)             # no manifest either
+        third = self.fetch(PROFILE, refused, out)                                            # then from the manifest
+        self.assertEqual((third["retrieved_at"], third["age_from"]), (out["retrieved_at"], "manifest"))
 
     def test_a_symbol_directory_is_never_reused(self):
         (self.dest / DIRECTORY[0]).write_bytes(b"Symbol|Security Name|\n")

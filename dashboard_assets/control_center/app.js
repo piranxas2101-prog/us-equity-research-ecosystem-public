@@ -13,7 +13,9 @@ const fmt = (value, digits = 1) => (value === null || value === undefined || val
 const when = (iso) => { if (!iso) return "—"; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString("el-GR"); };
 
 async function api(path, options = {}) {
-  const response = await fetch(path, options);
+  let response;
+  try { response = await fetch(path, options); }
+  catch (e) { throw new Error("Το Κέντρο Ελέγχου δεν απαντά. Μάλλον έκλεισε το πρόγραμμά του· ξεκίνησέ το ξανά με το start_control_center.ps1 και ανανέωσε τη σελίδα."); }
   const data = await response.json().catch(() => ({ error: "Μη έγκυρη απάντηση" }));
   if (!response.ok) throw new Error(data.error || response.statusText);
   return data;
@@ -348,7 +350,7 @@ async function pageAgents() {
     <div class="grid wide">
       <div class="card"><h2>Εγγεγραμμένοι agents</h2>${table(d.registered, [["agent_id", "Agent"], ["agent_type", "Ρόλος"], ["owned_sector", "Τομέας"], ["status", "Κατάσταση"]])}</div>
       <div class="card"><h2>Ουρές τομεακών agents</h2>${table(d.queues, [["agent_id", "Agent"], ["status", "Κατάσταση"], ["items", "Σύμβολα"]])}</div>
-      <div class="card"><h2>Μάθηση</h2>${table(d.learning, [["agent_id", "Agent"], ["episodes", "Επεισόδια"], ["outcomes", "Αποτελέσματα"], ["last_recorded", "Τελευταίο"]])}</div>
+      <div class="card"><h2>Μάθηση</h2>${table(d.learning, [["agent_id", "Agent"], ["episodes", "Επεισόδια"], ["outcomes", "Αποτελέσματα"], ["last_recorded", "Τελευταία παρατήρηση"]])}</div>
       <div class="card"><h2>Μοντέλα (shadow/champion)</h2>${table(d.models, [["agent_id", "Agent"], ["task_id", "Εργασία"], ["model_version", "Έκδοση"], ["state", "Κατάσταση"], ["training_rows", "Γραμμές"]])}</div>
     </div>`;
 }
@@ -611,6 +613,8 @@ async function route() {
   const hash = decodeURIComponent(location.hash.slice(1) || "/");
   const [, page, arg] = hash.split("/");
   clearInterval(route.timer);
+  // a slow page (the first read of a large table) says it is loading instead of leaving the old page in place
+  const slow = setTimeout(() => { app.innerHTML = `<p class="muted">Φόρτωση… Η πρώτη ανάγνωση μεγάλων πινάκων μπορεί να πάρει μερικά δευτερόλεπτα.</p>`; }, 600);
   try {
     if (!page) { await pageStatus(); route.timer = setInterval(() => (location.hash === "" || location.hash === "#/") && pageStatus().catch(() => {}), 30000); }
     else if (page === "screener") await pageScreener();
@@ -624,6 +628,8 @@ async function route() {
     else app.innerHTML = `<p class="muted">Η σελίδα δεν υπάρχει.</p>`;
   } catch (e) {
     app.innerHTML = `<h1>Κάτι δεν πήγε καλά</h1><p class="muted">${esc(e.message)}</p>`;
+  } finally {
+    clearTimeout(slow);
   }
 }
 window.addEventListener("hashchange", route);

@@ -112,5 +112,29 @@ h3.gap { margin-top: 14px; }
 .chip.fresh { border-color: var(--accent); color: var(--violet); }
 .chip.old { border-color: var(--bad); color: var(--bad); }
 .chip.off { color: var(--muted); }
-@media (max-width: 900px) { body { flex-direction: column; } .nav { width: auto; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
-  .nav-foot { display: none; } .grid.wide { grid-template-columns: 1fr; } }
+ul.plain li, .para, .sub, .card dd { overflow-wrap: anywhere; }
+/* a narrow window (the side pane, a small laptop): the menu becomes one scrolling row, cards take the full width */
+@media (max-width: 900px) {
+  body { flex-direction: column; }
+  .nav { width: auto; height: auto; position: sticky; top: 0; z-index: 5; flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
+    align-items: center; padding: 8px 10px; gap: 2px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { border: 0; padding: 0 10px 0 4px; margin: 0; font-size: 15px; white-space: nowrap; }
+  .brand small, .nav-foot { display: none; }
+  .nav a { white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; padding: 7px 9px; gap: 6px; flex: none; }
+  .nav a.active { border-left: 0; border-bottom-color: var(--bad); background: rgba(47, 125, 246, .18); }
+  .topbar { padding: 8px 14px 0; }
+  main { padding: 8px 14px 20px; }
+  .logo img { height: 40px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .grid.wide { grid-template-columns: minmax(0, 1fr); }
+  .kv { grid-template-columns: minmax(0, 1fr); }
+  .kv dt { margin-top: 6px; }
+  .kpi { font-size: 22px; }
+  h1 { font-size: 20px; }
+  .table-wrap { max-height: 70vh; }
+}
+/* scroll bars in the page's colours instead of the browser's white ones */
+* { scrollbar-width: thin; scrollbar-color: var(--blue-deep) transparent; }
+::-webkit-scrollbar { width: 9px; height: 7px; }
+::-webkit-scrollbar-thumb { background: var(--blue-deep); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }

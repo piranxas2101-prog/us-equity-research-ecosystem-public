@@ -206,6 +206,28 @@ class ControlCenterHttpTests(unittest.TestCase):
         self.assertEqual((response.status, response.getheader("Content-Type")), (200, "image/svg+xml"))
         self.assertIn(b"<svg", body)
 
+    def test_learning_counts_come_from_the_indexes_and_are_kept_until_the_file_changes(self):
+        import sqlite3
+
+        (self.root / "data").mkdir()
+        path = self.root / "data" / "market_intel.db"
+        conn = sqlite3.connect(path)
+        conn.execute("CREATE TABLE agent_learning_episodes (episode_id TEXT PRIMARY KEY, agent_id TEXT, observed_at TEXT)")
+        conn.execute("CREATE TABLE agent_learning_outcomes (outcome_id TEXT PRIMARY KEY, episode_id TEXT)")
+        conn.execute("CREATE TABLE agent_model_registry (agent_id TEXT, task_id TEXT, model_version TEXT, state TEXT,"
+                     " training_rows INTEGER, updated_at TEXT)")
+        conn.executemany("INSERT INTO agent_learning_episodes VALUES (?,?,?)",
+                         [("e1", "yankos", "2026-11-09"), ("e2", "yankos", "2026-11-10"), ("e3", "babis", "2026-11-08")])
+        conn.executemany("INSERT INTO agent_learning_outcomes VALUES (?,?)", [("o1", "e1"), ("o2", "e1"), ("o3", "e2")])
+        conn.commit()
+        conn.close()
+        views = cc.Views(self.root)
+        learning = views.agents()["learning"]
+        self.assertEqual(learning, [
+            {"agent_id": "yankos", "episodes": 2, "outcomes": 3, "last_recorded": "2026-11-10"},
+            {"agent_id": "babis", "episodes": 1, "outcomes": 0, "last_recorded": "2026-11-08"}])
+        self.assertIs(views.agents()["learning"], learning)          # the file did not change: the kept answer
+
     def test_only_reads_exist_for_trading(self):
         for path in ("/api/trading", "/api/trading/live", "/logo"):
             response, _ = self.action(path, {})

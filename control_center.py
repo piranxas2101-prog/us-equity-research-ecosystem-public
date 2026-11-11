@@ -114,6 +114,7 @@ class Views:
         self._lock = threading.Lock()
         self._run_cache: dict[str, Any] = {}
         self._live_cache: tuple[Any, dict[str, Any]] | None = None
+        self._learning_cache: tuple[Any, list[dict[str, Any]]] | None = None
         self._taxonomy: tuple[dict, dict] | None = None
         self._lanes_cache: tuple[int, dict[str, Any]] | None = None
 
@@ -556,10 +557,7 @@ class Views:
         if intel.exists():
             conn = read_only(intel)
             try:
-                result["learning"] = [dict(r) for r in conn.execute(
-                    "SELECT e.agent_id, COUNT(*) AS episodes, COUNT(o.outcome_id) AS outcomes, MAX(e.recorded_at) AS last_recorded "
-                    "FROM agent_learning_episodes e LEFT JOIN agent_learning_outcomes o ON o.episode_id=e.episode_id "
-                    "GROUP BY e.agent_id ORDER BY episodes DESC")]
+                result["learning"] = self._learning(conn, intel)
                 result["models"] = [dict(r) for r in conn.execute(
                     "SELECT agent_id, task_id, model_version, state, training_rows, updated_at FROM agent_model_registry ORDER BY updated_at DESC")]
             except sqlite3.Error:
@@ -569,6 +567,29 @@ class Views:
         audit = _json_file(self.root / "output" / "research_only_audit_latest.json") or {}
         result["audit"] = {k: audit.get(k) for k in ("run_id", "status", "generated_at")}
         return result
+
+    def _learning(self, conn: sqlite3.Connection, path: Path) -> list[dict[str, Any]]:
+        """Episodes and outcomes per agent. The episode rows carry whole JSON documents (half a million of them), so
+        only the indexes are read: the count and the latest observation from the agent index, the outcomes through
+        the outcome table's own index. Kept until the database file changes (2026-11-11: the old query took 2.5 min)."""
+        stat = path.stat()
+        key = (stat.st_mtime_ns, stat.st_size)
+        with self._lock:
+            cached = self._learning_cache
+        if cached and cached[0] == key:
+            return cached[1]
+        rows = {r["agent_id"]: {"agent_id": r["agent_id"], "episodes": r["episodes"], "outcomes": 0,
+                                "last_recorded": r["last_observed"]} for r in conn.execute(
+            "SELECT agent_id, COUNT(*) AS episodes, MAX(observed_at) AS last_observed "
+            "FROM agent_learning_episodes GROUP BY agent_id")}
+        for r in conn.execute("SELECT e.agent_id, COUNT(*) AS outcomes FROM agent_learning_outcomes o "
+                              "JOIN agent_learning_episodes e ON e.episode_id=o.episode_id GROUP BY e.agent_id"):
+            if r["agent_id"] in rows:
+                rows[r["agent_id"]]["outcomes"] = r["outcomes"]
+        learning = sorted(rows.values(), key=lambda r: -r["episodes"])
+        with self._lock:
+            self._learning_cache = (key, learning)
+        return learning
 
     def review(self) -> dict[str, Any]:
         path = self.root / "data" / "research_registry.db"

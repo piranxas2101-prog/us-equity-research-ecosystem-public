@@ -9,6 +9,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from .acquire_universe import row_usable
 from .core import PROJECT, DEFAULT_DB, connect, initialize, taxonomy, digest
 
 SOURCES = PROJECT / 'data/research_universe_sources'
@@ -136,16 +137,23 @@ def schema(db):
     governance_schema(db)
 
 
-def build(db, sources=SOURCES, exports=EXPORTS):
+def read_sources(sources=SOURCES):
+    """The manifest and the three source texts. A row must be usable by the fetch's own rule (``ok``, or the
+    profiles reused from the last good file) and the file must still be the one the manifest describes."""
     metadata=json.loads((sources/'manifest.json').read_text(encoding='utf-8'))
     byname={m['name']:m for m in metadata}
     raws={}
     for filename in ('nasdaqlisted.txt','otherlisted.txt','nasdaq_profiles.json'):
         meta=byname.get(filename,{})
-        if meta.get('status')!='ok': raise ValueError('Source unavailable: '+filename)
+        if not row_usable(meta): raise ValueError('Source unavailable: '+filename)
         raw=(sources/filename).read_bytes()
         if hashlib.sha256(raw).hexdigest()!=meta['sha256']: raise ValueError('Source hash mismatch')
         raws[filename]=raw.decode('utf-8-sig')
+    return metadata,raws
+
+
+def build(db, sources=SOURCES, exports=EXPORTS):
+    metadata,raws=read_sources(sources)
     profile_payload=json.loads(raws['nasdaq_profiles.json'])
     profiles=profile_payload.get('data',{}).get('rows')
     if not isinstance(profiles,list) or not profiles: raise ValueError('Missing bulk profiles')

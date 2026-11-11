@@ -9,6 +9,10 @@ decide which symbols exist and must always be fresh.
 When the last manifest holds no good row for the profiles (the night before failed too, as on 2026-11-12, when the
 reuse never applied because the manifest only remembered the failure), the age is the file's own time: the file is
 written only after a download that parsed, so its time is when it was retrieved (``age_from: file_time``).
+
+The screener refused two nights running around 00:35 Athens and answered at noon, so the pre-open check also asks
+for the profiles on weekday afternoons (``refresh_profiles``, owner 2026-11-12): the night then has a copy of the
+same day to fall back on. A refusal there changes nothing.
 """
 import concurrent.futures
 import hashlib
@@ -101,18 +105,39 @@ def fetch(item, *, dest=None, previous=None, get=download, sleep=time.sleep, now
     return result
 
 
+def row_usable(row):
+    """One source is there: ``ok``, or the profiles reused from the last good file."""
+    return isinstance(row, dict) and (row.get('status') == 'ok'
+                                      or (row.get('status') == STALE and row.get('name') == PROFILES))
+
+
 def usable(rows):
-    """All three sources there: each ``ok``, or the profiles reused from the last good file."""
-    if not isinstance(rows, list) or len(rows) != 3:
-        return False
-    return all(isinstance(r, dict)
-               and (r.get('status') == 'ok' or (r.get('status') == STALE and r.get('name') == PROFILES))
-               for r in rows)
+    """All three sources there (``row_usable`` each). Every reader of the manifest judges a row with these two, so
+    a reused file is not accepted in one place and refused in the next (2026-11-12: the universe build refused it)."""
+    return isinstance(rows, list) and len(rows) == 3 and all(row_usable(r) for r in rows)
 
 
 def stale_sources(rows):
     return [{'name': r.get('name'), 'retrieved_at': r.get('retrieved_at'), 'age_hours': r.get('age_hours')}
             for r in rows or [] if isinstance(r, dict) and r.get('status') == STALE]
+
+
+def refresh_profiles(*, dest=None, get=download, sleep=time.sleep, now=None):
+    """The profiles alone, outside the nightly run. A good answer replaces the file and its manifest row; anything
+    else leaves the file and the manifest exactly as they were."""
+    dest = dest or DEST
+    dest.mkdir(parents=True, exist_ok=True)
+    fresh = fetch((PROFILES, URLS[PROFILES]), dest=dest, previous=None, get=get, sleep=sleep, now=now)
+    if fresh.get('status') != 'ok':
+        failure = fresh.get('last_failure') or {k: fresh[k] for k in ('status', 'http_status', 'error_type') if k in fresh}
+        return {'refreshed': False, **failure, 'attempts': fresh.get('attempts')}
+    try:
+        rows = json.loads((dest / 'manifest.json').read_text(encoding='utf-8-sig'))
+        rows = [r for r in rows if isinstance(r, dict) and r.get('name') != PROFILES] if isinstance(rows, list) else []
+    except (OSError, ValueError):
+        rows = []
+    (dest / 'manifest.json').write_text(json.dumps(rows + [fresh], indent=2), encoding='utf-8')
+    return {'refreshed': True, 'attempts': fresh['attempts'], 'bytes': fresh['bytes'], 'retrieved_at': fresh['retrieved_at']}
 
 
 def main():
@@ -129,4 +154,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+
+    if '--profiles-only' in sys.argv[1:]:
+        print(json.dumps(refresh_profiles(), indent=2))
+    else:
+        main()

@@ -75,10 +75,62 @@ class FetchTests(unittest.TestCase):
         third = self.fetch(PROFILE, refused, out)                                            # then from the manifest
         self.assertEqual((third["retrieved_at"], third["age_from"]), (out["retrieved_at"], "manifest"))
 
+    def test_the_daytime_refresh_replaces_only_the_profiles_row(self):
+        night = [{"name": DIRECTORY[0], "status": "ok", "retrieved_at": "n"},
+                 {"name": au.PROFILES, "status": "http_error", "http_status": 403, "retrieved_at": "n"}]
+        (self.dest / "manifest.json").write_text(json.dumps(night), encoding="utf-8")
+        out = au.refresh_profiles(dest=self.dest, get=lambda url: b'{"data": "noon"}', sleep=self.sleeps.append, now=NOW)
+        self.assertEqual((out["refreshed"], out["attempts"]), (True, 1))
+        rows = {r["name"]: r for r in json.loads((self.dest / "manifest.json").read_text(encoding="utf-8"))}
+        self.assertEqual(rows[DIRECTORY[0]], night[0])
+        self.assertEqual((rows[au.PROFILES]["status"], rows[au.PROFILES]["retrieved_at"]), ("ok", NOW.isoformat()))
+        tonight = self.fetch(PROFILE, refused, rows[au.PROFILES])                  # the night falls back on it
+        self.assertEqual((tonight["status"], tonight["age_from"]), (au.STALE, "manifest"))
+
+    def test_a_refused_daytime_refresh_changes_nothing(self):
+        self.aged_file(10)
+        (self.dest / "manifest.json").write_text("[]", encoding="utf-8")
+        before = (self.dest / au.PROFILES).read_bytes(), (self.dest / au.PROFILES).stat().st_mtime
+        out = au.refresh_profiles(dest=self.dest, get=refused, sleep=self.sleeps.append, now=NOW)
+        self.assertEqual(out, {"refreshed": False, "status": "http_error", "http_status": 403, "attempts": 4})
+        self.assertEqual(((self.dest / au.PROFILES).read_bytes(), (self.dest / au.PROFILES).stat().st_mtime), before)
+        self.assertEqual((self.dest / "manifest.json").read_text(encoding="utf-8"), "[]")
+
     def test_a_symbol_directory_is_never_reused(self):
         (self.dest / DIRECTORY[0]).write_bytes(b"Symbol|Security Name|\n")
         previous = {"name": DIRECTORY[0], "status": "ok", "retrieved_at": (NOW - timedelta(hours=1)).isoformat()}
         self.assertEqual(self.fetch(DIRECTORY, refused, previous)["status"], "http_error")
+
+
+class BuildReadsTheSameRuleTests(unittest.TestCase):
+    """2026-11-12: the fetch reused the profiles and the universe build still refused them."""
+
+    def sources(self, profile_status, directory_status="ok", profile_bytes=b'{"data": {"rows": []}}'):
+        import hashlib
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        folder = Path(tmp.name)
+        rows = []
+        for name, raw, status in (("nasdaqlisted.txt", b"Symbol|Security Name|\n", directory_status),
+                                  ("otherlisted.txt", b"ACT Symbol|Security Name|\n", "ok"),
+                                  (au.PROFILES, b'{"data": {"rows": []}}', profile_status)):
+            (folder / name).write_bytes(profile_bytes if name == au.PROFILES else raw)
+            rows.append({"name": name, "status": status, "retrieved_at": "t", "sha256": hashlib.sha256(raw).hexdigest()})
+        (folder / "manifest.json").write_text(json.dumps(rows), encoding="utf-8")
+        return folder
+
+    def test_reused_profiles_are_read_and_nothing_else_is_let_through(self):
+        from research_registry import full_universe
+
+        metadata, raws = full_universe.read_sources(self.sources(au.STALE))
+        self.assertEqual((len(metadata), sorted(raws)), (3, sorted(["nasdaqlisted.txt", "otherlisted.txt", au.PROFILES])))
+        with self.assertRaisesRegex(ValueError, "Source unavailable: nasdaq_profiles.json"):
+            full_universe.read_sources(self.sources("http_error"))
+        with self.assertRaisesRegex(ValueError, "Source unavailable: nasdaqlisted.txt"):
+            full_universe.read_sources(self.sources("ok", directory_status=au.STALE))
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):       # a reused file must still be that file
+            full_universe.read_sources(self.sources(au.STALE, profile_bytes=b'{"data": "changed"}'))
 
 
 class RuleTests(unittest.TestCase):

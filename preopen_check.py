@@ -508,6 +508,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[PREOPEN] news: {json.dumps(news['statuses'])} material {len(news['material'])}", flush=True)
     except Exception as exc:  # noqa: BLE001 - the headlines are optional; the check's result stands
         print(f"[PREOPEN] news not read: {type(exc).__name__}", flush=True)
+    # owner 2026-11-12: the Nasdaq profiles refused the nightly run twice and answer by day; a copy taken now is
+    # what the night falls back on. Research data only; a refusal changes nothing.
+    try:
+        from research_registry import acquire_universe
+
+        print(f"[PREOPEN] nasdaq profiles: {json.dumps(acquire_universe.refresh_profiles())}", flush=True)
+    except Exception as exc:  # noqa: BLE001 - optional; the check's result stands
+        print(f"[PREOPEN] nasdaq profiles not refreshed: {type(exc).__name__}", flush=True)
     if ABANDONED_WORK:  # a hung source thread must not keep the process (and the afternoon session) waiting
         sys.stdout.flush()
         os._exit(0)

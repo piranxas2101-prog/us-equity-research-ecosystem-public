@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 96" role="img" aria-label="Πιράνχας">
+  <!-- original drawing: a piranha in the page's black, blue and red -->
+  <path d="M97 49 L118 30 L113 49 L118 70 Z" fill="#1d4ed8"/>
+  <path d="M44 20 L62 6 L78 22 Z" fill="#1d4ed8"/>
+  <path d="M58 76 L70 92 L80 75 Z" fill="#1d4ed8"/>
+  <path d="M8 44 C10 24 34 14 58 16 C82 18 98 32 101 49 C98 66 82 79 58 80 C40 81 22 76 13 64 L30 56 L8 52 Z"
+        fill="#2f7df6" stroke="#0a1a3a" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M40 78 C52 70 74 66 96 60 C90 72 76 79 58 80 C51 80.400 45 79.800 40 78 Z" fill="#ef3b3b"/>
+  <path d="M8 44 L15 49 L21 43 L26 50 L32 45 L36 52 L30 56 L8 52 Z" fill="#05070b"/>
+  <path d="M9 45.500 L13 50 L16.500 45 M21 44.500 L24 50 L27.500 45.500 M12 52.500 L16 55.500 L19 53.500 M24 54 L27 56 L30 55"
+        fill="none" stroke="#f4f7fb" stroke-width="2.200" stroke-linejoin="miter"/>
+  <circle cx="38" cy="33" r="7.500" fill="#f4f7fb"/>
+  <circle cx="37" cy="33.500" r="3.800" fill="#ef3b3b"/>
+  <circle cx="36.500" cy="33.500" r="1.600" fill="#05070b"/>
+  <path d="M28 24 L46 27" stroke="#0a1a3a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M54 34 C60 42 60 56 54 64" fill="none" stroke="#0a1a3a" stroke-width="2.500" stroke-linecap="round"/>
+  <path d="M70 34 L76 40 M78 44 L84 49 M70 56 L76 52" stroke="#9cc2ff" stroke-width="2" stroke-linecap="round"/>
+</svg>

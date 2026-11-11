@@ -11,6 +11,7 @@
   <aside class="nav">
     <div class="brand">Κέντρο Ελέγχου<small>έρευνα μετοχών ΗΠΑ</small></div>
     <a href="#/" data-page="status">Κατάσταση</a>
+    <a href="#/live" data-page="live">Ζωντανή συνεδρία <span id="live-dot" class="dot hidden"></span></a>
     <a href="#/screener" data-page="screener">Σύμβολα</a>
     <a href="#/sectors" data-page="sectors">Τομείς</a>
     <a href="#/agents" data-page="agents">Agents</a>
@@ -19,7 +20,13 @@
     <a href="#/review" data-page="review">Έλεγχος κατηγοριοποίησης <span id="review-badge" class="badge hidden"></span></a>
     <div class="nav-foot">Μόνο τοπικά · το paper trading μόνο για ανάγνωση<br>Καμία σύνδεση με broker</div>
   </aside>
-  <main id="app"><p class="muted">Φόρτωση…</p></main>
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-info"><span id="clock-athens" class="clock"></span><span id="clock-ny" class="clock"></span></div>
+      <a class="logo" href="#/" title="Κέντρο Ελέγχου"><img src="/logo" alt="Πιράνχας" width="64" height="52"></a>
+    </header>
+    <main id="app"><p class="muted">Φόρτωση…</p></main>
+  </div>
   <div id="toast" class="toast hidden"></div>
   <script src="/app.js"></script>
 </body>

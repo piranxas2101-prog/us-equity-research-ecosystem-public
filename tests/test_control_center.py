@@ -1,6 +1,7 @@
 """Control center: security boundary and actions (no real registry or launcher)."""
 from __future__ import annotations
 
+from datetime import datetime
 import http.client
 import json
 import os
@@ -166,9 +167,49 @@ class ControlCenterHttpTests(unittest.TestCase):
         self.assertEqual(fallback["session"], "20261110")                    # an unknown name falls back, no path use
         self.assertEqual(sorted(p.name for p in folder.iterdir()), before)
 
+    def test_live_view_builds_today_from_the_session_files_and_says_how_fresh_they_are(self):
+        quiet = json.loads(self.request("GET", "/api/trading/live")[1])
+        self.assertEqual((quiet["active"], quiet["report"]), (False, None))
+        self.assertTrue(all(s["updated_at"] is None for s in quiet["sources"]))     # no file: unknown, not a time
+        stamp = datetime.now().astimezone().isoformat()
+        out = self.root / "output"
+        (out / "multi_day_monitor_latest.json").write_text(json.dumps({
+            "run_timestamp": stamp, "positions": 2, "holds_count": 2, "actions_count": 0,
+            "holds": [{"ticker": "AEM", "agent": "yankos", "trade_direction": "long", "position_plpc": 0.0123},
+                      {"ticker": "NVDA", "agent": "yankos", "trade_direction": "short", "position_plpc": None}]}),
+            encoding="utf-8")
+        (out / "miltos_entry_stalker_latest.json").write_text(json.dumps({
+            "run_timestamp": stamp, "entry_window_open": True, "still_waiting_count": 1,
+            "still_waiting": [{"agent_name": "yankos", "ticker": "MU", "trade_direction": "long",
+                               "entry_trigger_reason": "no break"}]}), encoding="utf-8")
+        before = sorted(p.name for p in out.rglob("*"))
+        live = json.loads(self.request("GET", "/api/trading/live")[1])
+        self.assertTrue(live["active"])
+        held = {h["ticker"]: h["result_pct"] for h in live["report"]["held_positions"]}
+        self.assertEqual(held, {"AEM": 1.23, "NVDA": None})
+        self.assertIsNone(live["report"]["spy_open_to_close_pct"])                   # known only after the close
+        self.assertEqual(live["miltos"]["still_waiting"][0]["ticker"], "MU")
+        self.assertEqual(live["monitors"]["multi_day_monitor"]["positions"], 2)
+        fresh = {s["key"]: s["today"] for s in live["sources"]}
+        self.assertEqual((fresh["multi_day"], fresh["miltos"], fresh["koulis"]), (True, True, False))
+        self.assertEqual(sorted(p.name for p in out.rglob("*")), before)             # nothing written
+
+    def test_the_logo_is_the_owners_picture_when_saved_else_the_drawing(self):
+        assets = Path(self.tmp.name) / "assets"
+        assets.mkdir()
+        (assets / "logo.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
+        views = cc.Views(self.root)
+        self.assertEqual(views.logo(assets)[1], "image/svg+xml")
+        (assets / "logo_local.png").write_bytes(b"\x89PNG")
+        self.assertEqual(views.logo(assets), (b"\x89PNG", "image/png"))
+        response, body = self.request("GET", "/logo")
+        self.assertEqual((response.status, response.getheader("Content-Type")), (200, "image/svg+xml"))
+        self.assertIn(b"<svg", body)
+
     def test_only_reads_exist_for_trading(self):
-        response, _ = self.action("/api/trading", {})
-        self.assertEqual(response.status, 404)
+        for path in ("/api/trading", "/api/trading/live", "/logo"):
+            response, _ = self.action(path, {})
+            self.assertEqual(response.status, 404)
 
     def test_status_view_works_without_any_run(self):
         response, body = self.request("GET", "/api/status")

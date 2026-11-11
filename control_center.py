@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -38,6 +38,20 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 8770
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8")}
+# the logo: the owner's own picture when he has saved one next to the page (git-ignored, never published), else the
+# drawing that ships with the page
+LOGO_LOCAL = (("logo_local.png", "image/png"), ("logo_local.jpg", "image/jpeg"), ("logo_local.webp", "image/webp"))
+LOGO_DEFAULT = ("logo.svg", "image/svg+xml")
+LOGO_MAX_BYTES = 2 * 1024 * 1024
+# the files the afternoon session rewrites while it runs (read only; the live page shows how fresh each one is)
+LIVE_SOURCES = (("preopen", "Έλεγχος πριν το άνοιγμα", "preopen/preopen_check_latest.json"),
+                ("koulis", "Koulis", "koulis_order_intents_latest.json"),
+                ("miltos", "Miltos", "miltos_entry_stalker_latest.json"),
+                ("yankos_trades", "Εντολές Yankos", "yankos_paper_trades_latest.json"),
+                ("periklis_trades", "Εντολές Periklis", "periklis_paper_trades_latest.json"),
+                ("yankos_monitor", "Παρακολούθηση Yankos", "yankos_position_monitor_latest.json"),
+                ("periklis_monitor", "Παρακολούθηση Periklis", "periklis_position_monitor_latest.json"),
+                ("multi_day", "Παρακολούθηση πολλών ημερών", "multi_day_monitor_latest.json"))
 TERMINAL_RUN_STATES = {"completed", "completed_review_required", "failed", "stopped_by_owner", "interrupted"}
 MAX_BODY = 16 * 1024
 TRADING_HISTORY_SESSIONS = 60
@@ -99,6 +113,7 @@ class Views:
         self.root = root
         self._lock = threading.Lock()
         self._run_cache: dict[str, Any] = {}
+        self._live_cache: tuple[Any, dict[str, Any]] | None = None
         self._taxonomy: tuple[dict, dict] | None = None
         self._lanes_cache: tuple[int, dict[str, Any]] | None = None
 
@@ -254,20 +269,7 @@ class Views:
                             "losers": (day.get("day_result") or {}).get("losers"),
                             "held": len(day.get("held_positions") or []),
                             "held_average_pct": round(sum(held) / len(held), 2) if held else None})
-        report = _json_file(folder / f"session_report_{chosen}.json") if chosen else None
-        if report:
-            report = dict(report)
-            koulis = dict(report.get("koulis") or {})
-            koulis.pop("approved", None)  # hundreds of intents: the counts are enough here
-            report["koulis"] = koulis
-            if isinstance(report.get("flip_shadow"), dict):
-                report["flip_shadow"] = {k: v for k, v in report["flip_shadow"].items() if k != "cases"}
-            if isinstance(report.get("news"), dict):
-                news = dict(report["news"])
-                news["material_total"] = len(news.get("material") or [])
-                news["material"] = (news.get("material") or [])[:TRADING_NEWS_ROWS]
-                news.pop("unknown_symbols", None)
-                report["news"] = news
+        report = self._trim_report(_json_file(folder / f"session_report_{chosen}.json") if chosen else None)
         evaluation = _json_file(self.root / "output" / "paper_learning" / "evaluation_latest.json") or {}
         learning = {k: evaluation.get(k) for k in ("generated_at", "sessions", "trades", "trades_with_result", "overall",
                                                    "strategies", "exit_reasons", "control_team", "news_shadow",
@@ -277,6 +279,86 @@ class Views:
             learning["shadow_lessons"] = len(evaluation.get("shadow_lessons") or [])
         return {"sessions": names[:TRADING_HISTORY_SESSIONS], "session": chosen, "report": report,
                 "history": history, "learning": learning}
+
+    @staticmethod
+    def _trim_report(report: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not report:
+            return None
+        report = dict(report)
+        koulis = dict(report.get("koulis") or {})
+        koulis.pop("approved", None)  # hundreds of intents: the counts are enough here
+        report["koulis"] = koulis
+        if isinstance(report.get("flip_shadow"), dict):
+            report["flip_shadow"] = {k: v for k, v in report["flip_shadow"].items() if k != "cases"}
+        if isinstance(report.get("news"), dict):
+            news = dict(report["news"])
+            news["material_total"] = len(news.get("material") or [])
+            news["material"] = (news.get("material") or [])[:TRADING_NEWS_ROWS]
+            news.pop("unknown_symbols", None)
+            report["news"] = news
+        return report
+
+    def trading_live(self, today: date | None = None) -> dict[str, Any]:
+        """Today's session while it runs: the same report the evening writes, built now from the files the session
+        keeps rewriting (paper_session_report.build, no price or broker read, so SPY and the wait cost stay unknown
+        until the close), with how fresh each file is. Rebuilt only when one of the files changed."""
+        import paper_session_report as psr
+
+        today = today or date.today()
+        out = self.root / "output"
+        sources, stamps = [], []
+        for key, label, relative in LIVE_SOURCES:
+            path = out / relative
+            try:
+                changed = path.stat().st_mtime
+            except OSError:
+                changed = None
+            stamps.append(changed)
+            moment = None if changed is None else datetime.fromtimestamp(changed).astimezone()
+            sources.append({"key": key, "label": label, "updated_at": moment.isoformat() if moment else None,
+                            "today": bool(moment and moment.date() == today),
+                            # written once a day (the check, the gate) or rewritten all session long
+                            "continuous": key not in ("preopen", "koulis")})
+        journal = out / "paper_session" / f"actions_{today:%Y%m%d}.jsonl"
+        try:
+            stamps.append(journal.stat().st_mtime)
+        except OSError:
+            stamps.append(None)
+        key = (today.isoformat(), tuple(stamps))
+        with self._lock:
+            cached = self._live_cache
+        if cached and cached[0] == key:
+            body = cached[1]
+        else:
+            active = any(s["today"] for s in sources)
+            body = {"session_date": today.isoformat(), "active": active, "report": None, "miltos": None, "monitors": {}}
+            if active:
+                body["report"] = self._trim_report(psr.build(out, today, None))
+                miltos = psr._today(_json_file(out / "miltos_entry_stalker_latest.json"), today, "run_timestamp")
+                if miltos:
+                    body["miltos"] = {k: miltos.get(k) for k in (
+                        "run_timestamp", "entry_window_open", "entry_window_finished", "entry_window_reason",
+                        "checked_count", "submitted_count", "still_waiting_count", "skipped_count", "failed_count")}
+                    body["miltos"]["still_waiting"] = (miltos.get("still_waiting") or [])[:200]
+                for name in ("yankos_position_monitor", "periklis_position_monitor", "multi_day_monitor"):
+                    monitor = psr._today(_json_file(out / f"{name}_latest.json"), today, "run_timestamp")
+                    if monitor:
+                        body["monitors"][name] = {k: monitor.get(k) for k in (
+                            "run_timestamp", "positions", "monitored_openings", "holds_count", "actions_count",
+                            "remaining_active_count", "market_shock_today")}
+            with self._lock:
+                self._live_cache = (key, body)
+        return {**body, "sources": sources, "read_at": datetime.now().astimezone().isoformat()}
+
+    def logo(self, assets: Path) -> tuple[bytes, str]:
+        for name, content_type in LOGO_LOCAL:
+            path = assets / name
+            try:
+                if path.is_file() and path.stat().st_size <= LOGO_MAX_BYTES:
+                    return path.read_bytes(), content_type
+            except OSError:
+                continue
+        return (assets / LOGO_DEFAULT[0]).read_bytes(), LOGO_DEFAULT[1]
 
     def lanes(self) -> dict[str, Any]:
         """Where each routed symbol goes: scanned by Babis, on its issuer's card, or in a separate lane."""
@@ -585,6 +667,7 @@ def make_handler(views: Views, actions: Actions, token: str, port: int, assets: 
         "/api/taxonomy": lambda q: views.taxonomy_nodes(),
         "/api/reports": lambda q: views.reports(q.get("run")),
         "/api/trading": lambda q: views.trading(q.get("session")),
+        "/api/trading/live": lambda q: views.trading_live(),
     }
     post_routes = {
         "/api/actions/review-decision": actions.review_decision,
@@ -632,6 +715,10 @@ def make_handler(views: Views, actions: Actions, token: str, port: int, assets: 
                     body = (assets / name).read_bytes()
                     if name == "index.html":
                         body = body.replace(b"__SESSION_TOKEN__", token.encode("ascii"))
+                    self._headers(HTTPStatus.OK, content_type, len(body))
+                    self.wfile.write(body)
+                elif parsed.path == "/logo":
+                    body, content_type = views.logo(assets)
                     self._headers(HTTPStatus.OK, content_type, len(body))
                     self.wfile.write(body)
                 elif parsed.path in get_routes:

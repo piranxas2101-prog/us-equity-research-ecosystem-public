@@ -202,7 +202,7 @@ function chart(history) {
   const petros = [...(history.petros || [])].reverse();
   const series = [
     { cls: "var(--accent)", points: setups.filter((s) => s.baseline_price != null).map((s) => [s.observed_at, s.baseline_price]) },
-    { cls: "var(--good)", points: setups.filter((s) => s.giannis_score != null).map((s) => [s.observed_at, s.giannis_score]) },
+    { cls: "var(--bad)", points: setups.filter((s) => s.giannis_score != null).map((s) => [s.observed_at, s.giannis_score]) },
     { cls: "var(--violet)", points: petros.filter((s) => s.petros_score != null).map((s) => [s.source_run_timestamp, s.petros_score]) },
   ].filter((s) => s.points.length > 1);
   if (!series.length) return `<p class="muted small">Δεν υπάρχει αρκετό ιστορικό για γράφημα.</p>`;
@@ -478,10 +478,42 @@ const METRIC_COLS = [{ key: "name", label: "Ομάδα" }, { key: "known", label
   { label: "Νίκησαν SPY", num: true, html: (r) => r.beat_spy_pct == null ? "άγνωστο" : fmt(r.beat_spy_pct, 1) + "%" },
   { label: "Κατάσταση", html: (r) => r.status === "judged" ? pill("κρίνεται", "good") : pill("λίγα δεδομένα", "warn") }];
 
-async function pageTrading(session) {
-  setActive("trading");
-  const d = await api("/api/trading" + (session ? "?session=" + encodeURIComponent(session) : ""));
+const STALE_MINUTES = 10;  // a session file not rewritten for this long while the session runs is shown in red
+function liveHeader(d) {
+  const now = new Date(d.read_at);
+  const chips = (d.sources || []).map((s) => {
+    if (!s.updated_at) return `<span class="chip off">${esc(s.label)}: άγνωστο</span>`;
+    const minutes = Math.max(0, Math.round((now - new Date(s.updated_at)) / 60000));
+    if (!s.today) return `<span class="chip off">${esc(s.label)}: όχι σήμερα</span>`;
+    if (!s.continuous) return `<span class="chip fresh">${esc(s.label)}: έγινε ${new Date(s.updated_at).toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit" })}</span>`;
+    return `<span class="chip ${minutes > STALE_MINUTES ? "old" : "fresh"}">${esc(s.label)}: πριν ${fmt(minutes, 0)}′</span>`;
+  }).join("");
+  const m = d.miltos, multi = (d.monitors || {}).multi_day_monitor;
+  const waiting = (m && m.still_waiting) || [];
+  return `<div class="live-bar"><span class="dot"></span><b>Ζωντανά</b><span class="muted small">ανάγνωση ${when(d.read_at)} · ανανεώνεται κάθε 30″ · μόνο ανάγνωση αρχείων, καμία εντολή από εδώ</span></div>
+    <div class="live-bar">${chips}</div>
+    <div class="grid">
+      <div class="card ${m && m.entry_window_open ? "" : "alert"}"><h3>Miltos</h3><div class="kpi">${m ? fmt(m.still_waiting_count, 0) : "άγνωστο"}</div>
+        <div class="small">περιμένουν επιβεβαίωση · ${m ? (m.entry_window_open ? "παράθυρο εισόδου ανοιχτό" : m.entry_window_finished ? "παράθυρο εισόδου έκλεισε" : "παράθυρο εισόδου κλειστό") : "δεν έχει τρέξει σήμερα"}</div></div>
+      <div class="card ${multi && multi.market_shock_today ? "alert" : ""}"><h3>Παρακολούθηση πολλών ημερών</h3><div class="kpi">${multi ? fmt(multi.positions, 0) : "άγνωστο"}</div>
+        <div class="small">θέσεις · ${multi ? (multi.market_shock_today ? "σοκ αγοράς σήμερα" : "χωρίς σοκ αγοράς") + " · τελευταίος έλεγχος " + when(multi.run_timestamp) : "δεν έχει τρέξει σήμερα"}</div></div>
+    </div>
+    ${waiting.length ? `<div class="grid wide"><div class="card span"><h2>Περιμένουν επιβεβαίωση από τον Miltos (${fmt(waiting.length, 0)})</h2>
+      ${rowsTable(waiting, [{ key: "agent_name", label: "Trader" }, { label: "Μετοχή", html: (w) => symbolLink(w.ticker) },
+        { label: "Κατεύθ.", html: (w) => w.trade_direction === "long" ? pill("long", "good") : w.trade_direction === "short" ? pill("short", "bad") : known(w.trade_direction) },
+        { key: "entry_trigger_reason", label: "Τι λείπει" }])}</div></div>` : ""}`;
+}
+
+async function pageTrading(session, live = false) {
+  setActive(live ? "live" : "trading");
+  const d = live ? await api("/api/trading/live") : await api("/api/trading" + (session ? "?session=" + encodeURIComponent(session) : ""));
+  if (live) { d.sessions = []; d.history = []; d.learning = null; }
   const r = d.report;
+  if (!r && live) {
+    app.innerHTML = `<h1>Ζωντανή συνεδρία</h1><p class="muted">Δεν τρέχει συνεδρία σήμερα (${esc(d.session_date)}). Η απογευματινή συνεδρία ξεκινά Δευτέρα με Παρασκευή στις 15:00 ώρα Αθήνας· η σελίδα θα γεμίσει μόνη της όταν γραφτούν τα πρώτα αρχεία.</p>
+      <div class="live-bar">${(d.sources || []).map((s) => `<span class="chip off">${esc(s.label)}: ${s.updated_at ? "τελευταία " + when(s.updated_at) : "άγνωστο"}</span>`).join("")}</div>`;
+    return;
+  }
   if (!r) { app.innerHTML = `<h1>Paper trading</h1><p class="muted">Δεν υπάρχει ακόμα αναφορά συνεδρίας. Γράφεται μετά το κλείσιμο κάθε απογευματινής συνεδρίας.</p>`; return; }
   const day = r.day_result || {}, entries = r.entries || {}, koulis = r.koulis || {}, pre = (r.preopen || {}).counts || {};
   const held = (r.held_positions || []).slice().sort((a, b) => (b.result_pct ?? -1e9) - (a.result_pct ?? -1e9));
@@ -493,11 +525,13 @@ async function pageTrading(session) {
   const counts = (obj, names = {}) => Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li>${esc(names[k] || k)}: <b>${fmt(v, 0)}</b></li>`).join("") || `<li class="muted">—</li>`;
   const shadowLine = (title, cell) => cell ? `<dt>${title}</dt><dd>${fmt((cell.flagged || {}).known, 0)} με μέσο ${signed((cell.flagged || {}).mean_pct)} έναντι ${fmt((cell.rest || cell.clear || {}).known, 0)} με ${signed((cell.rest || cell.clear || {}).mean_pct)} · ${esc(cell.verdict)}</dd>` : "";
 
-  app.innerHTML = `<h1>Paper trading</h1>
-    <div class="filters"><select id="trade-session">${d.sessions.map((s) => `<option value="${esc(s)}" ${s === d.session ? "selected" : ""}>${esc(s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6))}</option>`).join("")}</select>
+  const scroll = window.scrollY;
+  app.innerHTML = `<h1>${live ? "Ζωντανή συνεδρία" : "Paper trading"}</h1>
+    ${live ? liveHeader(d) : ""}
+    <div class="filters ${live ? "hidden" : ""}"><select id="trade-session">${d.sessions.map((s) => `<option value="${esc(s)}" ${s === d.session ? "selected" : ""}>${esc(s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6))}</option>`).join("")}</select>
       <span class="muted small">Μόνο ανάγνωση από τις αναφορές των συνεδριών · δοκιμαστικός λογαριασμός (paper) · καμία εντολή από εδώ</span></div>
     <div class="grid">
-      <div class="card"><h3>S&P 500 (SPY)</h3><div class="kpi">${signed(r.spy_open_to_close_pct)}</div><div class="muted small">άνοιγμα → κλείσιμο</div></div>
+      <div class="card"><h3>S&P 500 (SPY)</h3><div class="kpi">${signed(r.spy_open_to_close_pct)}</div><div class="muted small">${live ? "γνωστό μετά το κλείσιμο" : "άνοιγμα → κλείσιμο"}</div></div>
       <div class="card"><h3>Έκλεισαν</h3><div class="kpi">${fmt(day.positions, 0)}</div><div class="small">μέσο ${signed(day.average_result_pct)} · ${fmt(day.winners, 0)} κερδισμένες, ${fmt(day.losers, 0)} χαμένες</div></div>
       <div class="card"><h3>Νέες είσοδοι</h3><div class="kpi">${fmt(entries.total, 0)}</div><div class="small">${fmt(entries.by_miltos, 0)} μέσω Miltos · ${fmt(entries.held_on_horizon, 0)} με διάρκεια agent</div></div>
       <div class="card"><h3>Κρατάμε</h3><div class="kpi">${fmt(held.length, 0)}</div><div class="small">μέσο ως τώρα ${signed(heldMean)}</div></div>
@@ -507,7 +541,7 @@ async function pageTrading(session) {
     <div class="grid wide">
       <div class="card span"><h2>Η κατάσταση της αγοράς ${r.market_state?.session ? `<span class="muted small">(ανάγνωση της ${esc(r.market_state.session)})</span>` : ""}</h2>
         <p class="para">${r.market_state?.paragraph ? esc(r.market_state.paragraph) : `<span class="muted">άγνωστο</span>`}</p></div>
-      <div class="card span"><h2>Πορεία συνεδριών</h2>${historyBars(d.history)}
+      <div class="card span ${live ? "hidden" : ""}"><h2>Πορεία συνεδριών</h2>${historyBars(d.history)}
         ${rowsTable(d.history, [{ key: "session_date", label: "Συνεδρία" }, { label: "SPY", num: true, html: (h) => signed(h.spy_open_to_close_pct) },
           { key: "entries", label: "Είσοδοι", num: true }, { key: "closed", label: "Έκλεισαν", num: true }, { label: "Μέσο κλεισμένων", num: true, html: (h) => signed(h.average_result_pct) },
           { key: "winners", label: "Κερδ.", num: true }, { key: "losers", label: "Χαμ.", num: true }, { key: "held", label: "Κρατάμε", num: true },
@@ -556,6 +590,21 @@ async function pageTrading(session) {
   // the page's policy refuses inline style attributes: bar heights are set here
   app.querySelectorAll(".bars i[data-h]").forEach((el) => { el.style.height = el.dataset.h + "%"; });
   document.getElementById("trade-session").addEventListener("change", (e) => { location.hash = "#/trading/" + encodeURIComponent(e.target.value); });
+  if (live) window.scrollTo(0, scroll);  // a refresh keeps the reader where they were
+}
+
+// ------------------------------------------------------------ Ρολόγια και ένδειξη ζωντανής συνεδρίας
+function tickClocks() {
+  const time = (zone) => new Date().toLocaleTimeString("el-GR", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
+  document.getElementById("clock-athens").textContent = "Αθήνα " + time("Europe/Athens");
+  document.getElementById("clock-ny").textContent = "Νέα Υόρκη " + time("America/New_York");
+}
+async function refreshLiveDot() {
+  try {
+    const d = await api("/api/trading/live");
+    const fresh = (d.sources || []).some((s) => s.today && s.continuous && (new Date(d.read_at) - new Date(s.updated_at)) / 60000 <= STALE_MINUTES);
+    document.getElementById("live-dot").classList.toggle("hidden", !fresh);
+  } catch (e) { /* the dot is only a hint */ }
 }
 
 async function route() {
@@ -571,6 +620,7 @@ async function route() {
     else if (page === "review") await pageReview();
     else if (page === "reports") await pageReports(arg);
     else if (page === "trading") await pageTrading(arg);
+    else if (page === "live") { await pageTrading(null, true); route.timer = setInterval(() => location.hash === "#/live" && pageTrading(null, true).catch(() => {}), 30000); }
     else app.innerHTML = `<p class="muted">Η σελίδα δεν υπάρχει.</p>`;
   } catch (e) {
     app.innerHTML = `<h1>Κάτι δεν πήγε καλά</h1><p class="muted">${esc(e.message)}</p>`;
@@ -579,3 +629,7 @@ async function route() {
 window.addEventListener("hashchange", route);
 route();
 refreshBadge();
+tickClocks();
+setInterval(tickClocks, 20000);
+refreshLiveDot();
+setInterval(refreshLiveDot, 120000);

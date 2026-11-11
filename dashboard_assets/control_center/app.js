@@ -450,6 +450,114 @@ async function pageReports(runId) {
   document.getElementById("report-run").addEventListener("change", (e) => { location.hash = "#/reports/" + encodeURIComponent(e.target.value); });
 }
 
+// ------------------------------------------------------------ Paper trading (μόνο ανάγνωση)
+const signed = (v, digits = 2) => (v === null || v === undefined) ? "άγνωστο"
+  : `<span class="${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${v > 0 ? "+" : ""}${fmt(v, digits)}%</span>`;
+const known = (v) => (v === null || v === undefined || v === "") ? "άγνωστο" : esc(v);
+const EXIT_GR = { scaled_stop: "stop", market_shock: "σοκ αγοράς", thesis_direction_flip: "αλλαγή κατεύθυνσης",
+  thesis_setup_gone: "χάθηκε το στήσιμο", thesis_fundamentals_weaker: "πιο αδύναμα θεμελιώδη", results_ahead: "αποτελέσματα μπροστά",
+  owner_close: "κλείσιμο ιδιοκτήτη", horizon_end: "τέλος διάρκειας", stop_loss: "stop ίδιας μέρας", take_profit: "take profit", end_of_day: "τέλος ημέρας" };
+const WAIT_GR = { participation: "χαμηλός όγκος", trigger: "χωρίς σπάσιμο", momentum: "λάθος ορμή", holding_now: "η τιμή γύρισε", market_mood: "η αγορά κόντρα" };
+function rowsTable(rows, cols, cls = "short") {
+  if (!rows || !rows.length) return `<p class="muted small">Καμία εγγραφή.</p>`;
+  return `<div class="table-wrap ${cls}"><table><thead><tr>${cols.map((c) => `<th class="${c.num ? "num" : ""}">${c.label}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? "num" : ""}">${c.html ? c.html(r) : known(r[c.key])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+function historyBars(history) {
+  const days = history.filter((h) => h.average_result_pct !== null && h.average_result_pct !== undefined).slice(0, 30).reverse();
+  if (!days.length) return "";
+  const top = Math.max(...days.map((h) => Math.abs(h.average_result_pct)), 0.01);
+  return `<div class="bars">${days.map((h) => `<div title="${esc(h.session_date)}: ${esc(h.average_result_pct)}%"><i class="${h.average_result_pct < 0 ? "neg" : ""}" data-h="${Math.max(3, Math.round(100 * Math.abs(h.average_result_pct) / top))}"></i></div>`).join("")}</div>
+    <div class="muted small">Μέσο αποτέλεσμα των θέσεων που έκλεισαν, ανά συνεδρία (παλαιότερη αριστερά). Το ύψος δείχνει το μέγεθος, το χρώμα το πρόσημο.</div>`;
+}
+function metricsRow(name, m) {
+  return { name, known: m.known, days: m.days, mean_pct: m.mean_pct, mean_excess_pct: m.mean_excess_pct, beat_spy_pct: m.beat_spy_pct, status: m.status };
+}
+const METRIC_COLS = [{ key: "name", label: "Ομάδα" }, { key: "known", label: "Με αποτέλεσμα", num: true }, { key: "days", label: "Μέρες", num: true },
+  { label: "Μέσο", num: true, html: (r) => signed(r.mean_pct) }, { label: "Έναντι SPY", num: true, html: (r) => signed(r.mean_excess_pct) },
+  { label: "Νίκησαν SPY", num: true, html: (r) => r.beat_spy_pct == null ? "άγνωστο" : fmt(r.beat_spy_pct, 1) + "%" },
+  { label: "Κατάσταση", html: (r) => r.status === "judged" ? pill("κρίνεται", "good") : pill("λίγα δεδομένα", "warn") }];
+
+async function pageTrading(session) {
+  setActive("trading");
+  const d = await api("/api/trading" + (session ? "?session=" + encodeURIComponent(session) : ""));
+  const r = d.report;
+  if (!r) { app.innerHTML = `<h1>Paper trading</h1><p class="muted">Δεν υπάρχει ακόμα αναφορά συνεδρίας. Γράφεται μετά το κλείσιμο κάθε απογευματινής συνεδρίας.</p>`; return; }
+  const day = r.day_result || {}, entries = r.entries || {}, koulis = r.koulis || {}, pre = (r.preopen || {}).counts || {};
+  const held = (r.held_positions || []).slice().sort((a, b) => (b.result_pct ?? -1e9) - (a.result_pct ?? -1e9));
+  const heldKnown = held.filter((h) => h.result_pct !== null && h.result_pct !== undefined);
+  const heldMean = heldKnown.length ? heldKnown.reduce((s, h) => s + h.result_pct, 0) / heldKnown.length : null;
+  const closed = (r.closed_positions || []).slice().sort((a, b) => (a.result_pct ?? 0) - (b.result_pct ?? 0));
+  const news = r.news, fills = r.exit_fills, flip = r.flip_shadow, gaps = r.gap_conflict, L = d.learning;
+  const side = (x) => x === "long" ? pill("long", "good") : x === "short" ? pill("short", "bad") : known(x);
+  const counts = (obj, names = {}) => Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li>${esc(names[k] || k)}: <b>${fmt(v, 0)}</b></li>`).join("") || `<li class="muted">—</li>`;
+  const shadowLine = (title, cell) => cell ? `<dt>${title}</dt><dd>${fmt((cell.flagged || {}).known, 0)} με μέσο ${signed((cell.flagged || {}).mean_pct)} έναντι ${fmt((cell.rest || cell.clear || {}).known, 0)} με ${signed((cell.rest || cell.clear || {}).mean_pct)} · ${esc(cell.verdict)}</dd>` : "";
+
+  app.innerHTML = `<h1>Paper trading</h1>
+    <div class="filters"><select id="trade-session">${d.sessions.map((s) => `<option value="${esc(s)}" ${s === d.session ? "selected" : ""}>${esc(s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6))}</option>`).join("")}</select>
+      <span class="muted small">Μόνο ανάγνωση από τις αναφορές των συνεδριών · δοκιμαστικός λογαριασμός (paper) · καμία εντολή από εδώ</span></div>
+    <div class="grid">
+      <div class="card"><h3>S&P 500 (SPY)</h3><div class="kpi">${signed(r.spy_open_to_close_pct)}</div><div class="muted small">άνοιγμα → κλείσιμο</div></div>
+      <div class="card"><h3>Έκλεισαν</h3><div class="kpi">${fmt(day.positions, 0)}</div><div class="small">μέσο ${signed(day.average_result_pct)} · ${fmt(day.winners, 0)} κερδισμένες, ${fmt(day.losers, 0)} χαμένες</div></div>
+      <div class="card"><h3>Νέες είσοδοι</h3><div class="kpi">${fmt(entries.total, 0)}</div><div class="small">${fmt(entries.by_miltos, 0)} μέσω Miltos · ${fmt(entries.held_on_horizon, 0)} με διάρκεια agent</div></div>
+      <div class="card"><h3>Κρατάμε</h3><div class="kpi">${fmt(held.length, 0)}</div><div class="small">μέσο ως τώρα ${signed(heldMean)}</div></div>
+      <div class="card"><h3>Πριν το άνοιγμα</h3><div class="kpi">${fmt(pre.demoted_to_watch ?? (r.preopen?.demoted || []).length, 0)}</div><div class="small">υποψήφιοι σε παρακολούθηση</div></div>
+      <div class="card"><h3>Koulis</h3><div class="kpi">${fmt(koulis.approved_count, 0)}</div><div class="small">εγκρίσεις · ${fmt(koulis.blocked_count, 0)} μπλοκαρίστηκαν</div></div>
+    </div>
+    <div class="grid wide">
+      <div class="card span"><h2>Η κατάσταση της αγοράς ${r.market_state?.session ? `<span class="muted small">(ανάγνωση της ${esc(r.market_state.session)})</span>` : ""}</h2>
+        <p class="para">${r.market_state?.paragraph ? esc(r.market_state.paragraph) : `<span class="muted">άγνωστο</span>`}</p></div>
+      <div class="card span"><h2>Πορεία συνεδριών</h2>${historyBars(d.history)}
+        ${rowsTable(d.history, [{ key: "session_date", label: "Συνεδρία" }, { label: "SPY", num: true, html: (h) => signed(h.spy_open_to_close_pct) },
+          { key: "entries", label: "Είσοδοι", num: true }, { key: "closed", label: "Έκλεισαν", num: true }, { label: "Μέσο κλεισμένων", num: true, html: (h) => signed(h.average_result_pct) },
+          { key: "winners", label: "Κερδ.", num: true }, { key: "losers", label: "Χαμ.", num: true }, { key: "held", label: "Κρατάμε", num: true },
+          { label: "Μέσο ανοιχτών", num: true, html: (h) => signed(h.held_average_pct) }])}</div>
+      <div class="card span"><h2>Θέσεις που κρατάμε (${fmt(held.length, 0)})</h2>
+        ${rowsTable(held, [{ label: "Μετοχή", html: (h) => symbolLink(h.ticker) }, { key: "agent", label: "Trader" }, { key: "playbook", label: "Στρατηγική" },
+          { label: "Κατεύθ.", html: (h) => side(h.direction) }, { label: "Αποτέλεσμα", num: true, html: (h) => signed(h.result_pct) },
+          { label: "Συνεδρία / διάρκεια", num: true, html: (h) => `${known(h.sessions_held)} / ${known(h.horizon_sessions)}` },
+          { label: "Stop", num: true, html: (h) => h.stop_pct == null ? "άγνωστο" : fmt(h.stop_pct, 2) + "%" }, { key: "opened_session", label: "Άνοιξε" }, { key: "expires", label: "Λήξη" }])}</div>
+      <div class="card span"><h2>Θέσεις που έκλεισαν (${fmt(closed.length, 0)})</h2>
+        ${rowsTable(closed, [{ label: "Μετοχή", html: (c) => symbolLink(c.ticker) }, { key: "agent", label: "Trader" }, { key: "playbook", label: "Στρατηγική" },
+          { label: "Κατεύθ.", html: (c) => side(c.direction) }, { label: "Έξοδος", html: (c) => known(EXIT_GR[c.exit_rule] || c.exit_rule) },
+          { key: "entry_time_ny", label: "Είσοδος NY" }, { label: "Αποτέλεσμα", num: true, html: (c) => signed(c.result_pct) },
+          { label: "≈ έναντι SPY", num: true, html: (c) => signed(c.approx_excess_vs_spy_pct) }])}</div>
+      <div class="card"><h2>Ανά στρατηγική (κλεισμένες σήμερα)</h2>
+        ${rowsTable(r.per_strategy, [{ key: "agent", label: "Trader" }, { key: "playbook", label: "Στρατηγική" }, { label: "Κατεύθ.", html: (s) => side(s.direction) },
+          { key: "closed", label: "Θέσεις", num: true }, { label: "Μέσο", num: true, html: (s) => signed(s.average_pct) }, { key: "winners", label: "Κερδ.", num: true }])}</div>
+      <div class="card"><h2>Γιατί έμειναν έξω</h2>
+        <h3>Koulis: λόγοι μπλοκαρίσματος</h3><ul class="plain">${counts(koulis.blocked_reasons)}</ul>
+        <h3 class="gap">Miltos: όσες περίμεναν</h3><ul class="plain">${counts(r.waiting_reasons, WAIT_GR)}</ul>
+        <h3 class="gap">Είσοδοι ανά ώρα Νέας Υόρκης</h3><ul class="plain">${Object.entries(entries.by_hour_ny || {}).map(([h, n]) => `<li>${esc(h)}:00: <b>${fmt(n, 0)}</b></li>`).join("") || `<li class="muted">—</li>`}</ul></div>
+      <div class="card span"><h2>Έλεγχος πριν το άνοιγμα: σε παρακολούθηση</h2>
+        ${rowsTable(r.preopen?.demoted, [{ key: "agent", label: "Trader" }, { label: "Μετοχή", html: (x) => symbolLink(x.ticker) }, { key: "playbook", label: "Στρατηγική" },
+          { label: "Κατεύθ.", html: (x) => side(x.direction) }, { label: "Λόγος", html: (x) => esc((x.demote_reasons || []).join(" · ") || "άγνωστο") }])}</div>
+      <div class="card span"><h2>Ειδήσεις για θέσεις και υποψήφιους</h2>
+        ${news && news.statuses ? `<div class="sub">Ανάγνωση ${esc(news.run_label)} · ${when(news.fetched_at)} · σύμβολα ${fmt(news.symbols, 0)} · με ειδήσεις ${fmt(news.statuses.found, 0)} · χωρίς ${fmt(news.statuses.none, 0)} · δεν απάντησε ${fmt(news.statuses.no_answer, 0)} · δεν διαβάστηκαν ${fmt(news.statuses.not_read, 0)}. Δευτερεύουσα πηγή: δεν αλλάζουν βαθμούς, όρια ή εντολές.</div>
+        ${rowsTable(news.material, [{ label: "Μετοχή", html: (n) => symbolLink(n.symbol) }, { label: "Ρόλος", html: (n) => esc((n.roles || []).join(", ")) }, { key: "category_id", label: "Κατηγορία" },
+          { label: "Δημοσίευση", html: (n) => when(n.published_at) }, { label: "Τίτλος", html: (n) => /^https:\/\//.test(n.link || "") ? `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a>` : esc(n.title) }])}
+        ${news.material_total > (news.material || []).length ? `<p class="muted small">…και ${fmt(news.material_total - news.material.length, 0)} ακόμη στο output/news_watch_latest.md.</p>` : ""}` : `<p class="muted small">Καμία ανάγνωση ειδήσεων σε αυτή τη συνεδρία.</p>`}</div>
+      <div class="card"><h2>Πραγματικές τιμές εξόδου</h2>
+        ${fills && fills.overall ? rowsTable([["όλες", fills.overall], ...Object.entries(fills.by_exit_rule || {})].map(([k, c]) => ({ name: EXIT_GR[k] || k, ...c })),
+          [{ key: "name", label: "Έξοδος" }, { key: "exits", label: "Θέσεις", num: true }, { label: "Στην απόφαση", num: true, html: (c) => signed(c.mean_at_decision_pct) },
+           { label: "Στην εκτέλεση", num: true, html: (c) => signed(c.mean_at_fill_pct) }, { label: "Διαφορά", num: true, html: (c) => signed(c.mean_difference_pct) }]) : `<p class="muted small">άγνωστο</p>`}</div>
+      <div class="card"><h2>Σκιώδεις μετρήσεις (χωρίς εντολές)</h2><dl class="kv">
+        ${flip ? `<dt>Αντίθετη θέση μετά από αλλαγή κατεύθυνσης</dt><dd>αλλαγές ${fmt(flip.flips, 0)} · περνούν Koulis και Miltos ${fmt(flip.gated, 0)} · ${esc(flip.verdict)}</dd>` : ""}
+        ${shadowLine("Κενό υπέρ της θέσης ≥ 1 ATR", (gaps || {}).favourable_gap || (L?.gap_conflict_shadow || {}).favourable_gap)}
+        ${shadowLine("Long και short την ίδια νύχτα", (gaps || {}).both_directions || (L?.gap_conflict_shadow || {}).both_directions)}
+        ${shadowLine("Σημαντική είδηση πριν το άνοιγμα", L?.news_shadow)}
+        ${L ? `<dt>Μαθήματα</dt><dd>${fmt(L.lesson_candidates, 0)} προτάσεις · ${fmt(L.shadow_lessons, 0)} σε σκιώδη παρακολούθηση (η αποδοχή είναι δική σου)</dd>` : ""}
+      </dl></div>
+      ${L ? `<div class="card span"><h2>Μάθηση: όλες οι συνεδρίες ως τώρα <span class="muted small">(${fmt(L.sessions, 0)} συνεδρίες, ${fmt(L.trades, 0)} θέσεις · αξιολόγηση ${when(L.generated_at)})</span></h2>
+        ${rowsTable([metricsRow("Όλες οι θέσεις", L.overall), ...Object.entries(L.strategies || {}).sort((a, b) => (b[1].known || 0) - (a[1].known || 0)).map(([k, m]) => metricsRow(k, m))], METRIC_COLS)}
+        <h3 class="gap">Ανά λόγο εξόδου</h3>
+        ${rowsTable(Object.entries(L.exit_reasons || {}).sort((a, b) => (b[1].known || 0) - (a[1].known || 0)).map(([k, m]) => metricsRow(EXIT_GR[k] || k, m)), METRIC_COLS)}</div>` : ""}
+    </div>`;
+  // the page's policy refuses inline style attributes: bar heights are set here
+  app.querySelectorAll(".bars i[data-h]").forEach((el) => { el.style.height = el.dataset.h + "%"; });
+  document.getElementById("trade-session").addEventListener("change", (e) => { location.hash = "#/trading/" + encodeURIComponent(e.target.value); });
+}
+
 async function route() {
   const hash = decodeURIComponent(location.hash.slice(1) || "/");
   const [, page, arg] = hash.split("/");
@@ -462,6 +570,7 @@ async function route() {
     else if (page === "agents") await pageAgents();
     else if (page === "review") await pageReview();
     else if (page === "reports") await pageReports(arg);
+    else if (page === "trading") await pageTrading(arg);
     else app.innerHTML = `<p class="muted">Η σελίδα δεν υπάρχει.</p>`;
   } catch (e) {
     app.innerHTML = `<h1>Κάτι δεν πήγε καλά</h1><p class="muted">${esc(e.message)}</p>`;

@@ -137,6 +137,39 @@ class ControlCenterHttpTests(unittest.TestCase):
         response, body = self.action("/api/actions/start-research-run", {})
         self.assertEqual(response.status, 200, body)
 
+    def test_trading_view_reads_the_session_reports_and_never_writes(self):
+        response, body = self.request("GET", "/api/trading")
+        self.assertEqual((response.status, json.loads(body)["report"]), (200, None))
+        folder = self.root / "output" / "paper_session"
+        folder.mkdir()
+        for name, average in (("20261109", -0.05), ("20261110", -1.76)):
+            (folder / f"session_report_{name}.json").write_text(json.dumps({
+                "session_date": f"{name[:4]}-{name[4:6]}-{name[6:]}", "spy_open_to_close_pct": 0.28,
+                "day_result": {"positions": 25, "average_result_pct": average, "winners": 9, "losers": 15},
+                "entries": {"total": 37}, "koulis": {"approved_count": 168, "approved": [{"ticker": "X"}] * 5},
+                "held_positions": [{"ticker": "AEM", "result_pct": 1.0}, {"ticker": "NVDA", "result_pct": None}],
+                "flip_shadow": {"flips": 17, "cases": [{"ticker": "X"}]},
+                "news": {"statuses": {"found": 1}, "material": [{"symbol": "NVDA"}] * 80, "unknown_symbols": ["Q"]},
+            }), encoding="utf-8")
+        (folder / "session_report_latest.json").write_text("{}", encoding="utf-8")
+        before = sorted(p.name for p in folder.iterdir())
+        data = json.loads(self.request("GET", "/api/trading")[1])
+        self.assertEqual((data["session"], data["sessions"]), ("20261110", ["20261110", "20261109"]))
+        self.assertEqual(data["history"][0]["held_average_pct"], 1.0)        # the unknown result is not a zero
+        self.assertNotIn("approved", data["report"]["koulis"])
+        self.assertNotIn("cases", data["report"]["flip_shadow"])
+        self.assertEqual((len(data["report"]["news"]["material"]), data["report"]["news"]["material_total"]), (60, 80))
+        self.assertIsNone(data["learning"])
+        older = json.loads(self.request("GET", "/api/trading?session=20261109")[1])
+        self.assertEqual(older["report"]["day_result"]["average_result_pct"], -0.05)
+        fallback = json.loads(self.request("GET", "/api/trading?session=..%2F..%2Fsecret")[1])
+        self.assertEqual(fallback["session"], "20261110")                    # an unknown name falls back, no path use
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), before)
+
+    def test_only_reads_exist_for_trading(self):
+        response, _ = self.action("/api/trading", {})
+        self.assertEqual(response.status, 404)
+
     def test_status_view_works_without_any_run(self):
         response, body = self.request("GET", "/api/status")
         self.assertEqual(response.status, 200)

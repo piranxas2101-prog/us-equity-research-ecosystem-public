@@ -78,3 +78,12 @@ svg.chart text { fill: var(--muted); font-size: 10px; }
 .legend i { display: inline-block; width: 10px; height: 3px; margin-right: 5px; vertical-align: middle; }
 .lg-price { background: var(--accent); } .lg-giannis { background: var(--good); } .lg-petros { background: var(--violet); }
 .pager { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.table-wrap.short { max-height: 420px; }
+.card.span { grid-column: 1 / -1; }
+.para { line-height: 1.55; margin: 0; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; border-bottom: 1px solid var(--line); margin: 6px 0 4px; }
+.bars > div { flex: 1; min-width: 4px; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.bars i { display: block; border-radius: 2px 2px 0 0; background: var(--good); }
+.bars i.neg { background: var(--bad); }
+h3.gap { margin-top: 14px; }

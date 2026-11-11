@@ -1,7 +1,9 @@
 """Κέντρο Ελέγχου: a local control center for the research ecosystem.
 
-Shows what the agents did (runs, symbols, sectors, agents, classification review)
-and allows exactly two actions: an owner decision on a classification review item
+Shows what the agents did (runs, symbols, sectors, agents, classification review) and,
+read-only from the files the afternoon session writes, the paper trading: the session,
+the positions held and closed, the headlines and the shadow measurements (owner 2026-11-11).
+It allows exactly two actions: an owner decision on a classification review item
 (through Babis's governed, reversible batch) and starting a research-only full run.
 There is no endpoint that reaches Alpaca, a trader launcher or any shell command.
 
@@ -38,6 +40,8 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js",
           "/style.css": ("style.css", "text/css; charset=utf-8")}
 TERMINAL_RUN_STATES = {"completed", "completed_review_required", "failed", "stopped_by_owner", "interrupted"}
 MAX_BODY = 16 * 1024
+TRADING_HISTORY_SESSIONS = 60
+TRADING_NEWS_ROWS = 60
 LAUNCH_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 
 
@@ -229,6 +233,50 @@ class Views:
         chosen = run_id if run_id in names else (names[0] if names else None)
         text = (folder / f"{chosen}.md").read_text(encoding="utf-8") if chosen else None
         return {"reports": names[:60], "run_id": chosen, "markdown": text}
+
+    def trading(self, session: str | None) -> dict[str, Any]:
+        """The paper sessions as their own reports wrote them (paper_session_report.py) and the learning
+        evaluation's summary. Files only: no broker, no order, nothing computed that the reports did not."""
+        folder = self.root / "output" / "paper_session"
+        names = sorted((p.stem.rsplit("_", 1)[1] for p in folder.glob("session_report_*.json")
+                        if p.stem.rsplit("_", 1)[1].isdigit()), reverse=True) if folder.is_dir() else []
+        chosen = session if session in names else (names[0] if names else None)
+        history = []
+        for name in names[:TRADING_HISTORY_SESSIONS]:
+            day = _json_file(folder / f"session_report_{name}.json") or {}
+            held = [h.get("result_pct") for h in day.get("held_positions") or [] if h.get("result_pct") is not None]
+            history.append({"session": name, "session_date": day.get("session_date"),
+                            "spy_open_to_close_pct": day.get("spy_open_to_close_pct"),
+                            "entries": (day.get("entries") or {}).get("total"),
+                            "closed": (day.get("day_result") or {}).get("positions"),
+                            "average_result_pct": (day.get("day_result") or {}).get("average_result_pct"),
+                            "winners": (day.get("day_result") or {}).get("winners"),
+                            "losers": (day.get("day_result") or {}).get("losers"),
+                            "held": len(day.get("held_positions") or []),
+                            "held_average_pct": round(sum(held) / len(held), 2) if held else None})
+        report = _json_file(folder / f"session_report_{chosen}.json") if chosen else None
+        if report:
+            report = dict(report)
+            koulis = dict(report.get("koulis") or {})
+            koulis.pop("approved", None)  # hundreds of intents: the counts are enough here
+            report["koulis"] = koulis
+            if isinstance(report.get("flip_shadow"), dict):
+                report["flip_shadow"] = {k: v for k, v in report["flip_shadow"].items() if k != "cases"}
+            if isinstance(report.get("news"), dict):
+                news = dict(report["news"])
+                news["material_total"] = len(news.get("material") or [])
+                news["material"] = (news.get("material") or [])[:TRADING_NEWS_ROWS]
+                news.pop("unknown_symbols", None)
+                report["news"] = news
+        evaluation = _json_file(self.root / "output" / "paper_learning" / "evaluation_latest.json") or {}
+        learning = {k: evaluation.get(k) for k in ("generated_at", "sessions", "trades", "trades_with_result", "overall",
+                                                   "strategies", "exit_reasons", "control_team", "news_shadow",
+                                                   "gap_conflict_shadow", "preopen_recheck")} if evaluation else None
+        if learning is not None:
+            learning["lesson_candidates"] = len(evaluation.get("lesson_candidates") or [])
+            learning["shadow_lessons"] = len(evaluation.get("shadow_lessons") or [])
+        return {"sessions": names[:TRADING_HISTORY_SESSIONS], "session": chosen, "report": report,
+                "history": history, "learning": learning}
 
     def lanes(self) -> dict[str, Any]:
         """Where each routed symbol goes: scanned by Babis, on its issuer's card, or in a separate lane."""
@@ -536,6 +584,7 @@ def make_handler(views: Views, actions: Actions, token: str, port: int, assets: 
         "/api/review": lambda q: views.review(),
         "/api/taxonomy": lambda q: views.taxonomy_nodes(),
         "/api/reports": lambda q: views.reports(q.get("run")),
+        "/api/trading": lambda q: views.trading(q.get("session")),
     }
     post_routes = {
         "/api/actions/review-decision": actions.review_decision,

@@ -16,6 +16,8 @@ import subprocess
 import sys
 from typing import Any
 
+from research_registry import acquire_universe
+
 
 ROOT = Path(__file__).resolve().parent
 CORE_DISTRIBUTIONS = ("pandas", "yfinance", "scikit-learn", "TA-Lib", "openbb")
@@ -103,9 +105,10 @@ def build_report(root: Path, *, now: datetime | None = None,
     sources = source_manifest.get("sources") if isinstance(source_manifest, dict) else source_manifest
     if not isinstance(sources, list):
         sources = []
+    # a reused profiles file (acquire_universe, at most three days old) is judged on when the reuse was decided
     source_ages = {
-        str(item.get("name")): round(iso_age_hours(str(item.get("retrieved_at")), now), 2)
-        for item in sources if isinstance(item, dict) and item.get("retrieved_at")
+        str(item.get("name")): round(iso_age_hours(str(item.get("attempted_at") or item.get("retrieved_at")), now), 2)
+        for item in sources if isinstance(item, dict) and (item.get("attempted_at") or item.get("retrieved_at"))
     }
     excluded = {
         str(row.get("ticker") or "").upper()
@@ -131,7 +134,7 @@ def build_report(root: Path, *, now: datetime | None = None,
             package_versions.get(name) == locked for name, locked in lock_versions.items()
         ),
         "pip_dependencies_consistent": bool(pip_check_ok),
-        "all_sources_downloaded": len(sources) == 3 and all(item.get("status") == "ok" for item in sources),
+        "all_sources_downloaded": acquire_universe.usable(sources),
         "sources_fresh_24h": len(source_ages) == 3 and all(age <= 24.0 for age in source_ages.values()),
         "catalog_has_no_unmapped_exchange": not unmapped,
         "catalog_and_eligibility_same_snapshot": (
@@ -174,7 +177,8 @@ def build_report(root: Path, *, now: datetime | None = None,
         "checks": checks,
         "runtime": {"executable": str(executable), "python": ".".join(map(str, version_info)),
                     "packages": package_versions, "locked_packages": lock_versions},
-        "sources": {"ages_hours": source_ages, "catalog_snapshot_id": coverage.get("snapshot_id"),
+        "sources": {"ages_hours": source_ages, "stale_reused": acquire_universe.stale_sources(sources),
+                    "catalog_snapshot_id": coverage.get("snapshot_id"),
                     "catalog_listings": coverage.get("listings"), "exchanges": coverage.get("exchanges"),
                     "unmapped_exchanges": unmapped, "registry": registry},
         "eligibility": {"eligible_company_symbols": eligibility.get("eligible_count"),

@@ -87,8 +87,10 @@ def prepare(root: Path, *, refresh_sources: bool) -> dict[str, Any]:
     manifest = json.loads(
         (root / "data/research_universe_sources/manifest.json").read_text(encoding="utf-8-sig")
     )
-    if len(manifest) != 3 or any(row.get("status") != "ok" for row in manifest):
+    # the Nasdaq profiles may be the last good file, at most three days old (owner 2026-11-11); never the directories
+    if not acquire_universe.usable(manifest):
         raise ValueError("All three listed-symbol source snapshots must be available")
+    stale = acquire_universe.stale_sources(manifest)
 
     db = connect(DEFAULT_DB)
     try:
@@ -140,6 +142,7 @@ def prepare(root: Path, *, refresh_sources: bool) -> dict[str, Any]:
     )
     return {
         "status": "ready",
+        "stale_sources": stale,
         "snapshot_id": snapshot_id,
         "listed_symbols": len(routes),
         "eligible_company_symbols": len(eligible),

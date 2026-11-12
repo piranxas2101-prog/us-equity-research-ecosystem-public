@@ -53,8 +53,18 @@ ROOT = Path(__file__).resolve().parent
 Frames = Callable[[str], "pd.DataFrame | None"]
 
 
-def flips(closed_log: Path) -> list[dict[str, Any]]:
-    """Every position a direction flip closed; a line without a known session or direction is left out."""
+def exit_fills(conn: Any) -> dict[str, float | None]:
+    """The real fill of each closing order, as the ledger read it (no table yet: nothing known)."""
+    try:
+        return {str(r[0]): r[1] for r in conn.execute("SELECT exit_order_id, filled_avg_price FROM paper_exit_fills")}
+    except Exception:  # noqa: BLE001 - sqlite3.Error or a connection without the table: the decision price stays, said
+        return {}
+
+
+def flips(closed_log: Path, fills: dict[str, float | None] | None = None) -> list[dict[str, Any]]:
+    """Every position a direction flip closed; a line without a known session or direction is left out. The closed
+    side's result is the one at its real fill when the fill is read (owner 2026-11-13), else the one at the close
+    decision, and ``closed_result_basis`` says which."""
     if not closed_log.is_file():
         return []
     out = []
@@ -70,10 +80,19 @@ def flips(closed_log: Path) -> list[dict[str, Any]]:
         ticker = str(row.get("symbol") or "").upper()
         session = closed_at.astimezone(NEW_YORK).date().isoformat()
         plpc = row.get("exit_plpc")
+        result, basis = (None, None) if plpc is None else (round(float(plpc) * 100, 3), "decision")
+        fill = (fills or {}).get(str(row.get("exit_order_id") or ""))
+        try:
+            entry = float(row["entry_price"])
+        except (KeyError, TypeError, ValueError):
+            entry = None  # unknown: the decision price stays, said
+        if fill and entry and entry > 0:
+            sign = 1.0 if direction == "long" else -1.0
+            result, basis = round(sign * (fill / entry - 1) * 100, 3), "fill"
         out.append({"flip_id": f"{session}|{ticker}|{row.get('agent')}|{row.get('playbook')}", "session_date": session,
                     "ticker": ticker, "agent": row.get("agent"), "closed_playbook": row.get("playbook"),
                     "closed_direction": direction, "direction": "long" if direction == "short" else "short",
-                    "closed_result_pct": None if plpc is None else round(float(plpc) * 100, 3),
+                    "closed_result_pct": result, "closed_result_basis": basis,
                     "atr_14_pct": row.get("atr_14_pct")})
     return out
 
@@ -161,7 +180,7 @@ def build_cases(conn: Any, closed_log: Path, records: list[dict[str, Any]],
     kept = {r[0]: {"status": r[1], "reasons": json.loads(r[2])} for r in
             conn.execute("SELECT flip_id, status, reasons_json FROM paper_flip_koulis").fetchall()}
     stamp, cases = datetime.now(timezone.utc).isoformat(), []
-    for flip in flips(closed_log):
+    for flip in flips(closed_log, exit_fills(conn)):
         view = kept.get(flip["flip_id"])
         if view is None:
             view = koulis_view(koulis, flip)
@@ -280,11 +299,15 @@ def render(result: dict[str, Any]) -> str:
                 if m:
                     lines.append(f"| {title} | {horizon} | {exit_rule} | {m['known']} | {m['days']} | {v(m['mean_pct'])} | "
                                  f"{v(m['mean_excess_pct'])} | {v(m['beat_spy_pct'])} | {m['status']} |")
-    lines += ["", "## Ανά αλλαγή", "", "| μέρα | μετοχή | έκλεισε | αποτέλεσμα % | αντίθετος υποψήφιος | Koulis | Miltos |",
+    lines += ["", "## Ανά αλλαγή", "",
+              "Το αποτέλεσμα της θέσης που έκλεισε είναι στην πραγματική τιμή εκτέλεσης· με αστερίσκο όσα είναι ακόμη "
+              "στην τιμή της απόφασης, γιατί η εκτέλεση δεν έχει διαβαστεί.", "",
+              "| μέρα | μετοχή | έκλεισε | αποτέλεσμα % | αντίθετος υποψήφιος | Koulis | Miltos |",
               "|---|---|---|---|---|---|---|"]
     for c in sorted(result["cases"], key=lambda c: (c["session_date"], c["ticker"])):
         koulis = v(c["koulis"]) + (f" ({', '.join(c['koulis_reasons'])})" if c["koulis_reasons"] else "")
-        lines.append(f"| {c['session_date']} | {c['ticker']} | {c['closed_direction']} | {v(c['closed_result_pct'])} | "
+        mark = "*" if c.get("closed_result_basis") == "decision" else ""
+        lines.append(f"| {c['session_date']} | {c['ticker']} | {c['closed_direction']} | {v(c['closed_result_pct'])}{mark} | "
                      f"{v(c['candidate_playbook'])} | {koulis} | {v(c['miltos_entered'])} |")
     return "\n".join(lines) + "\n"
 

@@ -137,6 +137,27 @@ class ResultAtTheFillTests(unittest.TestCase):
         self.assertEqual(ledger.apply_exit_fills(self.conn, self.log), 1)          # the waiting one, when it is read
         self.assertEqual((self.record(waiting)["result_pct"], self.record(waiting)["result_basis"]), (-3.0, "fill"))
 
+    def test_a_same_day_trade_recorded_at_the_decision_is_settled_when_its_fill_is_read(self):
+        day = date(2026, 11, 12)
+
+        def trade(symbol, **fields):
+            rid = ledger.record_id(day, "trade", "periklis", symbol, "momentum_12_1", "long")
+            ledger.store(self.conn, [{"record_id": rid, "session_date": day.isoformat(), "kind": "trade", "complete": True,
+                                      "direction": "long", "entry_price": 20.0, "result_pct": 6.6, **fields}])
+            return rid
+        late = trade("PBYI", result_basis="decision", exit_order_id="day-1")
+        real = trade("LLY", result_basis="fill", exit_order_id="day-2")
+        old = trade("IMAX")                                     # recorded before the rule: no order to settle it by
+        self.log.write_text("", encoding="utf-8")
+        ledger.record_exit_fills(self.conn, self.log, lambda oid: {"status": "filled", "filled_avg_price": "21"},
+                                 [{"exit_order_id": "day-1", "symbol": "PBYI"}, {"exit_order_id": "day-2", "symbol": "LLY"}])
+        self.assertEqual(ledger.apply_exit_fills(self.conn, self.log), 1)
+        got = self.record(late)
+        self.assertEqual((got["result_pct"], got["result_at_decision_pct"], got["result_basis"]), (5.0, 6.6, "fill"))
+        self.assertEqual(self.record(real)["result_pct"], 6.6)
+        self.assertEqual(self.record(old)["result_pct"], 6.6)
+        self.assertEqual(ledger.apply_exit_fills(self.conn, self.log), 0)
+
     def test_the_sessions_own_closing_orders_are_read_too(self):
         out = self.root / "output"
         (out / "paper_session").mkdir(parents=True)

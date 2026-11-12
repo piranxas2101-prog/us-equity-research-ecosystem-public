@@ -45,7 +45,21 @@ class FlipsTests(unittest.TestCase):
             out = fs.flips(path)
         self.assertEqual([(f["ticker"], f["direction"]) for f in out], [("VISN", "long"), ("ABC", "short")])
         self.assertEqual(out[0]["session_date"], SESSION)   # the New York session
-        self.assertEqual(out[0]["closed_result_pct"], 16.0)
+        self.assertEqual((out[0]["closed_result_pct"], out[0]["closed_result_basis"]), (16.0, "decision"))
+
+    def test_the_closed_side_is_measured_at_its_real_fill_when_it_is_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "closed.jsonl"
+            row = {**json.loads(closed_line()), "exit_order_id": "o1", "entry_price": 10.0}
+            path.write_text(json.dumps(row), encoding="utf-8")
+            direction = row["direction"]
+            fill = 8.5 if direction == "short" else 11.5                      # 15% in the trade's favour
+            at_fill = fs.flips(path, {"o1": fill})[0]
+            unread = fs.flips(path, {})[0]
+            unfilled = fs.flips(path, {"o1": None})[0]
+        self.assertEqual((at_fill["closed_result_pct"], at_fill["closed_result_basis"]), (15.0, "fill"))
+        self.assertEqual((unread["closed_result_pct"], unread["closed_result_basis"]), (16.0, "decision"))
+        self.assertEqual(unfilled["closed_result_basis"], "decision")
 
     def test_no_closed_log_is_no_flip(self):
         self.assertEqual(fs.flips(Path("no_such_file.jsonl")), [])

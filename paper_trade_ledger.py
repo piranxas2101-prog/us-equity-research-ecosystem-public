@@ -314,7 +314,12 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
                 reason, inferred = "take_profit", True
         record.update({"notional_usd": intent.get("notional_usd"), "entry_price": entry_price, "entry_at": entry_at,
                        "exit_price": exit_price, "exit_at": exit_at, "exit_reason": reason,
-                       "exit_reason_inferred": inferred, "result_pct": result, "complete": result is not None})
+                       "exit_reason_inferred": inferred, "result_pct": result, "complete": result is not None,
+                       # owner 2026-11-13: every result says what it was measured at; one still at the decision
+                       # carries its closing order so it is settled when the fill is read (apply_exit_fills)
+                       "result_basis": "fill" if entry_price and exit_price else None if result is None else "decision",
+                       "exit_order_id": ((close.get("refreshed_response_payload") or {}).get("id")
+                                         or (close.get("response_payload") or {}).get("id"))})
         plan = opening.get("paper_trade_plan") if isinstance(opening.get("paper_trade_plan"), dict) else {}
         horizon = plan.get("holding_horizon") if plan.get("holding_period_rule") == holding_horizon.RULE else None
         if horizon and holding_horizon.valid(horizon):
@@ -323,7 +328,8 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
             record["holding_class"] = holding_horizon.rules_class(horizon["sessions"])
             if not close:
                 record.update({"exit_price": None, "exit_at": None, "exit_reason": "held_on_horizon",
-                               "exit_reason_inferred": False, "result_pct": None, "complete": False})
+                               "exit_reason_inferred": False, "result_pct": None, "complete": False,
+                               "result_basis": None, "exit_order_id": None})
         records.append(record)
 
     # Shadow candidates: every candidate the traders kept after the pre-open check, traded or not. What it would
@@ -516,6 +522,20 @@ def apply_exit_fills(conn: sqlite3.Connection, closed_log: Path) -> int:
                            "result_pct": round(sign * (fill / entry - 1) * 100, 3)})
         else:
             record.update({"result_at_decision_pct": record["result_pct"], "result_basis": "decision"})
+        conn.execute("UPDATE paper_trade_ledger SET record_json=?, recorded_at=? WHERE record_id=?",
+                     (json.dumps(record, ensure_ascii=False, sort_keys=True), datetime.now().astimezone().isoformat(), rid))
+        corrected += 1
+    # a trade opened and closed the same day whose exit price was not readable when it was recorded
+    for rid, payload in conn.execute("SELECT record_id, record_json FROM paper_trade_ledger"
+                                     " WHERE kind='trade' AND complete=1").fetchall():
+        record = json.loads(payload)
+        fill = fills.get(str(record.get("exit_order_id") or ""))
+        entry, direction = _float(record.get("entry_price")), str(record.get("direction") or "")
+        if record.get("result_basis") != "decision" or not fill or not entry or direction not in ("long", "short"):
+            continue
+        sign = 1.0 if direction == "long" else -1.0
+        record.update({"result_at_decision_pct": record["result_pct"], "exit_price": fill, "result_basis": "fill",
+                       "result_pct": round(sign * (fill / entry - 1) * 100, 3)})
         conn.execute("UPDATE paper_trade_ledger SET record_json=?, recorded_at=? WHERE record_id=?",
                      (json.dumps(record, ensure_ascii=False, sort_keys=True), datetime.now().astimezone().isoformat(), rid))
         corrected += 1

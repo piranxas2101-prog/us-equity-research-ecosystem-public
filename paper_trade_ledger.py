@@ -15,6 +15,11 @@ store, so the control team (pre-open check, Koulis, Miltos, monitors) can be jud
 ecosystem's own files (the trader's opening report, the monitors' action journal); only a price missing there is
 read from Alpaca (read-only: closed orders of the session, owner's approval 2026-10-15). A value that cannot be read
 stays unknown. A complete record is never rewritten (``INSERT OR IGNORE``); an incomplete one may be completed.
+
+One exception, owner's decision 2026-11-13: a closed position is measured at the price its closing order really got.
+A trade held over several sessions is completed at the close decision (the fill is not known yet) and corrected once
+the broker's fill is read (``apply_exit_fills``): ``result_pct`` becomes the result at the fill, the result at the
+decision is kept beside it (``result_at_decision_pct``), and the record says which it holds (``result_basis``).
 """
 from __future__ import annotations
 
@@ -416,7 +421,34 @@ def _ensure_fill_table(conn: sqlite3.Connection) -> None:
                  " status TEXT NOT NULL, filled_avg_price REAL, filled_qty REAL, filled_at TEXT, read_at TEXT NOT NULL)")
 
 
-def record_exit_fills(conn: sqlite3.Connection, closed_log: Path, order: Callable[[str], dict[str, Any]]) -> dict[str, int]:
+def session_exit_orders(out: Path, session: date) -> list[dict[str, Any]]:
+    """The closing orders of the session's own monitors (positions opened and closed the same day are not in the
+    registry's closed log): order id and symbol, from the day journal and the monitors' last cycle."""
+    actions: list[dict[str, Any]] = []
+    journal = out / "paper_session" / f"actions_{session:%Y%m%d}.jsonl"
+    if journal.is_file():
+        for line in journal.read_text(encoding="utf-8").splitlines():
+            try:
+                actions.append(json.loads(line))
+            except ValueError:
+                continue
+    for agent in AGENTS:
+        monitor = _load(out / f"{agent}_position_monitor_latest.json")
+        if _ny_date(monitor.get("run_timestamp")) == session:
+            actions += [a for a in monitor.get("actions") or [] if isinstance(a, dict)]
+    found: dict[str, dict[str, Any]] = {}
+    for action in actions:
+        if not isinstance(action, dict) or action.get("action_type") != "close_position":
+            continue
+        order_id = ((action.get("refreshed_response_payload") or {}).get("id")
+                    or (action.get("response_payload") or {}).get("id"))
+        if order_id:
+            found[str(order_id)] = {"exit_order_id": str(order_id), "symbol": action.get("ticker")}
+    return list(found.values())
+
+
+def record_exit_fills(conn: sqlite3.Connection, closed_log: Path, order: Callable[[str], dict[str, Any]],
+                      extra: list[dict[str, Any]] | None = None) -> dict[str, int]:
     """What each exit of a position held over several sessions really got (owner 2026-11-07). The closed log keeps the
     position's % at the close decision and the order's answer at sending (``pending_new``, no price). Each order is
     read once it is final; one not final or not readable stays pending, never a price. Read-only, no order is sent;
@@ -424,7 +456,7 @@ def record_exit_fills(conn: sqlite3.Connection, closed_log: Path, order: Callabl
     _ensure_fill_table(conn)
     known = {r[0] for r in conn.execute("SELECT exit_order_id FROM paper_exit_fills").fetchall()}
     counts, errors = {"read": 0, "not_final": 0, "unreadable": 0}, 0
-    for row in _closed_rows(closed_log):
+    for row in _closed_rows(closed_log) + list(extra or []):
         order_id = str(row["exit_order_id"])
         if order_id in known:
             continue
@@ -449,6 +481,46 @@ def record_exit_fills(conn: sqlite3.Connection, closed_log: Path, order: Callabl
         counts["read"] += 1
     conn.commit()
     return counts
+
+
+def apply_exit_fills(conn: sqlite3.Connection, closed_log: Path) -> int:
+    """Owner 2026-11-13: the result of a trade held over several sessions is the one at its real fill. Each complete
+    record whose closing order has been read is settled once: with a fill price, ``result_pct`` becomes the result
+    at the fill and the result at the decision is kept beside it; an order that ended without a fill, or a record
+    without an entry price, keeps the result at the decision and says so. An order not read yet waits."""
+    _ensure_fill_table(conn)
+    fills = {r[0]: r[1] for r in conn.execute("SELECT exit_order_id, filled_avg_price FROM paper_exit_fills")}
+    corrected = 0
+    for closed in _closed_rows(closed_log):
+        order_id = str(closed["exit_order_id"])
+        if order_id not in fills:
+            continue
+        try:
+            opened = date.fromisoformat(str(closed["opened_session"]))
+        except (ValueError, KeyError):
+            continue
+        direction = str(closed.get("direction") or "")
+        rid = record_id(opened, "trade", str(closed.get("agent") or ""), str(closed.get("symbol") or "").upper(),
+                        str(closed.get("playbook") or ""), direction)
+        row = conn.execute("SELECT record_json FROM paper_trade_ledger WHERE record_id=? AND complete=1", (rid,)).fetchone()
+        if row is None:
+            continue
+        record = json.loads(row[0])
+        if record.get("result_basis") is not None or record.get("result_pct") is None:
+            continue
+        fill = fills[order_id]
+        entry = _float(record.get("entry_price")) or _float(closed.get("entry_price"))
+        if fill and entry and direction in ("long", "short"):
+            sign = 1.0 if direction == "long" else -1.0
+            record.update({"result_at_decision_pct": record["result_pct"], "exit_price": fill, "result_basis": "fill",
+                           "result_pct": round(sign * (fill / entry - 1) * 100, 3)})
+        else:
+            record.update({"result_at_decision_pct": record["result_pct"], "result_basis": "decision"})
+        conn.execute("UPDATE paper_trade_ledger SET record_json=?, recorded_at=? WHERE record_id=?",
+                     (json.dumps(record, ensure_ascii=False, sort_keys=True), datetime.now().astimezone().isoformat(), rid))
+        corrected += 1
+    conn.commit()
+    return corrected
 
 
 def exit_fill_summary(conn: sqlite3.Connection, closed_log: Path) -> dict[str, Any]:
@@ -576,11 +648,20 @@ def main(argv: list[str] | None = None) -> int:
         closed_log = args.root / "data" / "paper_positions_closed.jsonl"
         counts["held_completed"] = complete_held(conn, closed_log)
         if key_id and secret:
-            counts["exit_fills"] = record_exit_fills(conn, closed_log, alpaca_order(key_id, secret))
+            counts["exit_fills"] = record_exit_fills(conn, closed_log, alpaca_order(key_id, secret),
+                                                     session_exit_orders(args.root / "output", session))
+        counts["results_at_fill"] = apply_exit_fills(conn, closed_log)
         fills = exit_fill_summary(conn, closed_log)
     folder = args.root / "output" / "paper_learning"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "exit_fills_latest.json").write_text(json.dumps(fills, ensure_ascii=False, indent=2), encoding="utf-8")
+    if not args.session:  # tonight's report was written before the fills were read: the same report, at the fills
+        try:
+            import paper_session_report
+
+            counts["session_report"] = paper_session_report.refresh_closed(args.root, date.today())
+        except Exception as exc:  # noqa: BLE001 - the report is a reading aid; the ledger's work stands
+            counts["session_report"] = f"not refreshed: {type(exc).__name__}"
     print(json.dumps({"session": session.isoformat(), "records": len(records),
                       "by_kind": {k: sum(r["kind"] == k for r in records) for k in sorted({r["kind"] for r in records})},
                       **counts}))

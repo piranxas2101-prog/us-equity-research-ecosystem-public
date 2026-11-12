@@ -63,6 +63,69 @@ class SessionReportTests(unittest.TestCase):
             self.assertEqual(results, {"ASND": -3.0, "PGY": 6.6})          # PGY once, though journal + latest
             self.assertEqual(report["miltos"]["status"], "entry window finished")
 
+    def test_a_closed_position_is_measured_at_its_real_fill_and_says_when_it_is_not(self):
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            out = root / "output"
+            (root / "data").mkdir()
+            stamp = "2026-10-13T22:55:00+03:00"
+            write(out, "yankos_paper_trades_latest.json", {"run_timestamp": stamp, "openings": [
+                {"ticker": "PGY", "playbook_name": "momentum_12_1", "trade_direction": "long", "order_status": "filled",
+                 "order_response": {"filled_at": "2026-10-13T14:00:00Z", "filled_avg_price": "20.0"}}]})
+            write(out, "yankos_position_monitor_latest.json", {"run_timestamp": stamp, "actions": [
+                {"ticker": "PGY", "trade_direction": "long", "action_type": "close_position", "position_plpc": 0.066,
+                 "action_status": "new", "response_payload": {"id": "day"}},
+                {"ticker": "ASND", "trade_direction": "long", "action_type": "close_position", "position_plpc": -0.03,
+                 "action_status": "new", "response_payload": {"id": "unread"}}]})
+            # a position held from an earlier session, closed today by the multi-day monitor: in the day journal
+            write(out / "paper_session", f"actions_{TODAY:%Y%m%d}.jsonl", {
+                "agent": "periklis", "ticker": "LOPE", "trade_direction": "short", "action_type": "close_position",
+                "position_plpc": 0.21, "action_status": "pending_new", "response_payload": {"id": "held"}})
+            (root / "data" / "paper_positions_closed.jsonl").write_text(json.dumps(
+                {"exit_order_id": "held", "entry_price": 100.0, "symbol": "LOPE"}) + "\n", encoding="utf-8")
+
+            before = psr.build(out, TODAY, spy_move=0.5)               # the fills are not read yet
+            self.assertEqual({c["ticker"]: (c["result_pct"], c["result_basis"]) for c in before["closed_positions"]},
+                             {"PGY": (6.6, "decision"), "ASND": (-3.0, "decision"), "LOPE": (21.0, "decision")})
+            self.assertEqual((before["day_result"]["at_fill"], before["day_result"]["at_decision"]), (0, 3))
+            folder_out = out / "paper_session"
+            folder_out.mkdir(parents=True, exist_ok=True)
+            (folder_out / f"session_report_{TODAY:%Y%m%d}.json").write_text(json.dumps(before), encoding="utf-8")
+
+            conn = sqlite3.connect(root / "data" / "paper_learning.db")
+            conn.execute("CREATE TABLE paper_exit_fills (exit_order_id TEXT PRIMARY KEY, symbol TEXT, status TEXT,"
+                         " filled_avg_price REAL, filled_qty REAL, filled_at TEXT, read_at TEXT)")
+            conn.executemany("INSERT INTO paper_exit_fills VALUES (?,?,?,?,?,?,?)", [
+                ("day", "PGY", "filled", 21.0, 1, "t", "t"), ("held", "LOPE", "filled", 81.0, 1, "t", "t")])
+            conn.commit()
+            conn.close()
+
+            day = psr.refresh_closed(root, TODAY)
+            after = json.loads((folder_out / f"session_report_{TODAY:%Y%m%d}.json").read_text(encoding="utf-8"))
+            rows = {c["ticker"]: c for c in after["closed_positions"]}
+            self.assertEqual((rows["PGY"]["result_pct"], rows["PGY"]["result_at_decision_pct"], rows["PGY"]["result_basis"]),
+                             (5.0, 6.6, "fill"))                          # 20 -> 21, not the 6.6 the monitor saw
+            self.assertEqual((rows["LOPE"]["result_pct"], rows["LOPE"]["result_basis"]), (19.0, "fill"))   # short 100 -> 81
+            self.assertEqual((rows["ASND"]["result_pct"], rows["ASND"]["result_basis"]), (-3.0, "decision"))
+            self.assertEqual(rows["PGY"]["approx_excess_vs_spy_pct"], 4.5)
+            self.assertEqual((day["at_fill"], day["at_decision"], day["average_result_pct"]), (2, 1, 7.0))
+            self.assertEqual(psr.build(out, TODAY, spy_move=0.5)["day_result"], day)      # a fresh build agrees
+            text = (folder_out / "session_report_latest.md").read_text(encoding="utf-8")
+            self.assertIn("πραγματική τιμή εκτέλεσης του κλεισίματος για 2 θέσεις", text)
+            self.assertIn("για 1 είναι ακόμη στην τιμή της απόφασης", text)
+
+    def test_a_report_written_before_the_rule_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "output" / "paper_session" / f"session_report_{TODAY:%Y%m%d}.json"
+            write(path.parent, path.name, {"closed_positions": [{"ticker": "A", "result_pct": 1.0}]})
+            before = path.read_text(encoding="utf-8")
+            self.assertIsNone(psr.refresh_closed(root, TODAY))
+            self.assertEqual(path.read_text(encoding="utf-8"), before)
+            self.assertIsNone(psr.refresh_closed(root, date(2026, 1, 2)))            # no report that day
+
     def test_unknown_spy_keeps_excess_unknown(self):
         with tempfile.TemporaryDirectory() as folder:
             out = Path(folder)

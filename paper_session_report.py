@@ -20,6 +20,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime
 import json
 from pathlib import Path
+import sqlite3
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
@@ -40,6 +41,93 @@ def _load(path: Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def exit_fills(root: Path) -> dict[str, float | None]:
+    """What each closing order really got, as the ledger read it from the broker (paper_exit_fills, read-only here):
+    order id -> average fill price, None for an order that ended without a fill. No table yet: nothing known."""
+    path = root / "data" / "paper_learning.db"
+    if not path.is_file():
+        return {}
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        try:
+            return {str(r[0]): r[1] for r in conn.execute("SELECT exit_order_id, filled_avg_price FROM paper_exit_fills")}
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return {}
+
+
+def _registry_entries(root: Path) -> dict[str, float]:
+    """Entry price of each position held over several sessions and closed, by its closing order."""
+    found: dict[str, float] = {}
+    try:
+        lines = (root / "data" / "paper_positions_closed.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return found
+    for line in lines:
+        try:
+            row = json.loads(line)
+            if row.get("exit_order_id") and row.get("entry_price"):
+                found[str(row["exit_order_id"])] = float(row["entry_price"])
+        except (ValueError, TypeError):
+            continue
+    return found
+
+
+def apply_fills(closes: list[dict[str, Any]], fills: dict[str, float | None], spy_move: float | None) -> None:
+    """Owner 2026-11-13: a closed position is measured at the price its closing order really got, not at the price
+    the monitor saw when it decided. Where the fill or the entry price is not known (yet), the result at the decision
+    stays and the row says so (``result_basis``); it is never passed off as the real one."""
+    for c in closes:
+        decision = c.get("result_at_decision_pct")
+        fill = fills.get(str(c.get("exit_order_id") or ""))
+        entry = c.get("entry_price")
+        if fill and entry and c.get("direction") in ("long", "short"):
+            sign = 1.0 if c["direction"] == "long" else -1.0
+            c["exit_price"], c["result_pct"], c["result_basis"] = fill, round(sign * (fill / entry - 1) * 100, 2), "fill"
+        else:
+            c["exit_price"], c["result_pct"] = None, decision
+            c["result_basis"] = None if decision is None else "decision"
+        pct = c["result_pct"]
+        c["approx_excess_vs_spy_pct"] = None if pct is None or spy_move is None else round(
+            pct - spy_move if c.get("direction") == "long" else pct + spy_move, 2)
+
+
+def summarise(closes: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    known = [c["result_pct"] for c in closes if c["result_pct"] is not None]
+    groups: dict[tuple, list[float]] = defaultdict(list)
+    for c in closes:
+        if c["result_pct"] is not None:
+            groups[(c["agent"], c["playbook"], c["direction"], c["tier"])].append(c["result_pct"])
+    per_strategy = [{"agent": a, "playbook": p, "direction": d, "tier": t, "closed": len(v), "average_pct": _mean(v),
+                     "winners": sum(1 for x in v if x > 0)} for (a, p, d, t), v in sorted(groups.items(),
+                                                                                         key=lambda kv: -len(kv[1]))]
+    day = {"positions": len(closes), "with_result": len(known), "average_result_pct": _mean(known),
+           "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0),
+           "at_fill": sum(1 for c in closes if c.get("result_basis") == "fill"),
+           "at_decision": sum(1 for c in closes if c.get("result_basis") == "decision")}
+    return per_strategy, day
+
+
+def refresh_closed(root: Path, today: date) -> dict[str, Any] | None:
+    """The day's report again with the fills read since it was written (the ledger reads them a minute later).
+    Only the closed positions and what is summed from them change; nothing is fetched."""
+    folder = root / "output" / "paper_session"
+    report = _load(folder / f"session_report_{today:%Y%m%d}.json")
+    if not report or not isinstance(report.get("closed_positions"), list):
+        return None
+    closes = report["closed_positions"]
+    if any("result_at_decision_pct" not in c for c in closes):
+        return None  # written before the rule: its rows do not carry what the correction needs
+    apply_fills(closes, exit_fills(root), report.get("spy_open_to_close_pct"))
+    report["per_strategy"], report["day_result"] = summarise(closes)
+    text = render(report)
+    for name in ("session_report_latest", f"session_report_{today:%Y%m%d}"):
+        (folder / f"{name}.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        (folder / f"{name}.md").write_text(text, encoding="utf-8")
+    return report["day_result"]
 
 
 def _today(payload: dict[str, Any] | None, today: date, *keys: str) -> dict[str, Any] | None:
@@ -230,28 +318,25 @@ def build(out: Path, today: date, spy_move: float | None,
             owner = str(action.get("agent") or agent) if agent == "multi_day_monitor" else agent
             latest[(owner, str(action.get("ticker")))] = {**action, "_agent": owner}
     closes = []
+    registry_entries = _registry_entries(out.parent)
     for action in latest.values():
         plpc = action.get("position_plpc")
         pct = None if plpc is None else round(float(plpc) * 100, 2)
         direction = str(action.get("trade_direction") or "")
-        excess = None if pct is None or spy_move is None else round(
-            pct - spy_move if direction == "long" else pct + spy_move, 2)
         entry = by_key.get((action["_agent"], str(action.get("ticker")))) or {}
         playbook = entry.get("playbook") or action.get("playbook_name")
+        order_id = ((action.get("refreshed_response_payload") or {}).get("id")
+                    or (action.get("response_payload") or {}).get("id"))
+        # opened today: today's entry fill; held from an earlier session: the registry's entry price
+        entry_price = entry.get("fill_price") or registry_entries.get(str(order_id or ""))
         closes.append({"agent": action["_agent"], "ticker": action.get("ticker"), "direction": direction,
                        "playbook": playbook, "tier": entry.get("tier") or _tier(playbook, direction, curve, shadow),
                        "entry_time_ny": entry.get("entry_time_ny"), "exit_rule": action.get("exit_rule"),
-                       "result_pct": pct, "approx_excess_vs_spy_pct": excess,
+                       "result_pct": pct, "result_at_decision_pct": pct, "approx_excess_vs_spy_pct": None,
+                       "exit_order_id": order_id, "entry_price": entry_price,
                        "status": action.get("action_status"), "reason": action.get("decision_reason")})
-    known = [c["result_pct"] for c in closes if c["result_pct"] is not None]
-
-    groups: dict[tuple, list[float]] = defaultdict(list)
-    for c in closes:
-        if c["result_pct"] is not None:
-            groups[(c["agent"], c["playbook"], c["direction"], c["tier"])].append(c["result_pct"])
-    per_strategy = [{"agent": a, "playbook": p, "direction": d, "tier": t, "closed": len(v), "average_pct": _mean(v),
-                     "winners": sum(1 for x in v if x > 0)} for (a, p, d, t), v in sorted(groups.items(),
-                                                                                         key=lambda kv: -len(kv[1]))]
+    apply_fills(closes, exit_fills(out.parent), spy_move)
+    per_strategy, day_result = summarise(closes)
     held = []
     registry = _load(out.parent / "data" / "paper_positions.json") or {}
     for h in (multi or {}).get("holds") or []:
@@ -316,9 +401,7 @@ def build(out: Path, today: date, spy_move: float | None,
         "news": _load(out / "news_watch_latest.json"),
         # owner 2026-11-09: favourable pre-market gap and one trader on both sides, as of the last evaluation
         "gap_conflict": _load(out / "paper_learning" / "gap_conflict_shadow_latest.json"),
-        "day_result": {"positions": len(closes), "with_result": len(known),
-                       "average_result_pct": _mean(known),
-                       "winners": sum(1 for x in known if x > 0), "losers": sum(1 for x in known if x < 0)},
+        "day_result": day_result,
     }
 
 
@@ -421,6 +504,10 @@ def render(report: dict[str, Any]) -> str:
         lines.append(f"\nΣύνολο: {d['positions']} θέσεις, μέσο αποτέλεσμα {v(d['average_result_pct'])}%, "
                      f"κερδισμένες {d['winners']}, χαμένες {d['losers']}. (Η σύγκριση με το SPY είναι προσεγγιστική: "
                      "οι είσοδοι έγιναν μετά το άνοιγμα.)")
+        if d.get("at_fill") is not None:
+            lines.append(f"\nΤο αποτέλεσμα είναι στην πραγματική τιμή εκτέλεσης του κλεισίματος για {d['at_fill']} θέσεις"
+                         + (f"· για {d['at_decision']} είναι ακόμη στην τιμή της απόφασης, γιατί η εκτέλεση δεν έχει "
+                            "διαβαστεί." if d.get("at_decision") else "."))
     news = report.get("news")
     if news and news.get("statuses"):
         s = news["statuses"]

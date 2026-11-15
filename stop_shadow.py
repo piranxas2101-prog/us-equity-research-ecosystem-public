@@ -20,6 +20,12 @@ anything changes:
   95% interval resampling whole entry sessions, at least ``MIN_TRADES`` positions from ``MIN_DAYS`` entry days.
   Before that the positions still running are shown: stopped so far under each rule, and where the rules parted.
 
+**The other exits** (owner 2026-11-15): a position the monitor closed for any other reason - an abrupt change of
+the market's mood (``market_shock``, 64 quarter positions by 2026-11-13), a broken thesis, results ahead, the
+owner - is set against the same position held on under the live stop alone (the ``live`` replay above): the real
+result at its closing fill (the decision's price while the fill is not read) against the held-on one, per exit
+reason, judged the same way on whole windows only.
+
 A missing ATR or entry price leaves the position unknown, never a default. A lesson candidate is only proposed; the
 owner alone decides, and the wider stop carries a larger loss per stopped position (shown beside the verdict).
 """
@@ -36,6 +42,9 @@ import pandas as pd
 import thesis_exit as te
 
 RULES = ("live", "class")
+NOT_COMPARED = {"scaled_stop", "stop_loss", "horizon_end"}  # the stop itself, and the planned end (nothing to compare)
+EXIT_VERDICT_GR = {"insufficient_sample": "ανεπαρκές δείγμα", "holding on did better": "το κράτημα θα πήγαινε καλύτερα",
+                   "the exit did better": "η έξοδος πήγε καλύτερα", "no clear difference": "καμία σαφής διαφορά"}
 MIN_TRADES = 30
 MIN_DAYS = 10
 VERDICT_GR = {"insufficient_sample": "ανεπαρκές δείγμα (περιμένει να ολοκληρωθούν τα παράθυρα)",
@@ -103,14 +112,28 @@ def replay(frame: pd.DataFrame, session: date, entry: float, atr_pct: float, ses
             "sessions_held": last - start + 1, "final": last == end, "result_pct": result}
 
 
-def build(cases: list[dict[str, Any]], frames: Frames) -> list[dict[str, Any]]:
+def real_result(position: dict[str, Any], fills: dict[str, float | None]) -> tuple[float | None, str | None]:
+    """A closed position's own result: at its closing fill when read, else at the decision (``exit_plpc``)."""
+    entry, fill = _float(position.get("entry_price")), _float(fills.get(str(position.get("exit_order_id") or "")))
+    sign = 1.0 if position.get("direction") == "long" else -1.0
+    if entry and fill:
+        return round(sign * (fill / entry - 1) * 100, 3), "fill"
+    plpc = _float(position.get("exit_plpc"))
+    return (None, None) if plpc is None else (round(plpc * 100, 3), "decision")
+
+
+def build(cases: list[dict[str, Any]], frames: Frames,
+          fills: dict[str, float | None] | None = None) -> list[dict[str, Any]]:
     out = []
     for p in cases:
         entry, atr = _float(p.get("entry_price")), _float(p.get("atr_14_pct"))
+        closed = p.get("state") == "closed"
+        real, basis = real_result(p, fills or {}) if closed else (None, None)
         row = {"agent": p.get("agent"), "symbol": p.get("symbol"), "playbook": p.get("playbook"),
                "direction": p.get("direction"), "holding_class": p.get("holding_class"),
                "session_date": p.get("opened_session"), "sessions": p["horizon_sessions"], "atr_14_pct": atr,
-               "state": p.get("state"), "real_exit": p.get("close_reason"),
+               "state": p.get("state"), "real_exit": p.get("close_reason") if closed else None,
+               "real_result_pct": real, "real_basis": basis,
                "live": None, "class": None, "known": False, "mature": False}
         frame = frames(str(p.get("symbol") or ""))
         if entry and atr and atr > 0 and frame is not None and len(frame):
@@ -144,15 +167,11 @@ def evaluate(rows: list[dict[str, Any]], margin_pct: float) -> dict[str, Any]:
     running = [r for r in known if not r["mature"]]
     diffs = [r["class"]["result_pct"] - r["live"]["result_pct"] for r in mature]
     days = [r["session_date"] for r in mature]
-    mean = round(statistics.fmean(diffs), 3) if diffs else None
-    ci = _cluster_ci(diffs, days) if diffs else None
-    judged = len(mature) >= MIN_TRADES and len(set(days)) >= MIN_DAYS and ci is not None
-    verdict = ("insufficient_sample" if not judged else
-               "class stop did better" if ci[0] > 0 and mean >= margin_pct else
-               "live stop did better" if ci[1] < 0 and mean <= -margin_pct else "no clear difference")
+    mean, ci, verdict = _paired_verdict(diffs, days, margin_pct, "class stop did better", "live stop did better")
     parted = [r for r in running if r["live"]["exit"] in ("stop", "stop_gap")
               and r["class"]["exit"] not in ("stop", "stop_gap")]
     return {"schema": "ecosystem.stop_shadow.v1", "positions": len(rows), "unknown": len(rows) - len(known),
+            "exits": evaluate_exits(rows, margin_pct),
             "mature": len(mature), "mature_days": len(set(days)), "running": len(running),
             "judged": {"live": _side(mature, "live"), "class": _side(mature, "class"),
                        "class_minus_live_pct": mean, "ci_95": ci},
@@ -165,11 +184,55 @@ def evaluate(rows: list[dict[str, Any]], margin_pct: float) -> dict[str, Any]:
             "verdict": verdict, "rows": rows, "active_decisions_changed": False}
 
 
+def _paired_verdict(diffs: list[float], days: list[str], margin_pct: float,
+                    better: str, worse: str) -> tuple[float | None, list[float] | None, str]:
+    mean = round(statistics.fmean(diffs), 3) if diffs else None
+    ci = _cluster_ci(diffs, days) if diffs else None
+    if len(diffs) < MIN_TRADES or len(set(days)) < MIN_DAYS or ci is None:
+        return mean, ci, "insufficient_sample"
+    return mean, ci, (better if ci[0] > 0 and mean >= margin_pct else
+                      worse if ci[1] < 0 and mean <= -margin_pct else "no clear difference")
+
+
+def evaluate_exits(rows: list[dict[str, Any]], margin_pct: float) -> dict[str, Any]:
+    """Per exit reason: the real result against the same position held on under the live stop alone."""
+    out: dict[str, Any] = {}
+    compared = [r for r in rows if r["known"] and r.get("real_exit") and r["real_exit"] not in NOT_COMPARED
+                and r.get("real_result_pct") is not None]
+
+    def avg(items: list[dict[str, Any]], held_on: bool) -> float | None:
+        values = [r["live"]["result_pct"] if held_on else r["real_result_pct"] for r in items]
+        return round(statistics.fmean(values), 3) if values else None
+
+    for reason in sorted({r["real_exit"] for r in compared}):
+        members = [r for r in compared if r["real_exit"] == reason]
+        mature = [r for r in members if r["mature"]]
+        running = [r for r in members if not r["mature"]]
+        diffs = [r["live"]["result_pct"] - r["real_result_pct"] for r in mature]
+        mean, ci, verdict = _paired_verdict(diffs, [r["session_date"] for r in mature], margin_pct,
+                                            "holding on did better", "the exit did better")
+        out[reason] = {"positions": len(members), "mature": len(mature),
+                       "mature_days": len({r["session_date"] for r in mature}), "running": len(running),
+                       "at_fill": sum(r["real_basis"] == "fill" for r in members),
+                       "real_mean_pct": avg(mature, False), "held_on_mean_pct": avg(mature, True),
+                       "held_on_minus_real_pct": mean, "ci_95": ci, "verdict": verdict,
+                       "running_real_mean_pct": avg(running, False), "running_held_on_now_pct": avg(running, True)}
+    return out
+
+
 def proposal(result: dict[str, Any]) -> list[dict[str, Any]]:
+    found = []
+    for reason, cell in (result.get("exits") or {}).items():
+        if cell["verdict"] == "holding on did better":
+            found.append({"target_agent": "position_monitor", "criterion_id": f"held_position_exit:{reason}",
+                          "proposed_change": f"Stop closing held positions on '{reason}': held on under the stop alone "
+                                             f"they did {cell['held_on_minus_real_pct']}% better per position (95% "
+                                             f"interval {cell['ci_95']}, {cell['mature']} whole windows).",
+                          "support": cell["mature"], "evidence": cell})
     if result.get("verdict") != "class stop did better":
-        return []
+        return found
     judged = result["judged"]
-    return [{"target_agent": "position_monitor", "criterion_id": "held_position_class_stop",
+    return found + [{"target_agent": "position_monitor", "criterion_id": "held_position_class_stop",
              "proposed_change": "Give a held position the stop of its whole planned hold from the first session "
                                 "(1.1 x ATR x sqrt(planned sessions)) instead of the stop that widens with the sessions "
                                 f"held. Class minus live {judged['class_minus_live_pct']}% per position, 95% interval "
@@ -209,13 +272,26 @@ def render(result: dict[str, Any]) -> str:
     lines += ["", f"- Εκεί που χώρισαν οι κανόνες (κόπηκε με το σημερινό, κρατά με το φαρδύ): {run['parted']} θέσεις · "
                   f"σημερινό {v(run['parted_live_mean_pct'])}% · φαρδύ ως τώρα {v(run['parted_class_now_mean_pct'])}%.",
               "", "Το φαρδύ stop κόβει λιγότερες θέσεις αλλά με μεγαλύτερη ζημιά η καθεμία· η στήλη «μέσο όσων κόπηκαν» "
-                  "δείχνει πόση. Η απόφαση είναι του ιδιοκτήτη."]
+                  "δείχνει πόση. Η απόφαση είναι του ιδιοκτήτη.",
+              "", "## Οι άλλες έξοδοι: τι θα γινόταν αν η θέση έμενε ανοιχτή", "",
+              "Το πραγματικό αποτέλεσμα (στην εκτέλεση της εντολής κλεισίματος, ή στην τιμή της απόφασης όσο η εκτέλεση "
+              "δεν έχει διαβαστεί) απέναντι στην ίδια θέση κρατημένη ως το τέλος του παραθύρου μόνο με το σημερινό stop. "
+              "Κρίνονται μόνο ολοκληρωμένα παράθυρα.", "",
+              "| έξοδος | θέσεις | στην εκτέλεση | ολοκληρωμένα | πραγματικό % | αν κρατούσε % | διαφορά % | 95% διάστημα | "
+              "σε εξέλιξη: πραγματικό % / αν κρατούσε ως τώρα % | συμπέρασμα |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
+    for reason, c in (result.get("exits") or {}).items():
+        lines.append(f"| {reason} | {c['positions']} | {c['at_fill']} | {c['mature']} ({c['mature_days']} μέρες) | "
+                     f"{v(c['real_mean_pct'])} | {v(c['held_on_mean_pct'])} | {v(c['held_on_minus_real_pct'])} | "
+                     f"{v(c['ci_95'])} | {v(c['running_real_mean_pct'])} / {v(c['running_held_on_now_pct'])} | "
+                     f"{EXIT_VERDICT_GR.get(c['verdict'], c['verdict'])} |")
     return "\n".join(lines) + "\n"
 
 
-def run(root: Path, frames: Frames, margin_pct: float, *, write: bool = True) -> dict[str, Any]:
+def run(root: Path, frames: Frames, margin_pct: float, *, fills: dict[str, float | None] | None = None,
+        write: bool = True) -> dict[str, Any]:
     cases = positions(root / "data" / "paper_positions.json", root / "data" / "paper_positions_closed.jsonl")
-    result = evaluate(build(cases, frames), margin_pct)
+    result = evaluate(build(cases, frames, fills), margin_pct)
     if write:
         out = root / "output" / "paper_learning"
         out.mkdir(parents=True, exist_ok=True)

@@ -94,5 +94,45 @@ class EvaluationTests(unittest.TestCase):
         self.assertIn("stop_shadow_latest.md", text)
 
 
+class ExitTests(unittest.TestCase):
+    """Owner 2026-11-15: a position closed by a market shock (or a thesis, results, the owner) against the same
+    position held on under the live stop alone."""
+
+    def test_the_real_result_is_at_the_fill_when_read_else_at_the_decision(self):
+        closed = {**position(), "exit_order_id": "o1", "exit_plpc": -0.02}
+        self.assertEqual(ss.real_result(closed, {"o1": 103.0}), (3.0, "fill"))
+        self.assertEqual(ss.real_result(closed, {}), (-2.0, "decision"))
+        self.assertEqual(ss.real_result({**closed, "direction": "short"}, {"o1": 103.0}), (-3.0, "fill"))
+        self.assertEqual(ss.real_result({**position(), "exit_order_id": "x"}, {}), (None, None))
+
+    def test_a_shock_exit_is_set_against_holding_on_and_stops_are_not_compared(self):
+        frame = bars([100, 101, 103, 106])  # no stop touched: held on = +6% at the window's end
+        shock = {**position(), "state": "closed", "close_reason": "market_shock", "exit_plpc": 0.01}
+        stop = {**position(symbol="V"), "state": "closed", "close_reason": "scaled_stop", "exit_plpc": -0.03}
+        still_open = {**position(symbol="W", sessions=10), "state": "open"}
+        rows = ss.build([shock, stop, still_open], lambda s: frame)
+        exits = ss.evaluate_exits(rows, 0.5)
+        self.assertEqual(set(exits), {"market_shock"})
+        cell = exits["market_shock"]
+        self.assertEqual((cell["mature"], cell["real_mean_pct"], cell["held_on_mean_pct"]), (1, 1.0, 6.0))
+        self.assertEqual(cell["held_on_minus_real_pct"], 5.0)
+        self.assertEqual(cell["verdict"], "insufficient_sample")
+
+    def test_enough_whole_windows_make_a_candidate_for_the_monitor_only(self):
+        cases, frames = [], {}
+        for k in range(36):
+            day = str(pd.bdate_range("2026-01-05", periods=40)[k].date())
+            frames[f"S{k}"] = bars([100, 101, 103, 106], start=day)
+            cases.append({**position(day=day, symbol=f"S{k}"), "state": "closed", "close_reason": "market_shock",
+                          "exit_plpc": 0.01})
+        result = ss.evaluate(ss.build(cases, frames.get), 0.5)
+        self.assertEqual(result["exits"]["market_shock"]["verdict"], "holding on did better")
+        found = ss.proposal(result)
+        self.assertEqual([f["criterion_id"] for f in found], ["held_position_exit:market_shock"])
+        self.assertEqual(found[0]["target_agent"], "position_monitor")
+        self.assertIn("market_shock", ss.render(result))
+        self.assertFalse(result["active_decisions_changed"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -933,6 +933,10 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                   f"{_v(judged.get('class_minus_live_pct'), '%')} · συμπέρασμα: "
                   f"{ss.VERDICT_GR.get(stops.get('verdict'), stops.get('verdict'))}. "
                   "Ανάλυση: `output/paper_learning/stop_shadow_latest.md`."]
+        for reason, cell in (stops.get("exits") or {}).items():
+            lines.append(f"- Έξοδος {reason}: {cell['positions']} θέσεις · ολοκληρωμένα {cell['mature']} · αν κρατούσε "
+                         f"μείον πραγματικό {_v(cell['held_on_minus_real_pct'], '%')} · συμπέρασμα: "
+                         f"{ss.EXIT_VERDICT_GR.get(cell['verdict'], cell['verdict'])}.")
     lines += ["", "## Σκιώδη κρατήματα πολλών ημερών (χωρίς εντολές)", "",
               "Κάθε εγγραφή κρατημένη από το άνοιγμα της συνεδρίας της για ημέρα / εβδομάδα / μήνα / τρίμηνο: fixed (ως το "
               "τέλος), atr_bracket (τα δικά της stop/take-profit) και thesis (όσο ισχύει ο λόγος, για εβδομάδα/μήνα/τρίμηνο). Μια διάρκεια μετρά μόλις υπάρχει η τελευταία της "
@@ -999,12 +1003,13 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         hs.attach(conn, records)
         # owner 2026-11-07: the opposite position after a direction flip, measured only (its own report)
         flip = fs.run(root, conn, everything, frames, metrics, MARGIN_PCT, write=write_lessons)
+        fills = fs.exit_fills(conn)
     # owner 2026-11-09: candidates with a material headline before the open, against the rest (measured only)
     news = nw.run_shadow(root, records, metrics, MARGIN_PCT, write=write_lessons)
     # owner 2026-11-09 (the NVDA short): a gap already in the trade's direction, and one trader on both sides of a stock
     gaps = gc.run(root, records, frames, metrics, MARGIN_PCT, write=write_lessons)
     # owner 2026-11-15: the held positions' stop, the live widening one against the class-wide one (measured only)
-    stops = ss.run(root, frames, MARGIN_PCT, write=write_lessons)
+    stops = ss.run(root, frames, MARGIN_PCT, fills=fills, write=write_lessons)
     lab_dir = root / "output" / "strategy_lab"
     lab = json.loads((lab_dir / "strategy_lab_latest.json").read_text(encoding="utf-8")) \
         if (lab_dir / "strategy_lab_latest.json").is_file() else {}
@@ -1027,7 +1032,7 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         name: {k: gaps[name][k] for k in ("flagged", "rest", "flagged_minus_rest_pct", "verdict")}
         for name in ("favourable_gap", "both_directions")}
     evaluation["stop_shadow"] = {k: stops[k] for k in ("positions", "unknown", "mature", "mature_days", "running",
-                                                       "judged", "running_view", "verdict")}
+                                                       "judged", "running_view", "verdict", "exits")}
     found = (proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news) + gc.proposal(gaps)
              + ss.proposal(stops))
     lessons = record_lessons(root / "data" / "market_intel.db", found) if write_lessons else []

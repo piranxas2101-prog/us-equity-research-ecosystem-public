@@ -217,3 +217,25 @@ Rank IC at 60 sessions in the literature's direction (t from month blocks), best
   `outcome_evaluator.py` judges `giannis_long_quality` / `giannis_avoid` like the Piotroski buckets. No score, tier,
   threshold or order changes. Candidate filter for the owner to decide after shadow: no short in the top 20% of
   `long_quality`, no long in the top 20% of `avoid`.
+
+**Shadow filter replay, 2026-11-15** (`shadow_replay.py --variant shadow_variants/fundamental_filter_<trader>_v1.json`;
+the composites on the day before each run, ranked across that run's Giannis rows; 59 archived runs, 2026-09..11).
+Filter: no short in the top 20% of `long_quality`, no long in the top 20% of `avoid`. Net expectancy of the decisions
+the filter *drops* against those it keeps:
+
+| trader / side | 1d | 3d | 5d | 10d | 20d |
+|---|---|---|---|---|---|
+| Yankos short: dropped (n 278-74) | −0.45% | −0.51% | −0.15% | +0.08% | +3.02% |
+| Yankos short: kept | 0.00% | +0.29% | +0.60% | +1.70% | +5.02% |
+| Periklis short: dropped (n 295-88) | −0.44% | −0.49% | −0.17% | +0.05% | +2.62% |
+| Periklis short: kept | −0.02% | +0.25% | +0.56% | +1.69% | +4.82% |
+| Yankos long: dropped (n 570-278) | −0.22% | −0.20% | −0.40% | −0.64% | +0.18% |
+| Yankos long: kept | +0.15% | +0.35% | +0.11% | +0.02% | +0.56% |
+| Periklis long: dropped (n 327-141) | 0.00% | +0.38% | +0.33% | −0.28% | +0.32% |
+| Periklis long: kept | +0.12% | +0.27% | +0.07% | +0.11% | −0.19% |
+
+* **The short filter helps both traders at every horizon** (dropped shorts are worse than kept ones each time), as
+  the lab and the paper trades said. **The long filter helps Yankos** (short horizons) but **not Periklis** (mixed).
+* Caution: the same companies repeat every night, so the decisions are not independent; ~2.5 months of runs. No
+  decision changed. Candidate for the owner: the short filter for both traders and the long filter for Yankos, first
+  as a live shadow tag, then a manual decision.

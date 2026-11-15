@@ -1,0 +1,16 @@
+{
+  "schema": "ecosystem.shadow_variant.v1",
+  "variant_id": "fundamental_filter_periklis_v1",
+  "trader": "periklis",
+  "status": "shadow",
+  "description": "Drop shorts on companies in the top 20% of long_quality and longs on companies in the top 20% of avoid, ranked across each run's Giannis rows on the run's day.",
+  "hypothesis": "Fundamental lab 2021-11..2026-11 (docs/RULES_REVIEW.md section 10): cash profitability and net equity financing predict 20-120 session returns (rank IC t 6-9, positive in large caps and within the rules score >= 60). The 181 closed paper trades: shorts in the top 20% of long_quality lost -2.10% (n 14) against +2.27% in the middle. Dropping these decisions should cut more losers than winners.",
+  "created_at": "2026-11-15",
+  "overrides": {
+    "fundamental_filter": {
+      "short_max_long_quality": 80,
+      "long_max_avoid": 80
+    }
+  },
+  "promotion": "manual"
+}

@@ -248,6 +248,23 @@ class FactorSource:
         self.cache[key], self.changed = {"sha256": sha, "factors": result}, True
         return result
 
+    def _raw(self, ticker: str) -> dict[str, Any] | None:
+        cik = self.mapping.get(str(ticker).upper())
+        if not cik:
+            return None
+        stem = f"CIK{int(cik):010d}"
+        try:
+            sha = json.loads((self.directory / f"{stem}.meta.json").read_text(encoding="utf-8"))["sha256"]
+            body = gzip.decompress((self.directory / f"{stem}.json.gz").read_bytes())
+            return json.loads(body) if hashlib.sha256(body).hexdigest() == sha else None
+        except (OSError, EOFError, ValueError, KeyError):
+            return None
+
+    def factors_on(self, ticker: str, days: list[date]) -> dict[date, dict[str, Any] | None]:
+        """Factors on several past days from one read of the company's facts (replays; nothing is cached)."""
+        raw = self._raw(ticker)
+        return {day: (compute(raw, day) if raw is not None else None) for day in days}
+
     def save(self) -> None:
         if self.changed:
             today = self.today.isoformat()

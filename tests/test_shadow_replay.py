@@ -144,5 +144,66 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(rows, [])
 
 
+
+
+class FundamentalFilterTests(unittest.TestCase):
+    """Owner 2026-11-15: the fundamental composites as a filter on the traders' decisions, replayed in shadow."""
+
+    RUN = "2026-11-11T01:30:10+02:00"
+
+    def _signal(self, ticker: str, direction: str) -> dict:
+        return {"source_run_timestamp": self.RUN, "ticker": ticker, "playbook_name": "p", "trade_direction": direction,
+                "signal_verdict": "candidate", "signal_score": 7.0}
+
+    def test_filter_drops_the_bad_end_and_keeps_unknown(self) -> None:
+        composites = {self.RUN: {"GOOD": {"long_quality": 90.0, "avoid": 10.0},
+                                 "BAD": {"long_quality": 10.0, "avoid": 95.0},
+                                 "MID": {"long_quality": 50.0, "avoid": 50.0}}}
+        signals = [self._signal("GOOD", "short"), self._signal("GOOD", "long"), self._signal("BAD", "long"),
+                   self._signal("BAD", "short"), self._signal("MID", "long"), self._signal("NONE", "short")]
+        kept = shadow_replay.filter_decisions(signals, composites, {"short_max_long_quality": 80, "long_max_avoid": 80})
+        self.assertEqual([(s["ticker"], s["trade_direction"]) for s in kept],
+                         [("GOOD", "long"), ("BAD", "short"), ("MID", "long"), ("NONE", "short")])
+        only_shorts = shadow_replay.filter_decisions(signals, composites, {"short_max_long_quality": 80})
+        self.assertIn(("BAD", "long"), [(s["ticker"], s["trade_direction"]) for s in only_shorts])
+
+    def test_composites_use_the_day_before_the_run_and_rank_across_its_universe(self) -> None:
+        seen = []
+
+        class Source:
+            def factors_on(self, ticker, days):
+                seen.append((ticker, tuple(days)))
+                value = {"A": 0.3, "B": 0.1, "C": None}[ticker]
+                return {d: (None if value is None else {"values": {"cfo_to_assets": value, "d_roa": value}}) for d in days}
+
+        replays = [{"run_timestamp": self.RUN, "universe": ["A", "B", "C"]}]
+        result = shadow_replay.run_composites(replays, Source)
+        from datetime import date
+        self.assertIn(("A", (date(2026, 11, 10),)), seen)
+        self.assertEqual(result[self.RUN]["A"]["long_quality"], 100.0)
+        self.assertEqual(result[self.RUN]["B"]["long_quality"], 0.0)
+        self.assertNotIn("C", result[self.RUN])
+
+    def test_filter_variant_validation(self) -> None:
+        def write(overrides):
+            tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+            json.dump({"schema": shadow_replay.VARIANT_SCHEMA, "variant_id": "f", "trader": "yankos",
+                       "overrides": overrides}, tmp)
+            tmp.close()
+            self.addCleanup(Path(tmp.name).unlink)
+            return Path(tmp.name)
+
+        self.assertIn("fundamental_filter", shadow_replay.load_variant(write({"fundamental_filter": {"long_max_avoid": 80}}))["overrides"])
+        for bad in ({"fundamental_filter": {}}, {"fundamental_filter": {"short_max": 80}},
+                    {"fundamental_filter": {"long_max_avoid": "high"}}):
+            with self.assertRaises(ValueError):
+                shadow_replay.load_variant(write(bad))
+
+    def test_shipped_filter_variants_are_valid(self) -> None:
+        for name in ("fundamental_filter_periklis_v1.json", "fundamental_filter_yankos_v1.json"):
+            variant = shadow_replay.load_variant(Path(__file__).resolve().parents[1] / "shadow_variants" / name)
+            self.assertEqual(variant["overrides"]["fundamental_filter"]["short_max_long_quality"], 80)
+
+
 if __name__ == "__main__":
     unittest.main()

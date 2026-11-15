@@ -22,7 +22,8 @@ import hashlib
 import json
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,12 @@ TRADERS = {
     "yankos": {"module": yankos, "playbooks": ROOT / "yankos_playbooks.json"},
     "periklis": {"module": periklis, "playbooks": ROOT / "periklis_playbooks.json"},
 }
-OVERRIDE_SECTIONS = {"short_case_weights", "verdict_thresholds", "playbook_rules"}
+OVERRIDE_SECTIONS = {"short_case_weights", "verdict_thresholds", "playbook_rules", "fundamental_filter"}
+TRADER_OVERRIDES = OVERRIDE_SECTIONS - {"fundamental_filter"}
+# fundamental_filter (owner 2026-11-15, docs/FUNDAMENTAL_FACTORS_PLAN.md phase 3): drop a decision whose company sits
+# at the bad end of a fundamental composite on the run's day, ranked across that run's Giannis rows as a live run
+# would rank them. Keys: "short_max_long_quality" (no short at or above it), "long_max_avoid" (no long at or above it).
+FILTER_KEYS = {"short_max_long_quality", "long_max_avoid"}
 
 
 # ---------------------------------------------------------------- variants
@@ -64,6 +70,10 @@ def load_variant(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path.name}: unknown override sections {unknown}")
     if not variant.get("overrides"):
         raise ValueError(f"{path.name}: a variant must override something")
+    rules = (variant.get("overrides") or {}).get("fundamental_filter")
+    if rules is not None:
+        if not rules or set(rules) - FILTER_KEYS or not all(isinstance(v, (int, float)) for v in rules.values()):
+            raise ValueError(f"{path.name}: fundamental_filter takes numbers for {sorted(FILTER_KEYS)}")
     variant["file_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return variant
 
@@ -117,13 +127,62 @@ def replay(artifacts: Path, trader: str, variant: dict[str, Any]) -> dict[str, A
               zip(("babis", "giannis", "fundamental_packet"), REQUIRED_ARTIFACTS)}
     champion = module.evaluate_run(**inputs, playbook_payload=base_playbooks)
     overrides = variant["overrides"]
-    variant_playbooks = apply_playbook_rules(base_playbooks, overrides.get("playbook_rules") or {})
-    with module.scoring_overrides(short_case_weights=overrides.get("short_case_weights"),
-                                  verdict_thresholds=overrides.get("verdict_thresholds")):
-        challenger = module.evaluate_run(**inputs, playbook_payload=variant_playbooks)
+    if set(overrides) & TRADER_OVERRIDES:
+        variant_playbooks = apply_playbook_rules(base_playbooks, overrides.get("playbook_rules") or {})
+        with module.scoring_overrides(short_case_weights=overrides.get("short_case_weights"),
+                                      verdict_thresholds=overrides.get("verdict_thresholds")):
+            challenger = module.evaluate_run(**inputs, playbook_payload=variant_playbooks)
+    else:
+        challenger = champion  # a filter-only variant starts from the champion's own decisions
     run_ts = champion["run_timestamp"]
+    giannis_rows = inputs["giannis"].get("results") or []
     return {"run": artifacts.parent.name, "run_timestamp": run_ts,
+            "universe": sorted({str(row.get("ticker") or "").upper() for row in giannis_rows if row.get("ticker")}),
             "champion": decisions(champion["rows"], run_ts), "variant": decisions(challenger["rows"], run_ts)}
+
+
+# ---------------------------------------------------------------- fundamental filter (read-only)
+
+
+def _filter_day(run_ts: str) -> date:
+    """The facts a run could see: filed by the day before its start (a 01:30 Athens run is evening in New York)."""
+    return datetime.fromisoformat(run_ts).date() - timedelta(days=1)
+
+
+def run_composites(replays: list[dict[str, Any]], source_factory: Any = None) -> dict[str, dict[str, dict[str, Any]]]:
+    """Composites per run timestamp and ticker, each company's facts read once for all the days it appears."""
+    import fundamental_factors as ff
+
+    days_by_ticker: dict[str, set[date]] = defaultdict(set)
+    for item in replays:
+        for ticker in item["universe"]:
+            days_by_ticker[ticker].add(_filter_day(item["run_timestamp"]))
+    source = source_factory() if source_factory else ff.FactorSource()
+    values: dict[tuple[str, date], dict[str, Any] | None] = {}
+    for ticker, days in days_by_ticker.items():
+        for day, result in source.factors_on(ticker, sorted(days)).items():
+            values[(ticker, day)] = result
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for item in replays:
+        day = _filter_day(item["run_timestamp"])
+        sets = [values.get((ticker, day)) for ticker in item["universe"]]
+        out[item["run_timestamp"]] = {t: c for t, c in zip(item["universe"], ff.composites(sets)) if c}
+    return out
+
+
+def filter_decisions(signals: list[dict[str, Any]], composites: dict[str, dict[str, dict[str, Any]]],
+                     rules: dict[str, float]) -> list[dict[str, Any]]:
+    """Drop the decisions the filter blocks. An unknown composite blocks nothing: unknown is not a bad grade."""
+    kept = []
+    for signal in signals:
+        combo = composites.get(signal["source_run_timestamp"], {}).get(signal["ticker"]) or {}
+        quality, avoid = combo.get("long_quality"), combo.get("avoid")
+        if signal["trade_direction"] == "short" and "short_max_long_quality" in rules and quality is not None                 and quality >= rules["short_max_long_quality"]:
+            continue
+        if signal["trade_direction"] == "long" and "long_max_avoid" in rules and avoid is not None                 and avoid >= rules["long_max_avoid"]:
+            continue
+        kept.append(signal)
+    return kept
 
 
 # ---------------------------------------------------------------- outcomes (read-only)
@@ -218,7 +277,8 @@ def _git_commit() -> str | None:
         return None
 
 
-def build_report(variant: dict[str, Any], *, runs_dir: Path = RUNS_DIR, db_path: Path = DB_PATH) -> dict[str, Any]:
+def build_report(variant: dict[str, Any], *, runs_dir: Path = RUNS_DIR, db_path: Path = DB_PATH,
+                 source_factory: Any = None) -> dict[str, Any]:
     usable, skipped = archived_runs(runs_dir)
     replays = []
     for artifacts in usable:
@@ -226,6 +286,11 @@ def build_report(variant: dict[str, Any], *, runs_dir: Path = RUNS_DIR, db_path:
             replays.append(replay(artifacts, variant["trader"], variant))
         except (ValueError, KeyError, SystemExit) as exc:
             skipped.append({"run": artifacts.parent.name, "reason": f"replay failed: {exc}"[:300]})
+    rules = variant["overrides"].get("fundamental_filter")
+    if rules:
+        composites = run_composites(replays, source_factory)
+        for item in replays:
+            item["variant"] = filter_decisions(item["variant"], composites, rules)
     returns, baselines = load_outcomes(db_path, {item["run_timestamp"] for item in replays})
     champion = [signal for item in replays for signal in item["champion"]]
     challenger = [signal for item in replays for signal in item["variant"]]

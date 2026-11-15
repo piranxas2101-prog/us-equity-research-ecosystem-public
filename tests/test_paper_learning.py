@@ -248,5 +248,52 @@ class MaturityTests(unittest.TestCase):
         self.assertIn("μόνο ώριμα trades", text)
 
 
+class MarketReadingTests(unittest.TestCase):
+    """Owner 2026-11-15: every record read with the five-sided market reading of the night before."""
+
+    TIMELINE = {"2026-11-03": {"session": "2026-11-03", "trend": "down", "mood": "anxious", "participation": "narrow",
+                               "appetite": "on", "rewards": "both"},
+                "2026-11-04": {"session": "2026-11-04", "trend": "down", "mood": "calm", "participation": "mixed",
+                               "appetite": None, "rewards": "shorts"}}
+
+    def test_the_reading_is_the_night_before_and_a_missing_side_stays_unknown(self):
+        record = {**trade(5, 1.0), "categories": {"sector": "Tech"}}
+        pl.attach_market_reading([record], self.TIMELINE)
+        self.assertEqual(record["market_reading_session"], "2026-11-04")
+        self.assertEqual(record["market_trend_mood"], "down · calm")
+        self.assertEqual(record["market_appetite"], "unknown")
+        self.assertEqual(record["categories"]["market_rewards"], "shorts")
+        self.assertEqual(record["categories"]["sector"], "Tech")
+
+    def test_the_night_of_the_session_itself_is_not_used(self):
+        record = trade(4, 1.0)
+        pl.attach_market_reading([record], self.TIMELINE)
+        self.assertEqual(record["market_reading_session"], "2026-11-03")
+
+    def test_without_a_timeline_the_records_own_reading_stands_in_else_unknown(self):
+        own = {**trade(5, 1.0), "market_reading": {"session": "2026-11-04", "trend": "up", "mood": "calm"}}
+        bare = trade(6, 1.0)
+        pl.attach_market_reading([own, bare], {})
+        self.assertEqual(own["market_trend_mood"], "up · calm")
+        self.assertEqual(own["market_rewards"], "unknown")
+        self.assertEqual(bare["market_trend_mood"], "unknown · unknown")
+
+    def test_the_evaluation_groups_and_the_report_show_the_reading(self):
+        rows = [trade(4, 1.0), trade(5, -1.0)]
+        pl.attach_market_reading(rows, self.TIMELINE)
+        evaluation = pl.evaluate(rows)
+        self.assertEqual(set(evaluation["market_readings"]), {"down · anxious", "down · calm"})
+        self.assertEqual(set(evaluation["market_sides"]["rewards"]), {"both", "shorts"})
+        text = pl.render_report("week", "w", date(2026, 11, 2), date(2026, 11, 6), evaluation, pl.trade_review([]), [])
+        self.assertIn("down · anxious", text)
+
+    def test_the_timeline_is_read_from_the_review_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "review.json"
+            path.write_text(json.dumps({"timeline": list(self.TIMELINE.values())}), encoding="utf-8")
+            self.assertEqual(set(pl.load_market_timeline(path)), {"2026-11-03", "2026-11-04"})
+            self.assertEqual(pl.load_market_timeline(Path(folder) / "missing.json"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

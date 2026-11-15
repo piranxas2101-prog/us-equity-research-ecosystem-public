@@ -10,6 +10,8 @@ Owner's decision 2026-10-15. Reads the paper trade ledger (``paper_trade_ledger.
 * judges a held trade only once its planned window has passed (owner 2026-11-15): before that the early exits are
   mostly stops while the rest is still open. Immature trades are shown apart (closed early, still open with an
   estimate at the last close) and feed no judged figure, comparison or lesson;
+* reads every record with the five-sided market reading of the night before (trend, mood, participation,
+  appetite, rewards; ``market_state.py``), not the old four-state label (owner 2026-11-15);
 * measures the held positions' stop in shadow, the live widening stop against the class-wide one
   (``stop_shadow.py``, owner 2026-11-15);
 * compares live strategies with the five-year lab, and judges the control team from the counterfactuals: the
@@ -147,6 +149,38 @@ def attach_held_spy(records: list[dict[str, Any]], prices: Prices) -> None:
         _, closed = prices("SPY", date.fromisoformat(exit_session))
         record["spy_window_pct"] = (None if opened is None or closed is None
                                     else round((closed / opened - 1) * 100, 3))
+
+
+MARKET_SIDES = ("trend", "mood", "participation", "appetite", "rewards")
+
+
+def load_market_timeline(path: Path) -> dict[str, dict[str, Any]]:
+    """Session -> the five-sided reading of the market (``market_state.py``'s review timeline, the last year)."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(row["session"]): row for row in payload.get("timeline") or []
+            if isinstance(row, dict) and row.get("session")}
+
+
+def attach_market_reading(records: list[dict[str, Any]], timeline: dict[str, dict[str, Any]]) -> None:
+    """Each record read with the market as it stood the night before its session (owner 2026-11-15): the ledger's
+    own ``market_state`` is the old four-state label, ``up_calm`` on every trade so far, so learning could not tell
+    where a strategy works. The timeline's last session before the record's comes first (one definition for every
+    record); the reading the record kept at the time stands in without a timeline. A side not known stays
+    "unknown". The ledger record itself is not changed: these fields live only in the evaluation."""
+    sessions = sorted(timeline)
+    for record in records:
+        before = [d for d in sessions if d < record["session_date"]]
+        reading = timeline[before[-1]] if before else (record.get("market_reading") or {})
+        values = {side: reading.get(side) if isinstance(reading.get(side), str) else "unknown" for side in MARKET_SIDES}
+        record["market_reading_session"] = reading.get("session")
+        for side, value in values.items():
+            record[f"market_{side}"] = value
+        record["market_trend_mood"] = f"{values['trend']} · {values['mood']}"
+        if isinstance(record.get("categories"), dict):
+            record["categories"] = {**record["categories"], **{f"market_{k}": v for k, v in values.items()}}
 
 
 def maturity(record: dict[str, Any], as_of: date) -> str:
@@ -391,6 +425,9 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
             "trades_judged": len(trades), "maturity": maturity_summary(all_trades, as_of),
             "overall": metrics(trades), "strategies": strategies,
             "holding_classes": _group(trades, "holding_class"), "market_states": _group(trades, "market_state"),
+            # owner 2026-11-15: the five-sided reading of the night before, per trend · mood and per side
+            "market_readings": _group(trades, "market_trend_mood"),
+            "market_sides": {side: _group(trades, f"market_{side}") for side in MARKET_SIDES},
             "exit_reasons": _group(trades, "exit_reason"), "live_vs_lab": live_vs_lab,
             "control_team": control, "live_track_record_shadow": track,
             "simulation_fidelity": simulation_fidelity(trades),
@@ -785,7 +822,9 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
         lines.append(f"| {name} | {cell['known']} | {cell['days']} | {_v(cell['win_rate_pct'])} | {_v(cell['mean_pct'])} | "
                      f"{_v(cell['beat_spy_pct'])} | {_v(lab)} | {cell['status']} |")
     lines += ["", "## Ανά κατάσταση αγοράς και τρόπο εξόδου", ""]
-    for title, groups in (("Κατάσταση αγοράς", evaluation["market_states"]), ("Έξοδος", evaluation["exit_reasons"])):
+    for title, groups in (("Αγορά το προηγούμενο βράδυ (τάση · διάθεση)", evaluation.get("market_readings") or {}),
+                          ("Τι ανταμείβει η αγορά", (evaluation.get("market_sides") or {}).get("rewards") or {}),
+                          ("Έξοδος", evaluation["exit_reasons"])):
         lines.append(f"- {title}: " + "; ".join(f"{k}: {g['known']} trades, μέσο {_v(g['mean_pct'], '%')}"
                                                 for k, g in groups.items()) or "-")
     lines += ["", "## Ομάδα ελέγχου (τι θα είχε γίνει)", ""]
@@ -956,6 +995,7 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         attach_held_spy(records, prices)
         attach_open_marks(records, prices, as_of)
         attach_counterfactuals(conn, records)
+        attach_market_reading(records, load_market_timeline(root / "output" / "market_state_review_latest.json"))
         hs.attach(conn, records)
         # owner 2026-11-07: the opposite position after a direction flip, measured only (its own report)
         flip = fs.run(root, conn, everything, frames, metrics, MARGIN_PCT, write=write_lessons)

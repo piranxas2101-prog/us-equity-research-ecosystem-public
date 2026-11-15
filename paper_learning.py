@@ -7,6 +7,9 @@ Owner's decision 2026-10-15. Reads the paper trade ledger (``paper_trade_ledger.
 * evaluates each strategy (agent, playbook, direction), each holding class and market state: trades, days, wins,
   mean and median result, mean excess over SPY, share beating SPY with its Wilson lower bound. A group is judged
   only with at least ``MIN_TRADES`` trades from ``MIN_DAYS`` days; below that it says so instead of guessing;
+* judges a held trade only once its planned window has passed (owner 2026-11-15): before that the early exits are
+  mostly stops while the rest is still open. Immature trades are shown apart (closed early, still open with an
+  estimate at the last close) and feed no judged figure, comparison or lesson;
 * compares live strategies with the five-year lab, and judges the control team from the counterfactuals: the
   pre-open check (demoted vs traded), Koulis (left out vs approved), Miltos (approved but not entered vs entered)
   and the monitors (exits by stop or take-profit vs holding to the close);
@@ -34,6 +37,7 @@ import news_watch as nw
 import preopen_recheck as pr
 import paper_trade_ledger as ledger
 import strategy_tiers
+import trading_clock
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "output" / "paper_learning"
@@ -140,6 +144,49 @@ def attach_held_spy(records: list[dict[str, Any]], prices: Prices) -> None:
         _, closed = prices("SPY", date.fromisoformat(exit_session))
         record["spy_window_pct"] = (None if opened is None or closed is None
                                     else round((closed / opened - 1) * 100, 3))
+
+
+def maturity(record: dict[str, Any], as_of: date) -> str:
+    """A trade is judged only once its planned window has passed (owner 2026-11-15). Before that, the positions of
+    an entry cohort that closed early are mostly the ones a stop took out, while the rest are still open, so a
+    mean of the closed ones alone is biased towards losses. A same-day trade, or one without a planned horizon, is
+    mature at once; a held one when ``holding_horizon_sessions`` sessions have passed after its entry session."""
+    horizon = record.get("holding_horizon_sessions")
+    if record.get("kind") != "trade" or not isinstance(horizon, int) or horizon <= 1:
+        return "mature"
+    entry = date.fromisoformat(record["session_date"])
+    return "mature" if trading_clock.sessions_after(entry, as_of) >= horizon else "immature"
+
+
+def attach_open_marks(records: list[dict[str, Any]], prices: Prices, as_of: date) -> None:
+    """A trade still open (no result yet) marked at the close of ``as_of`` in its direction: an estimate shown
+    beside the immature trades, never a result and never mixed into the judged figures. Unknown without a price."""
+    for record in records:
+        if record.get("kind") != "trade" or record.get("result_pct") is not None:
+            continue
+        entry = record.get("entry_price")
+        _, close = prices(record.get("ticker") or "", as_of)
+        record["open_mark_pct"] = (None if not entry or close is None else
+                                   round((1.0 if record.get("direction") == "long" else -1.0) * (close / entry - 1) * 100, 3))
+
+
+def maturity_summary(trades: list[dict[str, Any]], as_of: date) -> dict[str, Any]:
+    """The trades not judged yet, per holding class: closed early (with their mean, for information only) and still
+    open (with the estimate at the last close)."""
+    immature = [r for r in trades if maturity(r, as_of) == "immature"]
+    classes: dict[str, Any] = {}
+    for cls in sorted({str(r.get("holding_class")) for r in immature}):
+        rows = [r for r in immature if str(r.get("holding_class")) == cls]
+        closed = [r for r in rows if r.get("outcome_pct") is not None]
+        still_open = [r for r in rows if r.get("outcome_pct") is None]
+        marks = [r["open_mark_pct"] for r in still_open if r.get("open_mark_pct") is not None]
+        classes[cls] = {"records": len(rows), "closed_early": len(closed),
+                        "closed_early_mean_pct": round(statistics.fmean([r["outcome_pct"] for r in closed]), 3)
+                        if closed else None,
+                        "open": len(still_open), "open_marked": len(marks),
+                        "open_mark_mean_pct": round(statistics.fmean(marks), 3) if marks else None}
+    return {"as_of": as_of.isoformat(), "mature": len(trades) - len(immature), "immature": len(immature),
+            "classes": classes}
 
 
 def attach_counterfactuals(conn: Any, records: list[dict[str, Any]]) -> None:
@@ -301,8 +348,11 @@ def simulation_fidelity(trades: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None,
-             legacy: dict[str, Any] | None = None) -> dict[str, Any]:
-    trades = [r for r in records if r["kind"] == "trade"]
+             legacy: dict[str, Any] | None = None, as_of: date | None = None) -> dict[str, Any]:
+    all_trades = [r for r in records if r["kind"] == "trade"]
+    # judged figures from mature trades only (owner 2026-11-15); the rest are shown apart in ``maturity``
+    as_of = as_of or max((date.fromisoformat(r["session_date"]) for r in records), default=date.today())
+    trades = [r for r in all_trades if maturity(r, as_of) == "mature"]
     signals = [r for r in records if r["kind"] == "shadow_candidate"]
     by_kind = {k: [r for r in records if r["kind"] == k] for k in
                ("approved_not_entered", "preopen_demoted", "koulis_left_out")}
@@ -333,8 +383,9 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
                     else "insufficient_history"} for name, cell in strategies.items()}
     return {"schema": "ecosystem.paper_learning_evaluation.v1", "generated_at": datetime.now(timezone.utc).isoformat(),
             "minimums": {"trades": MIN_TRADES, "days": MIN_DAYS, "control_margin_pct": MARGIN_PCT},
-            "sessions": len({r["session_date"] for r in records}), "trades": len(trades),
-            "trades_with_result": sum(1 for r in trades if r.get("outcome_pct") is not None),
+            "sessions": len({r["session_date"] for r in records}), "trades": len(all_trades),
+            "trades_with_result": sum(1 for r in all_trades if r.get("outcome_pct") is not None),
+            "trades_judged": len(trades), "maturity": maturity_summary(all_trades, as_of),
             "overall": metrics(trades), "strategies": strategies,
             "holding_classes": _group(trades, "holding_class"), "market_states": _group(trades, "market_state"),
             "exit_reasons": _group(trades, "exit_reason"), "live_vs_lab": live_vs_lab,
@@ -694,6 +745,22 @@ def _v(value: Any, suffix: str = "") -> str:
     return "άγνωστο" if value is None else f"{value}{suffix}"
 
 
+def _maturity_lines(summary: dict[str, Any]) -> list[str]:
+    """The trades whose planned window has not passed: shown, not judged."""
+    if not summary.get("immature"):
+        return []
+    lines = [f"## Θέσεις που δεν έχουν ωριμάσει ακόμα (ως {summary['as_of']})", "",
+             f"Κρίνονται μόνο τα trades που ολοκλήρωσαν το παράθυρο κράτησης: ώριμα {summary['mature']}, ανώριμα "
+             f"{summary['immature']}. Όσα έκλεισαν νωρίς είναι κυρίως stop, ενώ τα υπόλοιπα είναι ακόμα ανοιχτά· "
+             "ο μέσος όρος τους μόνος του θα έγερνε προς τις ζημιές. Τα παρακάτω είναι ενημέρωση, όχι κρίση.", "",
+             "| διάρκεια | trades | έκλεισαν νωρίς | μέσο όσων έκλεισαν % | ανοιχτά | εκτίμηση ανοιχτών στο κλείσιμο % |",
+             "|---|---|---|---|---|---|"]
+    for cls, cell in (summary.get("classes") or {}).items():
+        lines.append(f"| {cls} | {cell['records']} | {cell['closed_early']} | {_v(cell['closed_early_mean_pct'])} | "
+                     f"{cell['open']} | {_v(cell['open_mark_mean_pct'])} ({cell['open_marked']} με τιμή) |")
+    return lines + [""]
+
+
 def render_report(period: str, label: str, start: date, end: date, evaluation: dict[str, Any],
                   review: dict[str, Any], lessons: list[dict[str, Any]]) -> str:
     names = {"week": "Εβδομαδιαία", "month": "Μηνιαία", "quarter": "Τριμηνιαία", "year": "Ετήσια", "day": "Ημερήσια"}
@@ -703,7 +770,8 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
              f"(με αποτέλεσμα {evaluation['trades_with_result']}).",
              f"Κρίση μόνο με ≥{MIN_TRADES} trades από ≥{MIN_DAYS} μέρες· αλλιώς «ανεπαρκές δείγμα». Τίποτα δεν αλλάζει "
              "χωρίς την έγκριση του ιδιοκτήτη.", "",
-             "## Συνολικά", "",
+             *_maturity_lines(evaluation.get("maturity") or {}),
+             "## Συνολικά (μόνο ώριμα trades)", "",
              f"- Κερδισμένα {_v(o['win_rate_pct'], '%')} · μέσο αποτέλεσμα {_v(o['mean_pct'], '%')} · μέση υπέρβαση "
              f"έναντι SPY {_v(o['mean_excess_pct'], '%')} · νίκησαν το SPY {_v(o['beat_spy_pct'], '%')} · κατάσταση {o['status']}.",
              "", "## Ανά στρατηγική (ζωντανά έναντι backtest)", "",
@@ -871,7 +939,9 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         frames = frames or hs.store_frames(root / "data" / "price_history")
         hs.fill(conn, everything, frames, root / "output" / "runs")
         records = ledger.load(conn, since, until)
+        as_of = until or max((date.fromisoformat(r["session_date"]) for r in records), default=date.today())
         attach_held_spy(records, prices)
+        attach_open_marks(records, prices, as_of)
         attach_counterfactuals(conn, records)
         hs.attach(conn, records)
         # owner 2026-11-07: the opposite position after a direction flip, measured only (its own report)
@@ -885,7 +955,7 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         if (lab_dir / "strategy_lab_latest.json").is_file() else {}
     legacy = json.loads((lab_dir / "strategy_lab_legacy_latest.json").read_text(encoding="utf-8")) \
         if (lab_dir / "strategy_lab_legacy_latest.json").is_file() else {}
-    evaluation = evaluate(records, lab=lab, legacy=legacy)
+    evaluation = evaluate(records, lab=lab, legacy=legacy, as_of=as_of)
     # the recheck at the open of the ideas the pre-open check took down (owner 2026-10-22): its own report, so the
     # what-if is never mixed with what really happened; only its verdict travels with the evaluation
     recheck = pr.evaluate(records, frames, metrics, MARGIN_PCT)

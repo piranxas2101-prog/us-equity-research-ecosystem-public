@@ -54,6 +54,19 @@ def session(day: date) -> tuple[pd.Timestamp, pd.Timestamp] | None:
     return calendar.session_open(label).tz_convert(EASTERN), calendar.session_close(label).tz_convert(EASTERN)
 
 
+def sessions_after(start: date, end: date) -> int:
+    """Regular sessions after ``start`` up to and including ``end`` (0 when ``end`` is not later)."""
+    if end <= start:
+        return 0
+    calendar = _calendar()
+    if calendar is not None:
+        first, last = pd.Timestamp(start + timedelta(days=1)), pd.Timestamp(end)
+        bounds = calendar.first_session, calendar.last_session
+        if bounds[0] <= first and last <= bounds[1]:
+            return len(calendar.sessions_in_range(first, last))
+    return sum(1 for k in range(1, (end - start).days + 1) if session(start + timedelta(days=k)) is not None)
+
+
 def minutes_to_close(moment: datetime) -> int | None:
     """Trading minutes left in today's session at ``moment`` (0 after the close), None on a closed day."""
     now = _eastern(moment)

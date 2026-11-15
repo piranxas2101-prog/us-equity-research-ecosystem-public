@@ -189,5 +189,64 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Καμία ακόμη", text)
 
 
+def held(day: int, outcome: float | None, horizon: int = 60, exit_reason: str = "scaled_stop") -> dict:
+    """A quarter trade entered on 2026-10-<day>; ``outcome`` None = still open."""
+    return {**trade(day, 0.0), "record_id": f"h{day}{outcome}{exit_reason}", "session_date": f"2026-10-{day:02d}",
+            "holding_class": "quarter", "holding_horizon_sessions": horizon, "playbook": "support_bounce_swing",
+            "exit_reason": exit_reason if outcome is not None else "held_on_horizon", "outcome_pct": outcome,
+            "result_pct": outcome, "excess_pct": None if outcome is None else outcome - 0.2,
+            "ticker": "LMAT", "entry_price": 100.0}
+
+
+class MaturityTests(unittest.TestCase):
+    """Owner 2026-11-15: a held trade is judged only once its planned window has passed."""
+
+    def test_sessions_are_counted_on_the_exchange_calendar(self):
+        import trading_clock
+        self.assertEqual(trading_clock.sessions_after(date(2026, 11, 13), date(2026, 11, 16)), 1)  # Fri -> Mon
+        self.assertEqual(trading_clock.sessions_after(date(2026, 11, 13), date(2026, 11, 13)), 0)
+        self.assertEqual(trading_clock.sessions_after(date(2026, 11, 20), date(2026, 11, 30)), 5)  # Thanksgiving
+
+    def test_a_quarter_trade_stopped_early_is_not_judged_before_its_window(self):
+        rows = [trade(1 + i % 12, 0.5) for i in range(36)] + [held(26, -6.0), held(26, None)]
+        evaluation = pl.evaluate(rows, as_of=date(2026, 11, 13))
+        self.assertEqual(evaluation["trades"], 38)
+        self.assertEqual(evaluation["trades_judged"], 36)
+        self.assertEqual(evaluation["overall"]["mean_pct"], 0.5)
+        self.assertNotIn("yankos · support_bounce_swing · long", evaluation["strategies"])
+        self.assertNotIn("scaled_stop", evaluation["exit_reasons"])
+        cell = evaluation["maturity"]["classes"]["quarter"]
+        self.assertEqual((cell["records"], cell["closed_early"], cell["open"]), (2, 1, 1))
+        self.assertEqual(cell["closed_early_mean_pct"], -6.0)
+
+    def test_once_the_window_has_passed_the_whole_cohort_is_judged(self):
+        rows = [held(1, -6.0), held(1, 4.0, exit_reason="horizon_end")]
+        evaluation = pl.evaluate(rows, as_of=date(2027, 1, 30))
+        self.assertEqual(evaluation["trades_judged"], 2)
+        self.assertEqual(evaluation["overall"]["mean_pct"], -1.0)
+        self.assertEqual(evaluation["maturity"]["immature"], 0)
+
+    def test_same_day_trades_are_mature_at_once(self):
+        self.assertEqual(pl.maturity(trade(13, 1.0), date(2026, 11, 13)), "mature")
+
+    def test_an_open_trade_is_marked_at_the_last_close_and_unknown_without_a_price(self):
+        long, short = held(26, None), {**held(27, None), "direction": "short"}
+        missing = {**held(28, None), "ticker": "NONE"}
+        prices = lambda t, d: (None, None) if t == "NONE" else (101.0, 95.0)  # noqa: E731
+        pl.attach_open_marks([long, short, missing], prices, date(2026, 11, 13))
+        self.assertEqual(long["open_mark_pct"], -5.0)
+        self.assertEqual(short["open_mark_pct"], 5.0)
+        self.assertIsNone(missing["open_mark_pct"])
+        summary = pl.maturity_summary([long, short, missing], date(2026, 11, 13))["classes"]["quarter"]
+        self.assertEqual((summary["open"], summary["open_marked"], summary["open_mark_mean_pct"]), (3, 2, 0.0))
+
+    def test_the_report_shows_the_immature_trades_apart(self):
+        evaluation = pl.evaluate([trade(1, 2.0), held(26, -6.0)], as_of=date(2026, 11, 13))
+        text = pl.render_report("week", "2026-W46", date(2026, 11, 9), date(2026, 11, 13), evaluation,
+                                pl.trade_review([]), [])
+        self.assertIn("δεν έχουν ωριμάσει", text)
+        self.assertIn("μόνο ώριμα trades", text)
+
+
 if __name__ == "__main__":
     unittest.main()

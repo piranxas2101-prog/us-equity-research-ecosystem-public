@@ -10,6 +10,8 @@ Owner's decision 2026-10-15. Reads the paper trade ledger (``paper_trade_ledger.
 * judges a held trade only once its planned window has passed (owner 2026-11-15): before that the early exits are
   mostly stops while the rest is still open. Immature trades are shown apart (closed early, still open with an
   estimate at the last close) and feed no judged figure, comparison or lesson;
+* measures the held positions' stop in shadow, the live widening stop against the class-wide one
+  (``stop_shadow.py``, owner 2026-11-15);
 * compares live strategies with the five-year lab, and judges the control team from the counterfactuals: the
   pre-open check (demoted vs traded), Koulis (left out vs approved), Miltos (approved but not entered vs entered)
   and the monitors (exits by stop or take-profit vs holding to the close);
@@ -35,6 +37,7 @@ import flip_shadow as fs
 import gap_conflict_shadow as gc
 import news_watch as nw
 import preopen_recheck as pr
+import stop_shadow as ss
 import paper_trade_ledger as ledger
 import strategy_tiers
 import trading_clock
@@ -881,6 +884,16 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
                       f"- Με την περίπτωση {cell['flagged'].get('known')} (μέσο {cell['flagged'].get('mean_pct')}%) · "
                       f"χωρίς {cell['rest'].get('known')} (μέσο {cell['rest'].get('mean_pct')}%) · συμπέρασμα: "
                       f"{cell['verdict']}. Ανάλυση: `output/paper_learning/gap_conflict_shadow_latest.md`."]
+    stops = evaluation.get("stop_shadow") or {}
+    if stops:
+        judged, running = stops.get("judged") or {}, stops.get("running_view") or {}
+        lines += ["", "## Το stop των θέσεων πολλών ημερών: σημερινό ή φαρδύ (χωρίς εντολές)", "",
+                  f"- Θέσεις {stops.get('positions')} · ολοκληρωμένα παράθυρα {stops.get('mature')} · σε εξέλιξη "
+                  f"{stops.get('running')} (κόπηκαν ως τώρα: σημερινό {(running.get('live') or {}).get('stopped')}, "
+                  f"φαρδύ {(running.get('class') or {}).get('stopped')}) · φαρδύ μείον σημερινό "
+                  f"{_v(judged.get('class_minus_live_pct'), '%')} · συμπέρασμα: "
+                  f"{ss.VERDICT_GR.get(stops.get('verdict'), stops.get('verdict'))}. "
+                  "Ανάλυση: `output/paper_learning/stop_shadow_latest.md`."]
     lines += ["", "## Σκιώδη κρατήματα πολλών ημερών (χωρίς εντολές)", "",
               "Κάθε εγγραφή κρατημένη από το άνοιγμα της συνεδρίας της για ημέρα / εβδομάδα / μήνα / τρίμηνο: fixed (ως το "
               "τέλος), atr_bracket (τα δικά της stop/take-profit) και thesis (όσο ισχύει ο λόγος, για εβδομάδα/μήνα/τρίμηνο). Μια διάρκεια μετρά μόλις υπάρχει η τελευταία της "
@@ -950,6 +963,8 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
     news = nw.run_shadow(root, records, metrics, MARGIN_PCT, write=write_lessons)
     # owner 2026-11-09 (the NVDA short): a gap already in the trade's direction, and one trader on both sides of a stock
     gaps = gc.run(root, records, frames, metrics, MARGIN_PCT, write=write_lessons)
+    # owner 2026-11-15: the held positions' stop, the live widening one against the class-wide one (measured only)
+    stops = ss.run(root, frames, MARGIN_PCT, write=write_lessons)
     lab_dir = root / "output" / "strategy_lab"
     lab = json.loads((lab_dir / "strategy_lab_latest.json").read_text(encoding="utf-8")) \
         if (lab_dir / "strategy_lab_latest.json").is_file() else {}
@@ -971,7 +986,10 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
     evaluation["gap_conflict_shadow"] = {
         name: {k: gaps[name][k] for k in ("flagged", "rest", "flagged_minus_rest_pct", "verdict")}
         for name in ("favourable_gap", "both_directions")}
-    found = proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news) + gc.proposal(gaps)
+    evaluation["stop_shadow"] = {k: stops[k] for k in ("positions", "unknown", "mature", "mature_days", "running",
+                                                       "judged", "running_view", "verdict")}
+    found = (proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news) + gc.proposal(gaps)
+             + ss.proposal(stops))
     lessons = record_lessons(root / "data" / "market_intel.db", found) if write_lessons else []
     evaluation["lesson_candidates"] = lessons
     evaluation["shadow_lessons"] = shadow_lessons(root / "data" / "market_intel.db", records)

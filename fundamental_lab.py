@@ -23,7 +23,13 @@ F3 (filing recency): the excess by days since the last 10-Q/10-K was filed. Unkn
 a value is in neither group. Survivorship: the price store holds today's companies only, so the delisted ones are
 missing - the results compare survivors with survivors.
 
-    fundamental_lab.py            # writes output/strategy_lab/fundamental_rules_latest.json and .md
+Fundamental factors (owner 2026-11-15, docs/FUNDAMENTAL_FACTORS_PLAN.md, phase 1): the same observations also carry
+the six factors of ``fundamental_factors.py`` and the two composites ranked per date; per factor, the rank IC (signed
+in the literature's direction, t from the month blocks), best against worst quintile, each leg against the rest, large
+against micro caps and within the companies today's rules already score >= 60, with the phase-2 verdict.
+
+    fundamental_lab.py                    # output/strategy_lab/fundamental_rules_latest.json/.md + fundamental_factors_latest.md
+    fundamental_lab.py --paper-positions  # the closed paper positions by the composites they opened with (read-only)
 """
 from __future__ import annotations
 
@@ -35,7 +41,10 @@ import gzip
 import json
 from pathlib import Path
 import random
+import sys
 from typing import Any
+
+import fundamental_factors
 
 ROOT = Path(__file__).resolve().parent
 PRICES = ROOT / "data" / "price_history"
@@ -143,8 +152,11 @@ def company_rows(task: tuple[str, str, str, list[str]]) -> list[dict[str, Any]]:
         values["trailing_pe"] = pe
         report = _last_report(raw, day)
         forward = {h: (closes[k + h] / closes[k] - 1.0) if k + h < len(closes) else None for h in HORIZONS}
+        factors = fundamental_factors.compute(raw, day)
         out.append({"ticker": ticker, "date": text, "values": values,
-                    "days_since_report": (day - report).days if report else None, "forward": forward})
+                    "days_since_report": (day - report).days if report else None, "forward": forward,
+                    "factors": factors["values"], "factor_partial": sorted(factors["partial"]),
+                    "market_cap": closes[k] * shares if shares else None})
     return out
 
 
@@ -315,6 +327,235 @@ def analyse(rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> dict[str
     }
 
 
+# --- Fundamental factors (owner 2026-11-15, docs/FUNDAMENTAL_FACTORS_PLAN.md, phase 1) ---------------------------
+FACTOR_SIGNS = {"cfo_to_assets": 1, "cash_op_profit": 1, "net_equity_finance": -1, "net_external_finance": -1,
+                "d_roa": 1, "asset_growth": -1, "long_quality": 1, "avoid": -1}  # the literature's direction
+LARGE_CAP = 3e8  # below ~$300 million = micro caps, where most anomalies live and trading costs are highest
+SIGNIFICANT_T = 2.0  # phase 2 gate; promotion asks for t >= 3 (Harvey-Liu-Zhu)
+
+
+def add_factor_ranks(rows: list[dict[str, Any]]) -> None:
+    """Per date: the run-style composites and every factor's quintile (1 = lowest value, 5 = highest)."""
+    by_date: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_date[row["date"]].append(row)
+    for day_rows in by_date.values():
+        combos = fundamental_factors.composites({"values": r.get("factors") or {}} for r in day_rows)
+        for row, combo in zip(day_rows, combos):
+            row.setdefault("factors", {})
+            row["factors"] = {**row["factors"], "long_quality": (combo or {}).get("long_quality"),
+                              "avoid": (combo or {}).get("avoid")}
+        for name in FACTOR_SIGNS:
+            ranks = fundamental_factors.percentiles([r["factors"].get(name) for r in day_rows])
+            for row, rank in zip(day_rows, ranks):
+                row.setdefault("quintile", {})[name] = None if rank is None else min(5, int(rank * 5) + 1)
+
+
+def _block_interval(series: list[float], seed: int = 11) -> tuple[float, float, float, float]:
+    """Mean, 95% month-block bootstrap interval and a t-like ratio (mean / bootstrap standard error)."""
+    rng = random.Random(seed)
+    boots = []
+    for _ in range(BOOTSTRAP):
+        sample: list[float] = []
+        while len(sample) < len(series):
+            start = rng.randrange(len(series))
+            sample += series[start:start + BLOCK_MONTHS]
+        boots.append(_mean(sample[:len(series)]))
+    boots.sort()
+    mean = _mean(series)
+    centre = _mean(boots)
+    se = (sum((b - centre) ** 2 for b in boots) / (len(boots) - 1)) ** 0.5
+    return mean, boots[int(0.025 * BOOTSTRAP)], (boots[int(0.975 * BOOTSTRAP)]), (mean / se if se else 0.0)
+
+
+def rank_ic(rows: list[dict[str, Any]], name: str, horizon: int) -> dict[str, Any]:
+    """Mean over dates of the Spearman correlation between the factor and the excess return, signed so that the
+    literature's direction is positive; with a month-block interval and t (overlapping horizons are handled by the
+    blocks, not by pretending months are independent)."""
+    by_date: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for row in rows:
+        value, excess = row["factors"].get(name), row["excess"].get(horizon)
+        if value is not None and excess is not None:
+            by_date[row["date"]].append((value, excess))
+    ics = []
+    for pairs in (by_date[d] for d in sorted(by_date)):
+        if len(pairs) < 30:
+            continue
+        a = fundamental_factors.percentiles([p[0] for p in pairs])
+        b = fundamental_factors.percentiles([p[1] for p in pairs])
+        ma, mb = _mean(a), _mean(b)
+        cov = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        var = (sum((x - ma) ** 2 for x in a) * sum((y - mb) ** 2 for y in b)) ** 0.5
+        if var:
+            ics.append(FACTOR_SIGNS[name] * cov / var)
+    if len(ics) < 6:
+        return {"dates": len(ics), "ic": None}
+    mean, low, high, t = _block_interval(ics)
+    return {"dates": len(ics), "ic": round(mean, 4), "ci95": [round(low, 4), round(high, 4)], "t": round(t, 2)}
+
+
+def factor_report(rows: list[dict[str, Any]], name: str, horizon: int) -> dict[str, Any]:
+    """Best quintile against worst (in the literature's direction), each leg against the rest, by size."""
+    good, bad = (5, 1) if FACTOR_SIGNS[name] > 0 else (1, 5)
+
+    def q(r):
+        return (r.get("quintile") or {}).get(name)
+
+    known = [r for r in rows if q(r) is not None]
+    large = [r for r in known if (r.get("market_cap") or 0) >= LARGE_CAP]
+    small = [r for r in known if r.get("market_cap") is not None and r["market_cap"] < LARGE_CAP]
+    scored = [r for r in known if (r.get("score") or -1) >= 60]  # the companies today's rules already like
+    return {
+        "coverage": round(len(known) / len(rows), 3) if rows else 0.0,
+        "partial_share": round(sum(1 for r in known if name in (r.get("factor_partial") or [])) / len(known), 3) if known else None,
+        "best_vs_worst": spread(rows, lambda r: q(r) == good, lambda r: q(r) == bad, horizon),
+        "long_leg": spread(rows, lambda r: q(r) == good, lambda r: q(r) not in (None, good), horizon),
+        "short_leg": spread(rows, lambda r: q(r) not in (None, bad), lambda r: q(r) == bad, horizon),
+        "large_caps": spread(large, lambda r: q(r) == good, lambda r: q(r) == bad, horizon),
+        "micro_caps": spread(small, lambda r: q(r) == good, lambda r: q(r) == bad, horizon),
+        "within_rules_score_60": spread(scored, lambda r: q(r) == good, lambda r: q(r) == bad, horizon),
+        "rank_ic": rank_ic(rows, name, horizon),
+    }
+
+
+def verdict(report: dict[str, Any]) -> str:
+    """Phase-2 gate: right sign at 20 and 60 sessions, |t| >= 2 on the rank IC at 60, not carried by micro caps."""
+    ic20, ic60 = report["20"]["rank_ic"].get("ic"), report["60"]["rank_ic"]
+    large = report["60"]["large_caps"].get("spread_pct")
+    if ic20 is None or ic60.get("ic") is None:
+        return "insufficient"
+    if ic20 > 0 and ic60["ic"] > 0 and ic60["t"] >= SIGNIFICANT_T and (large or 0) > 0:
+        return "passes (to shadow)"
+    if ic60["ic"] < 0 and ic60["t"] <= -SIGNIFICANT_T:
+        return "reversed"
+    return "no edge"
+
+
+def analyse_factors(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    add_factor_ranks(rows)
+    out = {}
+    for name in FACTOR_SIGNS:
+        report = {str(h): factor_report(rows, name, h) for h in HORIZONS}
+        report["verdict"] = verdict(report)
+        out[name] = report
+    return out
+
+
+def render_factors(payload: dict[str, Any]) -> str:
+    f = payload["factors"]
+    lines = [f"# Θεμελιώδεις παράγοντες: εργαστήριο ({payload['generated_at'][:10]})", "",
+             f"{payload['companies']} εταιρείες, {payload['observations']} παρατηρήσεις αρχής μήνα, {payload['first_date']} έως "
+             f"{payload['last_date']}. Μόνο ό,τι είχε κατατεθεί στην SEC ως εκείνη τη μέρα. Υπέρβαση = απόδοση μείον τη διάμεσο "
+             "όλων των εταιρειών της ίδιας μέρας. Μόνο έρευνα: τίποτα δεν αλλάζει σκορ, όρια ή εντολές.", "",
+             "Κατεύθυνση: κάθε παράγοντας μετριέται προς την κατεύθυνση της βιβλιογραφίας (π.χ. λιγότερη έκδοση μετοχών = "
+             "καλύτερο). Θετικό = η βιβλιογραφία επιβεβαιώνεται στο δικό σου σύμπαν.", "",
+             "Όριο για shadow: σωστό πρόσημο σε 20 και 60 συνεδριάσεις, t ≥ 2 στο rank IC των 60, θετικό και στις μεγάλες "
+             "εταιρείες (≥ $300 εκ.). Για πρόταση προαγωγής: t ≥ 3.", "",
+             f"## Σύνοψη, {MAIN_HORIZON} συνεδριάσεις", "",
+             "| παράγοντας | κάλυψη | rank IC (t) | καλύτερο − χειρότερο 20% | long πλευρά | short πλευρά | μεγάλες | micro | μέσα σε σκορ ≥ 60 | απόφαση |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+
+    def cell(s):
+        return "—" if s.get("spread_pct") is None else f"{s['spread_pct']:+.2f}% [{s['ci95_pct'][0]}, {s['ci95_pct'][1]}] {s['years_positive']}"
+
+    for name, report in f.items():
+        r = report[str(MAIN_HORIZON)]
+        ic = r["rank_ic"]
+        ic_text = "—" if ic.get("ic") is None else f"{ic['ic']:+.3f} ({ic['t']})"
+        lines.append(f"| {name} | {r['coverage']:.0%} | {ic_text} | {cell(r['best_vs_worst'])} | {cell(r['long_leg'])} | "
+                     f"{cell(r['short_leg'])} | {cell(r['large_caps'])} | {cell(r['micro_caps'])} | "
+                     f"{cell(r['within_rules_score_60'])} | **{report['verdict']}** |")
+    lines += ["", "## Rank IC ανά ορίζοντα (t)", "", "| παράγοντας | " + " | ".join(f"{h} συν." for h in HORIZONS) + " |",
+              "|---|" + "---|" * len(HORIZONS)]
+    for name, report in f.items():
+        lines.append(f"| {name} | " + " | ".join(
+            "—" if report[str(h)]["rank_ic"].get("ic") is None else f"{report[str(h)]['rank_ic']['ic']:+.3f} ({report[str(h)]['rank_ic']['t']})"
+            for h in HORIZONS) + " |")
+    lines += ["", "Σημειώσεις:",
+              "- Survivorship: οι τιμές έχουν μόνο τις σημερινές εταιρείες· όσες διαγράφηκαν λείπουν. Αυτό ευνοεί τις κακές "
+              "μετοχές, άρα η short πλευρά μάλλον υποτιμάται.",
+              "- Το beta δεν αφαιρείται: η βάση είναι η διάμεσος της ίδιας μέρας, όχι το SPY.",
+              "- `cash_op_profit` είναι προσέγγιση (λειτουργικά κέρδη μείον accruals), όχι η ακριβής κατασκευή Ball et al.",
+              "- Τα στοιχεία χρηματοδότησης που μια εταιρεία δεν ανέφερε δεν γίνονται μηδέν· το «μερικό» μετρά πόσες "
+              "τιμές χτίστηκαν χωρίς κάποιο από αυτά."]
+    lines += ["", "Μερικές τιμές (χωρίς κάποιο προαιρετικό στοιχείο): " + ", ".join(
+        f"{name} {report[str(MAIN_HORIZON)]['partial_share']:.0%}" for name, report in f.items()
+        if report[str(MAIN_HORIZON)].get("partial_share") is not None)]
+    return "\n".join(lines) + "\n"
+
+
+# --- Phase 3 check on the system's own trades: would the composites have kept us out of the losers? ------------
+POSITIONS = ROOT / "data" / "paper_positions_closed.jsonl"
+
+
+def _company_factors(task: tuple[str, str, list[str]]) -> tuple[str, dict[str, Any]]:
+    ticker, facts_path, days = task
+    try:
+        raw = json.loads(gzip.decompress(Path(facts_path).read_bytes()))
+    except (OSError, EOFError, ValueError):
+        return ticker, {}
+    return ticker, {d: fundamental_factors.compute(raw, date.fromisoformat(d))["values"] for d in days}
+
+
+def positions_check(path: Path = POSITIONS, workers: int = 4) -> dict[str, Any]:
+    """Closed paper positions grouped by the composites they had on the day they opened (read-only).
+
+    Each position's factors are computed with the facts filed by its opening session and ranked against every company
+    with stored facts on that same day, as a run would rank them. Descriptive only: a few hundred trades over a few
+    weeks are not a test, they show whether the filter would have cut more losers than winners."""
+    import periodic_filing
+
+    try:
+        positions = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError:
+        return {"positions": 0, "reason": f"{path.name} not found"}
+    positions = [p for p in positions if p.get("symbol") and p.get("opened_session") and
+                 isinstance(p.get("exit_plpc"), (int, float)) and p.get("direction") in ("long", "short")]
+    days = sorted({p["opened_session"] for p in positions})
+    mapping = periodic_filing.ticker_to_cik(TICKERS)
+    tasks = []
+    for ticker, cik in mapping.items():
+        facts = FACTS / f"CIK{int(cik):010d}.json.gz"
+        if facts.exists():
+            tasks.append((ticker, str(facts), days))
+    by_day: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for ticker, per_day in pool.map(_company_factors, tasks, chunksize=32):
+            for day, values in per_day.items():
+                if any(v is not None for v in values.values()):
+                    by_day[day][ticker] = values
+    combos_by_day = {}
+    for day, companies in by_day.items():
+        tickers = list(companies)
+        combos_by_day[day] = dict(zip(tickers, fundamental_factors.composites({"values": companies[t]} for t in tickers)))
+    groups: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    for p in positions:
+        combo = combos_by_day.get(p["opened_session"], {}).get(str(p["symbol"]).upper()) or {}
+        for name in ("long_quality", "avoid"):
+            label = fundamental_factors.quintile_label(combo.get(name)) or "unknown"
+            groups[(p["direction"], name, label)].append(float(p["exit_plpc"]) * 100.0)
+    table = []
+    for (direction, name, label), values in sorted(groups.items()):
+        table.append({"direction": direction, "composite": name, "bucket": label, "n": len(values),
+                      "mean_result_pct": round(_mean(values), 2),
+                      "win_rate": round(sum(1 for v in values if v > 0) / len(values), 2)})
+    return {"positions": len(positions), "first_session": days[0] if days else None,
+            "last_session": days[-1] if days else None, "table": table}
+
+
+def render_positions(check: dict[str, Any]) -> str:
+    lines = ["# Θεμελιώδεις δείκτες και τα δικά μας paper trades", "",
+             f"{check['positions']} κλεισμένες θέσεις, {check.get('first_session')} έως {check.get('last_session')}. "
+             "Οι δείκτες όπως ήταν την ημέρα που άνοιξε η θέση, ταξινομημένοι απέναντι σε όλες τις εταιρείες εκείνης της "
+             "μέρας. Μόνο περιγραφή: λίγες εβδομάδες δεν είναι δοκιμή. Τίποτα δεν αλλάζει σε traders ή εντολές.", "",
+             "Τι ψάχνουμε: long σε «avoid top 20%» ή short σε «long_quality top 20%» να πήγαν χειρότερα από τα υπόλοιπα.", "",
+             "| κατεύθυνση | δείκτης | ομάδα | θέσεις | μέσο αποτέλεσμα % | κερδοφόρες |", "|---|---|---|---|---|---|"]
+    for row in check.get("table", []):
+        lines.append(f"| {row['direction']} | {row['composite']} | {row['bucket']} | {row['n']} | "
+                     f"{row['mean_result_pct']:+.2f} | {row['win_rate']:.0%} |")
+    return "\n".join(lines) + "\n"
+
+
 def render(payload: dict[str, Any]) -> str:
     a = payload["analysis"]
     lines = [f"# Fundamental rules lab ({payload['generated_at'][:10]})", "",
@@ -356,7 +597,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--limit", type=int, help="only the first N companies (a quick look)")
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--paper-positions", action="store_true",
+                        help="only the check of the closed paper positions against the fundamental composites")
     args = parser.parse_args(argv)
+    if args.paper_positions:
+        check = positions_check(POSITIONS, args.workers)
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "fundamental_factors_positions_latest.json").write_text(json.dumps(check, indent=2), encoding="utf-8")
+        (OUT / "fundamental_factors_positions_latest.md").write_text(render_positions(check), encoding="utf-8")
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        print(render_positions(check))
+        return 0
     rules = json.loads(CONFIG.read_text(encoding="utf-8"))["fundamental_rules"]
     rows = collect(args.limit, args.workers)
     add_excess(rows)
@@ -365,10 +617,15 @@ def main(argv: list[str] | None = None) -> int:
                "first_date": min((r["date"] for r in rows), default=None),
                "last_date": max((r["date"] for r in rows), default=None),
                "horizons": HORIZONS, "analysis": analyse(rows, rules)}
+    payload["factors"] = analyse_factors(rows)  # after analyse(): it uses the rules score of each row
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "fundamental_rules_latest.json").write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     (OUT / "fundamental_rules_latest.md").write_text(render(payload), encoding="utf-8")
+    (OUT / "fundamental_factors_latest.md").write_text(render_factors(payload), encoding="utf-8")
     print(render(payload))
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # the Greek report on a cp1253 console
+    print(render_factors(payload))
     return 0
 
 

@@ -22,6 +22,7 @@ import statistics
 from typing import Any, Callable
 
 import agent_learning_control_plane as learning
+import fundamental_factors
 import market_intel_db
 from outcome_tracker import SESSION_BENCHMARK, completed_through
 
@@ -39,10 +40,14 @@ LABEL_ORDER = {
     "giannis_piotroski": ("piotroski_f_score", ("strong (7-9)", "middle (4-6)", "weak (0-3)")),
     "giannis_altman": ("altman_z2_zone", ("safe", "grey", "distress")),
     "giannis_beneish": ("beneish_m_score", ("no warning", "manipulation warning")),
+    # fundamental composites ranked across each run (fundamental_factors.py, owner 2026-11-15), in shadow
+    "giannis_long_quality": ("fundamental_long_quality", ("top 20%", "middle 60%", "bottom 20%")),
+    "giannis_avoid": ("fundamental_avoid", ("bottom 20%", "middle 60%", "top 20%")),  # a high avoid score is the bad end
 }
 TASKS = {"giannis": "fundamental_quality", "petros": "fundamental_synthesis",
          "giannis_piotroski": "fundamental_quality", "giannis_altman": "fundamental_quality",
-         "giannis_beneish": "fundamental_quality"}
+         "giannis_beneish": "fundamental_quality", "giannis_long_quality": "fundamental_quality",
+         "giannis_avoid": "fundamental_quality"}
 SOURCE_AGENTS = ("giannis", "petros")
 
 
@@ -52,10 +57,13 @@ def factor_labels(decision: dict[str, Any]) -> dict[str, str | None]:
     f_score = (factors.get("piotroski") or {}).get("score")
     z = factors.get("altman_z2") or {}
     m = factors.get("beneish") or {}
+    combos = ((decision.get("fundamental_factors") or {}).get("composites")) or {}
     return {
         "giannis_piotroski": None if f_score is None else "strong (7-9)" if f_score >= 7 else "middle (4-6)" if f_score >= 4 else "weak (0-3)",
         "giannis_altman": z.get("zone"),
         "giannis_beneish": None if m.get("flag") is None else "manipulation warning" if m["flag"] else "no warning",
+        "giannis_long_quality": fundamental_factors.quintile_label(combos.get("long_quality")),
+        "giannis_avoid": fundamental_factors.quintile_label(combos.get("avoid")),
     }
 
 

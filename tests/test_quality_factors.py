@@ -74,8 +74,10 @@ class QualityFactorTests(unittest.TestCase):
         decision = {"quality_factors": {"piotroski": {"score": 8}, "altman_z2": {"zone": "grey"},
                                         "beneish": {"flag": True}}}
         self.assertEqual(oe.factor_labels(decision), {"giannis_piotroski": "strong (7-9)", "giannis_altman": "grey",
-                                                      "giannis_beneish": "manipulation warning"})
-        self.assertEqual(oe.factor_labels({}), {"giannis_piotroski": None, "giannis_altman": None, "giannis_beneish": None})
+                                                      "giannis_beneish": "manipulation warning",
+                                                      "giannis_long_quality": None, "giannis_avoid": None})
+        self.assertEqual(oe.factor_labels({}), {"giannis_piotroski": None, "giannis_altman": None, "giannis_beneish": None,
+                                                "giannis_long_quality": None, "giannis_avoid": None})
 
 
 if __name__ == "__main__":

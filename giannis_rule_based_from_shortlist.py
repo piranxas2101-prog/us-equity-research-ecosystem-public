@@ -10,6 +10,7 @@ from typing import Any
 
 from run_context import attach_run_context, resolve_run_id
 import periodic_filing
+import fundamental_factors
 import quality_factors
 import sec_fundamental_ratios
 import unknown_data
@@ -531,6 +532,14 @@ def main() -> int:
         print(f"[INFO] quality factors (shadow) for {sum(1 for r in scored if r.get('quality_factors'))} of {len(scored)} rows")
     except Exception as exc:  # noqa: BLE001 - shadow evidence never stops the scoring
         print(f"[WARN] quality factors not computed: {type(exc).__name__}")
+    # Fundamental factors with post-publication evidence (cash profitability, equity/external financing, ROA change,
+    # asset growth) and the two composites ranked across this run's rows, in shadow: never part of the score
+    # (owner 2026-11-15, docs/FUNDAMENTAL_FACTORS_PLAN.md; judged against outcomes by outcome_evaluator.py).
+    try:
+        known = fundamental_factors.annotate(scored)
+        print(f"[INFO] fundamental factors (shadow) for {known} of {len(scored)} rows")
+    except Exception as exc:  # noqa: BLE001 - shadow evidence never stops the scoring
+        print(f"[WARN] fundamental factors not computed: {type(exc).__name__}")
     scored_sorted = sorted(scored, key=lambda x: x["score_final"], reverse=True)
     run_ts = data.get("run_timestamp") or ""
     unknown_events = [

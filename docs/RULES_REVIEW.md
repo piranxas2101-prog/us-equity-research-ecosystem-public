@@ -185,3 +185,35 @@ To pass (30 flips on 10 sessions, as every learning judgement; judged on the ent
 On 2026-11-09 Yankos had a support-bounce long and a gap-fade short on NVDA from the same night. The pre-open check took the long down (pre-market gap -5.85% against it, ATR 4.28%) and kept the short, since it only looks at gaps against a trade; the short entered at 11:28 New York near the day's low and was -2.15% at the close while the sector rallied (SOXX +7.5%). `gap_conflict_shadow.py` measures, with the nightly learning evaluation and without orders: candidates whose pre-market gap is in their own direction by at least one ATR against the rest, and stocks on which one trader proposed both directions the same night against the rest. A clear gap (control margin, minimum trades and days) only proposes a lesson; changing the pre-open check or Koulis stays the owner's decision.
 
 First reading on 18 sessions (2026-11-09): favourable gap >= 1 ATR 201 records, mean +0.43% against -0.14% for the rest (beat SPY 55.7% against 49.3%); its shorts beat SPY only 44.7%. Both directions: 362 stocks, 705 records, mean +0.06% against -0.08%, no clear difference; inside them the long side beat SPY 57.1%, the short side 44.3%.
+
+## 10. Fundamental factors lab, 2026-11-15 (owner: research, plan and phases 1-3)
+
+Plan and reasons: `docs/FUNDAMENTAL_FACTORS_PLAN.md`; literature: `docs/research/Θεμελιώδεις παράγοντες απόδοσης μετοχών.md`.
+`fundamental_factors.py` computes six factors from the stored companyfacts point in time (cash profitability, equity
+and external financing, ROA change, asset growth) and two composites (`long_quality`, `avoid`, equal-weight
+percentiles). `fundamental_lab.py` replays them: 5,278 companies, 285,119 month-start observations, 2021-11 to 2026-11.
+Rank IC at 60 sessions in the literature's direction (t from month blocks), best minus worst quintile:
+
+| factor | IC (t) | best − worst | large caps | within rules score ≥ 60 | verdict |
+|---|---|---|---|---|---|
+| cfo_to_assets | +0.153 (9.1) | +7.5% | +10.5% | +11.2% | shadow |
+| cash_op_profit | +0.155 (8.8) | +6.9% | +10.2% | +7.3% | shadow |
+| net_equity_finance | +0.132 (7.6) | +6.0% | +6.6% | +3.5% | shadow |
+| net_external_finance | +0.115 (6.7) | +4.9% | +5.3% | +1.3% | shadow |
+| d_roa | +0.025 (2.9) | +1.4% | +2.7% | +1.8% | shadow (weak) |
+| asset_growth | −0.013 (−0.8) | +0.9% | −2.4% | −1.3% | no edge (short side / micro only) |
+| long_quality | +0.133 (8.1) | +6.4% | +9.0% | +7.0% | shadow |
+| avoid | +0.106 (6.3) | +5.8% | +6.3% | +3.7% | shadow |
+
+* All years positive (6/6) for the cash and financing factors. They add to today's rules: the spread holds among the
+  companies the rules already score ≥ 60.
+* Caution: the spreads are far larger than the literature's ~0.5%/month. The period holds the 2022 fall of the
+  unprofitable growth stocks, the baseline is the day's median (no beta), and survivorship removes the delisted losers
+  (that makes the short side *smaller*, not larger). Read them as direction and rank, not as expected returns.
+* The system's own 181 closed paper positions (10/26-11/12, `fundamental_lab.py --paper-positions`): shorts in the
+  top 20% of `long_quality` lost −2.10% (36% winners, n 14) against +2.27% (55%, n 22) in the middle. Longs lost in
+  every bucket (≈ −2.5%): their problem is not fundamental. A few weeks: description, not a test.
+* Phase 2 is live in shadow: Giannis writes `fundamental_factors` (values + run composites) next to his score and
+  `outcome_evaluator.py` judges `giannis_long_quality` / `giannis_avoid` like the Piotroski buckets. No score, tier,
+  threshold or order changes. Candidate filter for the owner to decide after shadow: no short in the top 20% of
+  `long_quality`, no long in the top 20% of `avoid`.

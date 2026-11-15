@@ -36,6 +36,7 @@ Use the locked runtime `.venv-next` (Python 3.12):
 .\.venv-next\Scripts\python.exe companyfacts_cache.py status|shadow           # SEC companyfacts store; mode in scanner_config (off/populate/reuse)
 .\.venv-next\Scripts\python.exe run_performance_log.py backfill|record --run-id <id>  # per-run performance history: output/run_performance_history.csv (+ .md), written at the end of every run
 .\.venv-next\Scripts\python.exe exit_lab.py --horizon-curve                 # evidence for the agents' holding horizons (output/strategy_lab/horizon_curve_latest.json, read-only, ~5 min)
+.\.venv-next\Scripts\python.exe fundamental_lab.py [--paper-positions]      # fundamental rules + factors point in time (output/strategy_lab/fundamental_factors_latest.md, read-only; docs/FUNDAMENTAL_FACTORS_PLAN.md)
 .\.venv-next\Scripts\python.exe flip_shadow.py                            # the opposite position after a direction flip, in shadow (output/paper_learning/flip_shadow_latest.md)
 .\.venv-next\Scripts\python.exe news_watch.py --label manual           # headlines for held positions + candidates (Yahoo feed, read-only; output/news_watch_latest.md; nightly + pre-open)
 .\.venv-next\Scripts\python.exe market_state.py [--rebuild]                 # the state of the market: reading, Greek paragraph, evidence Koulis uses (owner 2026-11-04)

@@ -46,3 +46,37 @@ tzlocal==5.4.4
 vectorbt==1.1.2
 wcwidth==0.9.2
 widgetsnbextension==4.0.16
+# Added 2026-11-15 (owner: open-source libraries embedded in the ecosystem, docs/FUNDAMENTAL_FACTORS_PLAN.md §4).
+# Research-only: alphalens-reloaded (Apache-2.0) for factor tear sheets of output/fundamental_lab, edgartools (MIT) for
+# a later Form 4 reader. Not in the runtime lock: empyrical-reloaded pins peewee<3.17.4 while the runtime keeps 4.5.1.
+# New packages audited with pip-audit 2.10.1 on 2026-11-15: no known vulnerabilities.
+alphalens-reloaded==0.5.1
+edgartools==6.2.0
+empyrical-reloaded==0.7.2
+statsmodels==0.15.0
+patsy==1.0.3
+formulaic==1.2.2
+interface_meta==2.0.1
+bottleneck==1.6.1
+wrapt==2.5.2
+peewee==3.17.3
+httpx2==2.16.0
+httpcore2==2.16.0
+httpxthrottlecache==0.7.0
+anyascii==0.3.3
+aiofiles==25.1.0
+filelock==4.2.10
+humanize==4.17.0
+jinja2==3.1.6
+MarkupSafe==3.0.4
+orjson==3.13.0
+pyarrow==26.0.1
+pyrate-limiter==4.5.1
+rank-bm25==0.2.2
+rapidfuzz==3.14.6
+rich==15.0.0
+markdown-it-py==4.3.0
+mdurl==0.1.2
+stamina==26.2.0
+tenacity==9.2.1
+truststore==0.10.5

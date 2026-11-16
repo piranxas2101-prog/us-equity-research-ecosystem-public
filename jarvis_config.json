@@ -1,9 +1,12 @@
 {
   "schema": "ecosystem.jarvis_config.v1",
+  "note": "Sized for the owner's CPU (i7-1355U, no GPU): ~28 prompt tokens/s, ~8 written tokens/s, Greek ~0.8 tokens per character (measured 2026-11-16).",
   "ollama_host": "http://127.0.0.1:11434",
   "model": "qwen2.5:3b",
-  "num_ctx": 8192,
-  "num_predict": 400,
-  "timeout_seconds": 120,
-  "max_total_chars": 12000
+  "num_ctx": 4096,
+  "num_predict": 250,
+  "num_thread": 8,
+  "keep_alive": "30m",
+  "timeout_seconds": 300,
+  "max_total_chars": 1800
 }

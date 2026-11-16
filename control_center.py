@@ -689,7 +689,7 @@ class Actions:
             self._chat_client = jarvis_chat.OllamaClient(jarvis_chat.load_config(ROOT / "jarvis_config.json"))
         config = jarvis_chat.load_config(ROOT / "jarvis_config.json")
         result = jarvis_chat.answer(question, root=self.root, client=self._chat_client,
-                                    max_total_chars=int(config.get("max_total_chars") or 12000),
+                                    max_total_chars=int(config.get("max_total_chars") or 1800),
                                     start_ollama=self._ollama_starter or JARVIS_OLLAMA_STARTER)
         jarvis_chat.save_turn(question, result, path=self.root / "data" / "jarvis" / "chat.sqlite3")
         self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"],

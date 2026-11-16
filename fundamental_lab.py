@@ -337,7 +337,11 @@ def analyse(rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> dict[str
 FACTOR_SIGNS = {"cfo_to_assets": 1, "cash_op_profit": 1, "net_equity_finance": -1, "net_external_finance": -1,
                 "d_roa": 1, "asset_growth": -1, "long_quality": 1, "avoid": -1,  # the literature's direction
                 # insiders buying on the open market predicts, selling much less (Lakonishok-Lee 2001)
-                "insider_buyers_90d": 1, "insider_net_buy_180d": 1}
+                "insider_buyers_90d": 1, "insider_net_buy_180d": 1,
+                # only the insiders who do not trade the same month every year (Cohen-Malloy-Pomorski 2012)
+                "insider_opp_buyers_90d": 1, "insider_opp_sellers_90d": -1}
+# Sparse events (most companies have none): quintiles do not form, so the groups are "has one" against "has none"
+EVENT_FACTORS = {"insider_buyers_90d", "insider_opp_buyers_90d", "insider_opp_sellers_90d"}
 LARGE_CAP = 3e8  # below ~$300 million = micro caps, where most anomalies live and trading costs are highest
 SIGNIFICANT_T = 2.0  # phase 2 gate; promotion asks for t >= 3 (Harvey-Liu-Zhu)
 
@@ -407,6 +411,9 @@ def factor_report(rows: list[dict[str, Any]], name: str, horizon: int) -> dict[s
     good, bad = (5, 1) if FACTOR_SIGNS[name] > 0 else (1, 5)
 
     def q(r):
+        if name in EVENT_FACTORS:  # 5 = at least one event, 1 = none, None = unknown
+            value = (r.get("factors") or {}).get(name)
+            return None if value is None else 5 if value > 0 else 1
         return (r.get("quintile") or {}).get(name)
 
     known = [r for r in rows if q(r) is not None]
@@ -483,6 +490,8 @@ def render_factors(payload: dict[str, Any]) -> str:
               "- Survivorship: οι τιμές έχουν μόνο τις σημερινές εταιρείες· όσες διαγράφηκαν λείπουν. Αυτό ευνοεί τις κακές "
               "μετοχές, άρα η short πλευρά μάλλον υποτιμάται.",
               "- Το beta δεν αφαιρείται: η βάση είναι η διάμεσος της ίδιας μέρας, όχι το SPY.",
+              "- `insider_opp_*`: μόνο τα «ευκαιριακά» στελέχη (όχι τον ίδιο μήνα κάθε χρόνο, Cohen-Malloy-Pomorski 2012)· "
+              "για τα σπάνια γεγονότα (`insider_*buyers*`, `*sellers*`) οι ομάδες είναι «έχει» έναντι «δεν έχει», όχι πεμπτημόρια.",
               "- `insider_*`: αγορές (P) και πωλήσεις (S) στο χρηματιστήριο από Form 4 (insider_transactions.py). "
               "Μηδέν αγοραστές μέσα στην περίοδο που καλύπτουν τα αρχεία της SEC είναι γνωστό μηδέν· έξω από αυτήν, άγνωστο.",
               "- `cash_op_profit` είναι προσέγγιση (λειτουργικά κέρδη μείον accruals), όχι η ακριβής κατασκευή Ball et al.",

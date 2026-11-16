@@ -14,6 +14,17 @@ Two factors per company and day, from the filings *filed* by that day (point in 
   side (Lakonishok-Lee's net purchase ratio by count), from -1 to +1. Counts, not dollars: a few hundred lines in the
   data sets carry impossible prices or sizes (up to 10^15 dollars), and one of them would decide a dollar ratio.
 
+The better version (Cohen, Malloy and Pomorski 2012, "Decoding Inside Information"): most insider trades are routine,
+the same calendar month every year (after earnings, under a 10b5-1 plan), and carry no news. At the start of each year
+an insider who traded in each of the three years before is *routine* if some calendar month holds a trade in all three,
+otherwise *opportunistic*; an insider without three years of history is not classified. Two more factors count only
+the opportunistic ones:
+
+* ``insider_opp_buyers_90d``: opportunistic insiders who bought in the last 90 days;
+* ``insider_opp_sellers_90d``: opportunistic insiders who sold in the last 90 days (the literature's sign is negative).
+
+They are unknown until three full calendar years before the day are covered.
+
 A Form 4 is due within two business days, so inside the period the data sets cover, no filing means no trade: zero
 buyers is a known zero. Outside that period (before the first quarter loaded, after the last one) the factor is
 unknown, never zero. The net ratio is unknown when nobody traded (0 / 0 is not "neutral").
@@ -46,7 +57,8 @@ SCHEMA = "ecosystem.insider_index.v1"
 FORMS = {"4", "4/A"}
 CODES = {"P", "S"}
 BUYERS_DAYS, NET_DAYS = 90, 180
-FIRST_QUARTER = "2021q3"  # the price store starts 2021-10; 180 days of history before it
+HISTORY_YEARS = 3  # Cohen-Malloy-Pomorski: three years of trades decide routine or opportunistic
+FIRST_QUARTER = "2018q1"  # the price store starts 2021-10; three full years before it classify the insiders
 
 Fetch = Callable[[str], bytes]
 
@@ -179,9 +191,26 @@ def build(directory: Path = DIRECTORY, index_path: Path = INDEX) -> dict[str, An
             "trades": sum(len(v) for v in issuers.values()), "coverage": payload["coverage"]}
 
 
+def classify(trades: list[list[Any]], year: int) -> dict[str, str]:
+    """Routine or opportunistic for each insider with a trade in each of the three years before ``year``."""
+    months: dict[str, dict[int, set[int]]] = {}
+    for filed, owner, _code, _usd in trades:
+        y = int(filed[:4])
+        if year - HISTORY_YEARS <= y < year:
+            months.setdefault(owner, {}).setdefault(y, set()).add(int(filed[5:7]))
+    out = {}
+    for owner, by_year in months.items():
+        if len(by_year) < HISTORY_YEARS:
+            continue  # not enough history: not classified, not counted as either
+        common = set.intersection(*by_year.values())
+        out[owner] = "routine" if common else "opportunistic"
+    return out
+
+
 def factors(trades: list[list[Any]] | None, as_of: date, coverage: list[str] | None) -> dict[str, Any]:
-    """The two insider factors on ``as_of`` from one issuer's trades (filed by that day). Unknown outside coverage."""
-    unknown = {"insider_buyers_90d": None, "insider_net_buy_180d": None}
+    """The insider factors on ``as_of`` from one issuer's trades (filed by that day). Unknown outside coverage."""
+    unknown = {"insider_buyers_90d": None, "insider_net_buy_180d": None,
+               "insider_opp_buyers_90d": None, "insider_opp_sellers_90d": None}
     if not coverage:
         return unknown
     first, last = date.fromisoformat(coverage[0]), date.fromisoformat(coverage[1])
@@ -199,7 +228,15 @@ def factors(trades: list[list[Any]] | None, as_of: date, coverage: list[str] | N
             buyers.add(owner)
     bought, sold = len(events["P"]), len(events["S"])
     total = bought + sold
-    return {"insider_buyers_90d": len(buyers), "insider_net_buy_180d": None if total == 0 else (bought - sold) / total}
+    out = {**unknown, "insider_buyers_90d": len(buyers),
+           "insider_net_buy_180d": None if total == 0 else (bought - sold) / total}
+    if date(as_of.year - HISTORY_YEARS, 1, 1) < first:
+        return out  # three full years are not covered: the opportunistic factors stay unknown
+    kinds = classify(trades or [], as_of.year)
+    recent = [(owner, code) for filed, owner, code, _usd in trades or [] if buyers_from < filed <= day]
+    out["insider_opp_buyers_90d"] = len({o for o, c in recent if c == "P" and kinds.get(o) == "opportunistic"})
+    out["insider_opp_sellers_90d"] = len({o for o, c in recent if c == "S" and kinds.get(o) == "opportunistic"})
+    return out
 
 
 class InsiderSource:

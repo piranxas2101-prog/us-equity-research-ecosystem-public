@@ -67,14 +67,52 @@ class FactorTests(unittest.TestCase):
         self.assertAlmostEqual(it.factors(trades, date(2024, 6, 1), self.COVER)["insider_net_buy_180d"], -1 / 3)
 
     def test_no_trades_inside_coverage_is_a_known_zero_and_no_ratio(self):
-        self.assertEqual(it.factors([], date(2024, 6, 1), self.COVER),
-                         {"insider_buyers_90d": 0, "insider_net_buy_180d": None})
+        f = it.factors([], date(2024, 6, 1), self.COVER)
+        self.assertEqual((f["insider_buyers_90d"], f["insider_net_buy_180d"]), (0, None))
 
     def test_outside_coverage_is_unknown(self):
         for day in (date(2023, 3, 1), date(2025, 2, 1)):  # under 180 days of history; after the last quarter
-            self.assertEqual(it.factors(self.TRADES, day, self.COVER),
-                             {"insider_buyers_90d": None, "insider_net_buy_180d": None})
+            self.assertTrue(all(v is None for v in it.factors(self.TRADES, day, self.COVER).values()))
         self.assertIsNone(it.factors(self.TRADES, date(2024, 6, 1), None)["insider_buyers_90d"])
+
+
+class OpportunisticTests(unittest.TestCase):
+    COVER = ["2018-01-01", "2024-12-31"]
+    # r trades every March (routine); o trades in three years but never the same month (opportunistic);
+    # n has only two years of history (not classified)
+    HISTORY = [["2021-03-10", "r", "S", 1.0], ["2022-03-11", "r", "S", 1.0], ["2023-03-09", "r", "S", 1.0],
+               ["2021-02-01", "o", "S", 1.0], ["2022-06-01", "o", "P", 1.0], ["2023-11-01", "o", "S", 1.0],
+               ["2022-05-01", "n", "P", 1.0], ["2023-05-01", "n", "P", 1.0]]
+
+    def test_routine_opportunistic_and_unclassified(self):
+        self.assertEqual(it.classify(self.HISTORY, 2024), {"r": "routine", "o": "opportunistic"})
+
+    def test_only_opportunistic_insiders_count(self):
+        trades = self.HISTORY + [["2024-03-12", "r", "P", 1.0], ["2024-04-01", "o", "P", 1.0],
+                                 ["2024-04-02", "n", "P", 1.0], ["2024-04-03", "o", "S", 1.0]]
+        f = it.factors(trades, date(2024, 5, 1), self.COVER)
+        self.assertEqual((f["insider_opp_buyers_90d"], f["insider_opp_sellers_90d"]), (1, 1))
+        self.assertEqual(f["insider_buyers_90d"], 3)  # the plain count sees all three buyers
+
+    def test_without_three_full_years_the_opportunistic_factors_are_unknown(self):
+        f = it.factors(self.HISTORY, date(2020, 6, 1), self.COVER)  # 2017 is not covered
+        self.assertIsNone(f["insider_opp_buyers_90d"])
+        self.assertEqual(f["insider_buyers_90d"], 0)
+
+    def test_the_lab_compares_has_one_with_has_none(self):
+        rows = []
+        for month in range(1, 13):
+            for k in range(40):
+                event = k % 4 == 0
+                rows.append({"ticker": f"T{k}", "date": f"2024-{month:02d}-01", "score": 70,
+                             "market_cap": 1e9, "factor_partial": [],
+                             "factors": {"insider_opp_buyers_90d": 1 if event else 0},
+                             "forward": {h: (0.05 if event else 0.0) + 0.001 * k for h in fl.HORIZONS}})
+        fl.add_excess(rows)
+        fl.add_factor_ranks(rows)
+        report = fl.factor_report(rows, "insider_opp_buyers_90d", 60)
+        self.assertGreater(report["best_vs_worst"]["spread_pct"], 4)
+        self.assertGreater(report["large_caps"]["spread_pct"], 4)
 
 
 class StoreTests(unittest.TestCase):

@@ -634,7 +634,7 @@ async function pageJarvis(day) {
     <h2>Συζήτηση</h2>
     <div class="card span"><div id="chat-log">${d.chat.map(jarvisTurn).join("") || `<p class="muted small">Ρώτα κάτι για τη μέρα, μια μετοχή ή έναν έλεγχο.</p>`}</div>
       <textarea id="chat-q" class="chat-box" maxlength="500" placeholder="π.χ. Τι πήγε στραβά σήμερα;"></textarea>
-      <div class="actions"><button id="chat-send" class="primary">Ρώτα</button><span id="chat-wait" class="muted small hidden">σκέφτεται… (τοπικό μοντέλο, μπορεί να αργήσει)</span></div></div>
+      <div class="actions"><button id="chat-send" class="primary">Ρώτα</button><span id="chat-wait" class="muted small hidden">σκέφτεται… (τοπικό μοντέλο στον επεξεργαστή: 1-2 λεπτά, η πρώτη ερώτηση λίγο παραπάνω)</span></div></div>
     <div class="filters"><h2>Αναφορά</h2>${d.dates.length ? `<select id="jarvis-day">${d.dates.map((x) => `<option ${x === d.day ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>` : ""}</div>
     <div class="card report">${d.report_md ? markdown(d.report_md) : `<p class="muted">Δεν υπάρχει ακόμα αναφορά. Γράφεται μετά τη συνεδρία (ή από το nightly σε μέρες χωρίς συνεδρία).</p>`}</div>`;
   document.getElementById("jarvis-day")?.addEventListener("change", (e) => { location.hash = "#/jarvis/" + encodeURIComponent(e.target.value); });

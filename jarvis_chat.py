@@ -57,9 +57,12 @@ class OllamaClient:
         config = config or load_config()
         self.host = str(config["ollama_host"]).rstrip("/")
         self.model = str(config["model"])
-        self.timeout = float(config.get("timeout_seconds") or 120)
+        self.timeout = float(config.get("timeout_seconds") or 300)
+        self.keep_alive = str(config.get("keep_alive") or "30m")  # stay loaded between questions
         self.options = {"temperature": 0, "seed": 0, "num_ctx": int(config.get("num_ctx") or 4096),
-                        "num_predict": int(config.get("num_predict") or 400)}
+                        "num_predict": int(config.get("num_predict") or 250)}
+        if config.get("num_thread"):
+            self.options["num_thread"] = int(config["num_thread"])
 
     def available(self) -> bool:
         try:
@@ -70,7 +73,8 @@ class OllamaClient:
         return any(str(m.get("name")) == self.model for m in payload.get("models") or [])
 
     def generate(self, system: str, prompt: str) -> str:
-        body = {"model": self.model, "system": system, "prompt": prompt, "stream": False, "options": self.options}
+        body = {"model": self.model, "system": system, "prompt": prompt, "stream": False, "options": self.options,
+                "keep_alive": self.keep_alive}
         request = urllib.request.Request(self.host + "/api/generate", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
@@ -154,11 +158,44 @@ def select_sources(question: str, root: Path) -> list[Path]:
     return out
 
 
+def _terms(question: str) -> set[str]:
+    """Word stems of the question (five letters, no accents), so "αγορά" also finds "αγοράς"."""
+    return {word[:5] for word in re.findall(r"\w+", fold(question)) if len(word) >= 4}
+
+
+def excerpt(text: str, question: str, budget: int) -> str:
+    """The lines of ``text`` that concern the question, each under its heading, within ``budget`` characters; the
+    start of the text when no line does. The owner's CPU reads ~28 tokens/s (2026-11-16), so only this goes in."""
+    terms = _terms(question)
+    kept: list[str] = []
+    heading: str | None = None
+    for line in text.splitlines():
+        folded = fold(line)
+        if line.startswith("#"):
+            heading = line
+        if not terms or not any(term in folded for term in terms):
+            continue
+        if heading is not None and heading != line and heading not in kept:
+            kept.append(heading)
+        kept.append(line)
+    if not kept:
+        return text[:budget]
+    out = ""
+    for line in kept:
+        if len(out) + len(line) + 1 > budget:
+            room = budget - len(out)
+            if room > 40:
+                out += line[:room - 1] + "\n"
+            break
+        out += line + "\n"
+    return out[:budget]
+
+
 def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root.resolve()).as_posix()
 
 
-def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 12000,
+def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 1800,
            start_ollama: Callable[[], bool] | None = None, wait_seconds: float = START_WAIT_SECONDS,
            poll: Callable[[], None] = lambda: time.sleep(1)) -> dict[str, Any]:
     started = False
@@ -176,7 +213,7 @@ def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 
         return {"answer": text, "sources": [], "unverified_numbers": [], "ollama": "down", "ollama_started": started}
     sources = select_sources(question, root)
     share = max_total_chars // max(1, len(sources))  # the whole prompt must fit the model's context (num_ctx)
-    texts = {_rel(p, root): p.read_text(encoding="utf-8", errors="replace")[:share] for p in sources}
+    texts = {_rel(p, root): excerpt(p.read_text(encoding="utf-8", errors="replace"), question, share) for p in sources}
     prompt = "\n\n".join(f"### Αρχείο: {name}\n{text}" for name, text in texts.items())
     prompt += f"\n\n### Ερώτηση\n{question}"
     try:

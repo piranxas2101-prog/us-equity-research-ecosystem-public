@@ -180,6 +180,49 @@ class StartOnQuestionTests(ChatTests):
         self.assertFalse(jarvis_chat.start_ollama_server(exe=self.root / "missing.exe", log_dir=self.root / "logs"))
 
 
+class ExcerptTests(unittest.TestCase):
+    """2026-11-16 on the owner's machine: the CPU reads ~28 tokens/s and Greek is ~0.8 tokens per character, so the
+    model gets only the lines that concern the question, within a small budget."""
+
+    def test_excerpt_keeps_headings_and_matching_lines(self):
+        from jarvis_chat import excerpt
+        text = "# Αναφορά\n## Αγορά\n- η αγορά πέφτει\n## Συνεδρία\n- 18 θέσεις\n" + "- άσχετο\n" * 200
+        out = excerpt(text, "πώς είναι η ΑΓΟΡΑ;", 200)
+        self.assertIn("η αγορά πέφτει", out)
+        self.assertIn("## Αγορά", out)
+        self.assertNotIn("άσχετο", out)
+        self.assertLessEqual(len(out), 200)
+
+    def test_excerpt_without_a_match_takes_the_start(self):
+        from jarvis_chat import excerpt
+        self.assertEqual(excerpt("α\nβ\nγ\n" * 100, "xyz", 10), ("α\nβ\nγ\n" * 100)[:10])
+
+    def test_excerpt_respects_the_budget(self):
+        from jarvis_chat import excerpt
+        self.assertLessEqual(len(excerpt("- αγορά " + "χ" * 5000 + "\n", "αγορά", 300)), 300)
+
+    def test_client_sends_threads_keep_alive_and_short_answers(self):
+        from unittest import mock
+        import jarvis_chat
+        client = jarvis_chat.OllamaClient({"ollama_host": "http://127.0.0.1:11434", "model": "m", "num_ctx": 4096,
+                                           "num_predict": 250, "num_thread": 8, "keep_alive": "30m",
+                                           "timeout_seconds": 300})
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"response": "ok"}'
+        with mock.patch.object(jarvis_chat.urllib.request, "urlopen", return_value=response) as urlopen:
+            self.assertEqual(client.generate("s", "p"), "ok")
+        body = json.loads(urlopen.call_args.args[0].data)
+        self.assertEqual((body["options"]["num_thread"], body["options"]["num_predict"], body["keep_alive"]),
+                         (8, 250, "30m"))
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 300)
+
+    def test_shipped_config_fits_this_machine(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / "jarvis_config.json").read_text(encoding="utf-8"))
+        self.assertLessEqual(config["max_total_chars"], 2000)
+        self.assertGreaterEqual(config["timeout_seconds"], 300)
+        self.assertEqual(config["keep_alive"], "30m")
+
+
 if __name__ == "__main__":
     unittest.main()
 

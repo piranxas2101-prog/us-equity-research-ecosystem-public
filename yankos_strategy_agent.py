@@ -19,6 +19,7 @@ import technical_setup
 import catalyst_trade_lens
 import strategy_signals
 import trader_confidence
+import fundamental_filter
 import fundamental_research_packet
 from run_context import attach_run_context, require_compatible_runs
 from common import load_json
@@ -1171,15 +1172,21 @@ def evaluate_run(
     merged_rows, fundamental_blocked = fundamental_research_packet.attach_fundamental_handoff(
         merged_rows, fundamental_packet
     )
+    # The fundamental filter (owner 2026-11-16, fundamental_filter.py) runs after the readiness gate: it can only
+    # take an entry away, never give one back.
+    filter_config = fundamental_filter.validate(playbook_payload.get("fundamental_filter"))
     rows = [
         # Giannis's periodic-report freshness travels with the row for Koulis (primary_data_freshness.py)
-        {**fundamental_research_packet.enforce_execution_gate(evaluate_playbook(playbook, merged)),
+        {**fundamental_filter.apply(
+            fundamental_research_packet.enforce_execution_gate(evaluate_playbook(playbook, merged)),
+            fundamental_filter.composites_of(merged), filter_config),
          "fundamentals_fresh": merged.get("fundamentals_fresh")}
         for playbook in playbooks
         for merged in merged_rows
     ]
     return {"run_id": run_id, "run_timestamp": run_ts, "merged_rows": merged_rows,
-            "fundamental_blocked": fundamental_blocked, "rows": rows}
+            "fundamental_blocked": fundamental_blocked, "rows": rows,
+            "fundamental_filter": fundamental_filter.summary(rows, filter_config)}
 
 
 def command_review(args: argparse.Namespace) -> None:
@@ -1236,6 +1243,7 @@ def command_review(args: argparse.Namespace) -> None:
             "playbook_perspectives": perspectives,
             "paper_trade_plan_summary": trade_plan_summary,
             "fundamental_packet_hash": fundamental_packet.get("packet_hash"),
+            "fundamental_filter": evaluation["fundamental_filter"],
             "fundamental_gate": {
                 "schema": "ecosystem.fundamental_to_technical_gate.v1",
                 "input_count": len(as_list(giannis.get("results"))),

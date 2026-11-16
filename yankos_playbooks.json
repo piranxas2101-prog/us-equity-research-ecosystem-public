@@ -3,6 +3,12 @@
   "version": 2,
   "updated_at": "2026-04-22T00:00:00+03:00",
   "daily_strategies_enabled": true,
+  "fundamental_filter": {
+    "_why": "Owner approved 2026-11-16 (docs/RULES_REVIEW.md section 10, fundamental_filter.py): both rules. Takes the entry away only; mode shadow tags, off disables.",
+    "mode": "active",
+    "short_max_long_quality": 80,
+    "long_max_avoid": 80
+  },
   "catalog_file": "playbook_catalog_v2.json",
   "portfolio_policy": "Evaluate the full catalog for perspective breadth; only specialized active playbooks can create executable candidates.",
   "paper_sizing_policy": {

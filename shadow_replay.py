@@ -172,17 +172,16 @@ def run_composites(replays: list[dict[str, Any]], source_factory: Any = None) ->
 
 def filter_decisions(signals: list[dict[str, Any]], composites: dict[str, dict[str, dict[str, Any]]],
                      rules: dict[str, float]) -> list[dict[str, Any]]:
-    """Drop the decisions the filter blocks. An unknown composite blocks nothing: unknown is not a bad grade."""
-    kept = []
-    for signal in signals:
-        combo = composites.get(signal["source_run_timestamp"], {}).get(signal["ticker"]) or {}
-        quality, avoid = combo.get("long_quality"), combo.get("avoid")
-        if signal["trade_direction"] == "short" and "short_max_long_quality" in rules and quality is not None                 and quality >= rules["short_max_long_quality"]:
-            continue
-        if signal["trade_direction"] == "long" and "long_max_avoid" in rules and avoid is not None                 and avoid >= rules["long_max_avoid"]:
-            continue
-        kept.append(signal)
-    return kept
+    """Drop the decisions the filter blocks, by the same rule the live traders apply (fundamental_filter.py).
+
+    An unknown composite blocks nothing: unknown is not a bad grade.
+    """
+    import fundamental_filter
+
+    return [signal for signal in signals
+            if not fundamental_filter.blocking_rule(
+                signal["trade_direction"], composites.get(signal["source_run_timestamp"], {}).get(signal["ticker"]) or {},
+                rules)]
 
 
 # ---------------------------------------------------------------- outcomes (read-only)

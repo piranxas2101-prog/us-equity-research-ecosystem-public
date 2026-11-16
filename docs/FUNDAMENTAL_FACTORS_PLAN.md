@@ -4,6 +4,13 @@
 `docs/RULES_REVIEW.md` §10 και `output/strategy_lab/fundamental_factors_latest.md`). Φάση 2 σε shadow στα νυχτερινά
 (`fundamental_factors.py`, Γιάννης + `outcome_evaluator.py`). Φάση 3: οι σύνθετοι δείκτες μετριούνται σε shadow και
 στα δικά μας paper trades (`fundamental_lab.py --paper-positions`)· το φίλτρο στους traders μένει απόφαση του Δημήτρη.
+**2026-11-16, ο Δημήτρης ενέκρινε «ενεργοποίησε το φίλτρο, προχώρησε σε όλα»:** (1) το φίλτρο είναι ενεργό στους
+traders (`fundamental_filter.py`· Γιάγκος: short και long, Περικλής: μόνο short· παίρνει μόνο την είσοδο, `mode` στο
+`<trader>_playbooks.json`)· (2) το `paper_trade_ledger.py` γράφει τις ετικέτες `long_quality` / `avoid` /
+`fundamental_filter` και τα κομμένα candidates ως `filter_blocked`, που η μάθηση συγκρίνει με όσα πέρασαν· (3)
+`tier_beta_check.py`: η αναστροφή των βαθμίδων του Γιάννη **δεν** εξηγείται από το beta· (4) `insider_transactions.py`:
+Form 4 από τα τριμηνιαία αρχεία της SEC (όχι edgartools: ένα zip το τρίμηνο, μόνο standard library, δημόσια δεδομένα),
+δύο παράγοντες στο εργαστήριο. Λεπτομέρειες: `docs/RULES_REVIEW.md` §11.
 Βιβλιοθήκες: alphalens-reloaded και edgartools μπήκαν στο `.venv-research` (`requirements-research-py312.txt`), όχι στο
 runtime: το empyrical-reloaded θέλει peewee<3.17.4 ενώ το νυχτερινό κρατά 4.5.1.
 

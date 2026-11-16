@@ -239,3 +239,47 @@ the filter *drops* against those it keeps:
 * Caution: the same companies repeat every night, so the decisions are not independent; ~2.5 months of runs. No
   decision changed. Candidate for the owner: the short filter for both traders and the long filter for Yankos, first
   as a live shadow tag, then a manual decision.
+
+## 11. Owner's decision, 2026-11-16: the fundamental filter goes live, and the rest of the plan
+
+The owner: "activate the filter, go ahead with everything".
+
+**Filter, live** (`fundamental_filter.py`, config `fundamental_filter` in `yankos_playbooks.json` /
+`periklis_playbooks.json`, `mode` active / shadow / off). Yankos: no short in the top 20% of `long_quality`, no long
+in the top 20% of `avoid`. Periklis: the short rule only (the long rule did not help him in the replay above). The
+filter runs after the readiness gate and only takes the entry away (`execution_eligible` false, reason
+`fundamental_filter_short_on_quality` / `fundamental_filter_long_on_avoid`), which Koulis, Thymios and the paper
+trader already honour. The trader's verdict, direction and score stay as they were, so learning, reports and the
+exits of held positions (`thesis_exit.py` reads the verdicts) are unchanged. An unknown composite blocks nothing. The
+replay and the live traders call the same rule. Dry run on the 2026-11-16 run (composites added in memory): Yankos
+would have lost 3 eligible entries (APP short, PGNY short, PKE long), Periklis 2 (APP, PGNY short).
+
+**Measured out of sample** (`paper_trade_ledger.py`, `paper_learning.py`): every record carries the tags
+`long_quality`, `avoid` (quintile or "unknown") and `fundamental_filter` (pass / would_block / blocked / unknown); the
+candidates the filter blocked are kept as `filter_blocked` records, their open-to-close filled like the shadow
+candidates, and the control team compares them with the candidates the filter let through. If the blocked ones do
+better by the usual margin, a lesson candidate to loosen the filter goes to the owner.
+
+**Giannis's tiers against beta** (`tier_beta_check.py`, 202,780 outcomes, Dimson beta on 250 sessions). Return minus
+beta × SPY, mean per decision date (t across dates):
+
+| tier | median beta | 10 sessions vs SPY | 10 sessions vs beta | 20 sessions vs beta |
+|---|---|---|---|---|
+| Core Watchlist | 0.81 | −0.23% | −0.16% (t −0.5) | +0.03% (t 0.1) |
+| Selective Watchlist | 0.75 | +0.73% | +0.60% (t 4.1) | +1.73% (t 8.9) |
+| Speculative Monitor | 0.59 | +2.00% | +1.56% (t 6.8) | +2.80% (t 5.7) |
+| Avoid For Now | 0.58 | +0.10% | −0.14% (t −0.8) | +0.16% (t 1.2) |
+
+* **Beta does not explain the inversion.** The speculative tier has the *lower* beta; taking beta out shrinks its lead
+  by a fifth, not more. The tiers' order is inverted on every horizon.
+* What remains is the second explanation of the plan: the score measures attention and liquidity, not cash or capital
+  discipline, and in these weeks attention paid. ~2.5 months, 16-33 dates, overlapping windows (t overstated at long
+  horizons): a regime, not yet a rule. No score or tier changed; re-ranking the tiers stays the owner's call.
+
+**Form 4 insiders** (`insider_transactions.py`): the SEC's quarterly Insider Transactions Data Sets (public domain;
+one zip a quarter, standard library only, instead of edgartools' one request per filing). Open-market purchases (P)
+and sales (S) of Forms 4 / 4/A, point in time by filing date: `insider_buyers_90d` (distinct buyers) and
+`insider_net_buy_180d` ((bought − sold) / (bought + sold)). Inside the covered quarters no filing is a known zero;
+outside them unknown. Both enter `fundamental_lab.py` in the literature's direction. Not measured yet: the download
+needs the owner's SEC identity (`SEC_USER_AGENT` in `.env`), so the owner runs `insider_transactions.py sync`, then
+`build`, then `fundamental_lab.py`. Live use waits for the lab verdict.

@@ -85,6 +85,37 @@ class LedgerTests(unittest.TestCase):
             self.assertEqual(records[("shadow_candidate", "TSM")]["categories"]["open_recheck"], "restored")
             self.assertEqual(records[("trade", "PGY")]["categories"]["open_recheck"], "none")
 
+    def test_fundamental_composites_and_the_filter_are_tagged_and_blocked_entries_are_measured(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            session_files(out)
+            write(out, "giannis_rule_based_latest.json", {"results": [
+                {"ticker": "TSM", "fundamental_factors": {"composites": {"long_quality": 90.0, "avoid": 5.0}}},
+                {"ticker": "APP", "fundamental_factors": {"composites": {"long_quality": 88.0, "avoid": None}}}]})
+            blocked = {"mode": "active", "blocked": True, "rule": "short_max_long_quality",
+                       "reason": "fundamental_filter_short_on_quality", "eligible_before": True}
+            write(out, "preopen/yankos_strategy_preopen_latest.json", {"results": [
+                {"ticker": "TSM", "playbook_name": "rsi2_mean_reversion", "trade_direction": "long",
+                 "signal_verdict": "candidate", "signal_score": 8.0, "execution_eligible": True,
+                 "fundamental_filter": {"mode": "active", "blocked": False, "rule": None}},
+                {"ticker": "APP", "playbook_name": "rsi2_mean_reversion", "trade_direction": "short",
+                 "signal_verdict": "candidate", "signal_score": 7.0, "execution_eligible": False,
+                 "fundamental_filter": blocked}]})
+            records = {(r["kind"], r["ticker"]): r for r in ledger.build_records(out, SESSION, orders=lambda day: [])}
+            tsm = records[("shadow_candidate", "TSM")]["categories"]
+            self.assertEqual((tsm["long_quality"], tsm["avoid"], tsm["fundamental_filter"]),
+                             ("top 20%", "bottom 20%", "pass"))
+            app = records[("filter_blocked", "APP")]
+            self.assertEqual(app["block_reason"], "fundamental_filter_short_on_quality")
+            self.assertEqual((app["categories"]["avoid"], app["categories"]["fundamental_filter"]),
+                             ("unknown", "blocked"))  # an unknown composite stays the label "unknown"
+            self.assertNotIn(("shadow_candidate", "APP"), records)
+            pgy = records[("trade", "PGY")]["categories"]
+            self.assertEqual((pgy["long_quality"], pgy["fundamental_filter"]), ("unknown", "unknown"))
+            evaluation = pl.evaluate(list(records.values()))
+            check = next(c for c in evaluation["control_team"] if c["check"] == "fundamental_filter")
+            self.assertEqual(check["other"]["known"], 0)
+
     def test_a_complete_record_is_never_rewritten_and_an_incomplete_one_is_completed(self):
         with tempfile.TemporaryDirectory() as folder, closing(ledger.connect(Path(folder) / "l.db")) as conn:
             base = {"record_id": "ptr_1", "session_date": "2026-10-15", "kind": "trade", "complete": False}

@@ -9,6 +9,7 @@ for the session's New York date:
 * ``approved_not_entered``: approved by Koulis, never filled (Miltos saw no confirmation, or no order went out).
 * ``preopen_demoted``: a candidate the pre-open check took down to watch.
 * ``koulis_left_out``: eligible candidates Koulis did not approve for portfolio limits (the best 10 by standing).
+* ``filter_blocked``: candidates the fundamental filter took the entry from (owner 2026-11-16).
 
 The last three keep what *would* have happened, filled in later by ``paper_learning_evaluator.py`` from the price
 store, so the control team (pre-open check, Koulis, Miltos, monitors) can be judged too. Prices come from the
@@ -34,6 +35,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import feature_registry
+import fundamental_factors
 import holding_horizon
 
 ROOT = Path(__file__).resolve().parent
@@ -122,6 +124,12 @@ def categories(row: dict[str, Any], company: dict[str, Any], petros: dict[str, A
     f_score = (factors.get("piotroski") or {}).get("score")
     rank = row.get("strategy_rank_pct")
     score = _float(row.get("signal_score"))
+    combo = (company.get("fundamental_factors") or {}).get("composites") if isinstance(
+        company.get("fundamental_factors"), dict) else None
+    composites = combo if isinstance(combo, dict) else {}
+    tag = row.get("fundamental_filter") if isinstance(row.get("fundamental_filter"), dict) else None
+    filter_state = ("unknown" if tag is None else "blocked" if tag.get("blocked") else
+                    "would_block" if tag.get("rule") else "pass")
 
     def text(value: Any) -> str:
         return str(value) if value not in (None, "") else "unknown"
@@ -144,6 +152,11 @@ def categories(row: dict[str, Any], company: dict[str, Any], petros: dict[str, A
         "timing": text(row.get("technical_timing")),
         "market_state": text(market_state),
         "weekday": session.strftime("%a"),
+        # owner 2026-11-16: the company's fundamental composites on the run (fundamental_factors.py) and what the
+        # traders' fundamental filter did with this decision (fundamental_filter.py)
+        "long_quality": fundamental_factors.quintile_label(composites.get("long_quality")) or "unknown",
+        "avoid": fundamental_factors.quintile_label(composites.get("avoid")) or "unknown",
+        "fundamental_filter": filter_state,
     }
 
 
@@ -352,6 +365,15 @@ def build_records(out: Path, session: date, *, orders: Orders | None = None) -> 
         record["strategy_rank_pct"] = rank
         record["categories"]["standing"] = "top_10pct" if rank >= 0.9 else "top_25pct" if rank >= 0.75 else "rest"
     records += shadows
+    # owner 2026-11-16: the candidates the fundamental filter took the entry from are measured like the shadow
+    # candidates, so the filter is judged out of sample by what they would have done (paper_learning.py)
+    for (agent, _ticker, _playbook, _direction), row in signals.items():
+        tag = row.get("fundamental_filter") or {}
+        if (str(row.get("signal_verdict") or "").lower() == "candidate" and tag.get("blocked")
+                and tag.get("eligible_before") is True):
+            record = _base(session, "filter_blocked", agent, row, context)
+            record["block_reason"] = tag.get("reason")
+            records.append(record)
     for (agent, ticker, playbook, direction), view in preopen.items():
         recheck = (signals.get((agent, ticker, playbook, direction)) or {}).get("open_recheck") or {}
         if view.get("decision") == "demoted_to_watch" and not (

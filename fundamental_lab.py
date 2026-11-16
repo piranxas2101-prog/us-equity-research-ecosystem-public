@@ -45,6 +45,7 @@ import sys
 from typing import Any
 
 import fundamental_factors
+import insider_transactions
 
 ROOT = Path(__file__).resolve().parent
 PRICES = ROOT / "data" / "price_history"
@@ -121,7 +122,8 @@ def company_rows(task: tuple[str, str, str, list[str]]) -> list[dict[str, Any]]:
     """Every month-start observation of one company: ratios point in time and forward returns."""
     import sec_fundamental_ratios as sfr
 
-    ticker, facts_path, price_path, starts = task
+    ticker, facts_path, price_path, starts, *rest = task
+    insider_trades, insider_coverage = rest if rest else (None, None)
     try:
         raw = json.loads(gzip.decompress(Path(facts_path).read_bytes()))
         days, closes = load_prices(Path(price_path))
@@ -153,9 +155,11 @@ def company_rows(task: tuple[str, str, str, list[str]]) -> list[dict[str, Any]]:
         report = _last_report(raw, day)
         forward = {h: (closes[k + h] / closes[k] - 1.0) if k + h < len(closes) else None for h in HORIZONS}
         factors = fundamental_factors.compute(raw, day)
+        # Form 4 open-market trades (insider_transactions.py): unknown when the index does not cover the day
+        insider = insider_transactions.factors(insider_trades, day, insider_coverage)
         out.append({"ticker": ticker, "date": text, "values": values,
                     "days_since_report": (day - report).days if report else None, "forward": forward,
-                    "factors": factors["values"], "factor_partial": sorted(factors["partial"]),
+                    "factors": {**factors["values"], **insider}, "factor_partial": sorted(factors["partial"]),
                     "market_cap": closes[k] * shares if shares else None})
     return out
 
@@ -164,6 +168,7 @@ def collect(limit: int | None = None, workers: int = 4) -> list[dict[str, Any]]:
     import periodic_filing
 
     mapping = periodic_filing.ticker_to_cik(TICKERS)
+    insider = insider_transactions.InsiderSource()
     tasks = []
     calendar: list[date] = []
     for price in sorted(PRICES.glob("*.csv.gz")):
@@ -175,7 +180,8 @@ def collect(limit: int | None = None, workers: int = 4) -> list[dict[str, Any]]:
         if not calendar:
             days, _ = load_prices(PRICES / "SPY.csv.gz") if (PRICES / "SPY.csv.gz").exists() else load_prices(price)
             calendar = month_starts(days)
-        tasks.append((ticker, str(facts), str(price), [d.isoformat() for d in calendar]))
+        tasks.append((ticker, str(facts), str(price), [d.isoformat() for d in calendar],
+                      insider.trades(cik) if insider.coverage else None, insider.coverage))
     if limit:
         tasks = tasks[:limit]
     rows: list[dict[str, Any]] = []
@@ -329,7 +335,9 @@ def analyse(rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> dict[str
 
 # --- Fundamental factors (owner 2026-11-15, docs/FUNDAMENTAL_FACTORS_PLAN.md, phase 1) ---------------------------
 FACTOR_SIGNS = {"cfo_to_assets": 1, "cash_op_profit": 1, "net_equity_finance": -1, "net_external_finance": -1,
-                "d_roa": 1, "asset_growth": -1, "long_quality": 1, "avoid": -1}  # the literature's direction
+                "d_roa": 1, "asset_growth": -1, "long_quality": 1, "avoid": -1,  # the literature's direction
+                # insiders buying on the open market predicts, selling much less (Lakonishok-Lee 2001)
+                "insider_buyers_90d": 1, "insider_net_buy_180d": 1}
 LARGE_CAP = 3e8  # below ~$300 million = micro caps, where most anomalies live and trading costs are highest
 SIGNIFICANT_T = 2.0  # phase 2 gate; promotion asks for t >= 3 (Harvey-Liu-Zhu)
 
@@ -475,6 +483,8 @@ def render_factors(payload: dict[str, Any]) -> str:
               "- Survivorship: οι τιμές έχουν μόνο τις σημερινές εταιρείες· όσες διαγράφηκαν λείπουν. Αυτό ευνοεί τις κακές "
               "μετοχές, άρα η short πλευρά μάλλον υποτιμάται.",
               "- Το beta δεν αφαιρείται: η βάση είναι η διάμεσος της ίδιας μέρας, όχι το SPY.",
+              "- `insider_*`: αγορές (P) και πωλήσεις (S) στο χρηματιστήριο από Form 4 (insider_transactions.py). "
+              "Μηδέν αγοραστές μέσα στην περίοδο που καλύπτουν τα αρχεία της SEC είναι γνωστό μηδέν· έξω από αυτήν, άγνωστο.",
               "- `cash_op_profit` είναι προσέγγιση (λειτουργικά κέρδη μείον accruals), όχι η ακριβής κατασκευή Ball et al.",
               "- Τα στοιχεία χρηματοδότησης που μια εταιρεία δεν ανέφερε δεν γίνονται μηδέν· το «μερικό» μετρά πόσες "
               "τιμές χτίστηκαν χωρίς κάποιο από αυτά."]

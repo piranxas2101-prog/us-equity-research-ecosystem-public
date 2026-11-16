@@ -392,7 +392,7 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
     trades = [r for r in all_trades if maturity(r, as_of) == "mature"]
     signals = [r for r in records if r["kind"] == "shadow_candidate"]
     by_kind = {k: [r for r in records if r["kind"] == k] for k in
-               ("approved_not_entered", "preopen_demoted", "koulis_left_out")}
+               ("approved_not_entered", "preopen_demoted", "koulis_left_out", "filter_blocked")}
     strategies = _group(trades, "agent", "playbook", "direction")
     lab_edges = lab_day_edges(lab or {}, legacy or {})
     live_vs_lab = {}
@@ -408,6 +408,9 @@ def evaluate(records: list[dict[str, Any]], *, lab: dict[str, Any] | None = None
     control = [
         _compare("preopen_check", by_kind["preopen_demoted"], signals,
                  "Τα candidates που κατέβασε ο έλεγχος πριν το άνοιγμα πήγαν χειρότερα από όσα κράτησε;"),
+        # owner 2026-11-16: the fundamental filter against the candidates it let through
+        _compare("fundamental_filter", by_kind["filter_blocked"], signals,
+                 "Τα candidates που έκοψε το θεμελιώδες φίλτρο πήγαν χειρότερα από όσα άφησε;"),
         _compare("koulis", by_kind["koulis_left_out"], trades,
                  "Όσα άφησε έξω ο Koulis (όρια χαρτοφυλακίου) πήγαν χειρότερα από όσα ενέκρινε;"),
         _compare("miltos", by_kind["approved_not_entered"], trades,
@@ -579,6 +582,8 @@ def proposals(evaluation: dict[str, Any]) -> list[dict[str, Any]]:
                         "support": cell["records"], "evidence": review})
     texts = {"preopen_check": ("preopen", "Loosen the pre-open gap rule (1.5x ATR instead of 1x): the candidates it "
                                           "took down did better than the ones it kept."),
+             "fundamental_filter": ("giannis", "Loosen or drop the fundamental filter (fundamental_filter.py): the "
+                                               "candidates it blocked did better than the ones it let through."),
              "koulis": ("koulis", "Review Koulis's ranking: the candidates left out did better than the approved ones."),
              "miltos": ("miltos", "Loosen Miltos's 15-minute confirmation: the approvals he did not enter did better."),
              "monitors": ("position_monitor", "Widen the stop / raise the take-profit: positions closed early would "

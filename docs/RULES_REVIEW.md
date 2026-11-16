@@ -320,3 +320,21 @@ opportunistic). Sparse events are now tested as "has one" against "has none". 60
   `insider_factors` next to his score (as of the last covered day, unknown if older than 5 days), and
   `outcome_evaluator.py` judges `giannis_insider_opp_buy` (opportunistic buyer / none). No score, tier or order
   changes.
+
+## 12. Owner's decision, 2026-11-16: an LLM debate on the day's trades, in shadow, then possibly a veto
+
+After reading TradingAgents (TauricResearch, Apache-2.0: four analysts, a bull/bear debate, a trader, a three-way
+risk debate and a portfolio manager per symbol, a reflector that turns outcomes into lessons) the owner chose
+"shadow, then a veto" (2026-11-16). The rule "LLMs never make decisions" gets one exception:
+
+- A local LLM debate (Ollama only, never hosted) may write an **opinion** (rating and short reasons) on the trades
+  Koulis approved that day. It is recorded in shadow and measured like every shadow lesson; it changes no order,
+  score, limit or position.
+- To pass (Claude's proposal, to confirm in the design): the section 8 test (30 cases on 10 sessions; trades the debate opposed must do worse than the ones it
+  supported by at least 0.5% of excess over SPY, with the Wilson bound of the difference clear of zero). Then a
+  lesson candidate proposes a **veto**: Koulis blocks an entry the debate opposes. Turning the veto on stays the
+  owner's call; it can only block, never open, size or close a position.
+- Measured on the owner's machine (i7-1355U, no GPU, ~28 prompt tokens/s): a full TradingAgents run is 12-20 model
+  calls per symbol (30-60 minutes); the debate is built smaller, from the ecosystem's own evidence (packet, scores,
+  market reading), not from TradingAgents' data vendors. Design: docs/superpowers/specs/ (to be written with the owner).
+

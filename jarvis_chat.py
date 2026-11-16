@@ -210,6 +210,11 @@ def _rel(path: Path, root: Path) -> str:
 def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 1800,
            start_ollama: Callable[[], bool] | None = None, wait_seconds: float = START_WAIT_SECONDS,
            poll: Callable[[], None] = lambda: time.sleep(1)) -> dict[str, Any]:
+    import jarvis_facts
+
+    facts = jarvis_facts.answer_facts(question, root)  # numbers come from the files, not the model (owner 2026-11-16)
+    if facts is not None:
+        return facts
     started = False
     ready = client.available()
     if not ready and start_ollama is not None:
@@ -245,16 +250,22 @@ def _connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE IF NOT EXISTS chat (at TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,"
-                 " sources_json TEXT NOT NULL, unverified_json TEXT NOT NULL, ollama TEXT NOT NULL)")
+                 " sources_json TEXT NOT NULL, unverified_json TEXT NOT NULL, ollama TEXT NOT NULL,"
+                 " mode TEXT NOT NULL DEFAULT 'model')")
+    if "mode" not in {row[1] for row in conn.execute("PRAGMA table_info(chat)")}:  # a table from before 2026-11-16
+        conn.execute("ALTER TABLE chat ADD COLUMN mode TEXT NOT NULL DEFAULT 'model'")
+        conn.commit()
     return conn
 
 
 def save_turn(question: str, result: dict[str, Any], *, path: Path = CHAT_DB) -> None:
     with closing(_connect(path)) as conn:
-        conn.execute("INSERT INTO chat VALUES (?,?,?,?,?,?)",
+        conn.execute("INSERT INTO chat (at, question, answer, sources_json, unverified_json, ollama, mode)"
+                     " VALUES (?,?,?,?,?,?,?)",
                      (datetime.now(timezone.utc).isoformat(timespec="seconds"), question, result["answer"],
                       json.dumps(result.get("sources") or [], ensure_ascii=False),
-                      json.dumps(result.get("unverified_numbers") or [], ensure_ascii=False), result.get("ollama", "")))
+                      json.dumps(result.get("unverified_numbers") or [], ensure_ascii=False), result.get("ollama", ""),
+                      result.get("mode") or "model"))
         conn.commit()
 
 
@@ -262,7 +273,7 @@ def history(limit: int = 50, *, path: Path = CHAT_DB) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     with closing(_connect(path)) as conn:
-        rows = conn.execute("SELECT at, question, answer, sources_json, unverified_json FROM chat"
+        rows = conn.execute("SELECT at, question, answer, sources_json, unverified_json, mode FROM chat"
                             " ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
-    return [{"at": a, "question": q, "answer": t, "sources": json.loads(s), "unverified_numbers": json.loads(u)}
-            for a, q, t, s, u in reversed(rows)]
+    return [{"at": a, "question": q, "answer": t, "sources": json.loads(s), "unverified_numbers": json.loads(u),
+             "mode": m} for a, q, t, s, u, m in reversed(rows)]

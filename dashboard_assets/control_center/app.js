@@ -616,6 +616,7 @@ function jarvisTurn(t) {
   const warn = (t.unverified_numbers || []).length ? `<div class="small bad-text">Αριθμοί χωρίς πηγή: ${esc(t.unverified_numbers.join(", "))}</div>` : "";
   return `<div class="chat-turn"><div class="chat-q">${esc(t.question)}</div>
     <div class="chat-a">${markdown(t.answer)}</div>${warn}
+    <div class="muted small">${t.mode === "facts" ? "Από τα αρχεία, χωρίς μοντέλο" : "Από το τοπικό μοντέλο: έλεγξε τις πηγές"}</div>
     ${(t.sources || []).length ? `<div class="muted small">Πηγές: ${t.sources.map(esc).join(", ")}</div>` : ""}</div>`;
 }
 async function pageJarvis(day) {

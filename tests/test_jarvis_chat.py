@@ -124,8 +124,10 @@ class KnowledgeTests(ChatTests):
 
     def test_sources_are_budgeted_in_total(self):
         (self.root / "output" / "market_state_review_latest.md").write_text("α" * 50000, encoding="utf-8")
+        from unittest import mock
         fake = Fake()
-        answer("πώς είναι η αγορά;", root=self.root, client=fake, max_total_chars=9000)
+        with mock.patch("jarvis_facts.answer_facts", return_value=None):  # here: the model's path, not the facts
+            answer("πώς είναι η αγορά;", root=self.root, client=fake, max_total_chars=9000)
         self.assertLess(len(fake.prompts[0][1]), 9000 + 500)
 
 
@@ -261,3 +263,25 @@ class WholeSentenceTests(ChatTests):
 
     def test_answer_without_a_full_stop_is_kept(self):
         self.assertEqual(answer("x", root=self.root, client=Fake(text="ναι"))["answer"], "ναι")
+
+
+class HistoryModeTests(unittest.TestCase):
+    def test_history_keeps_whether_the_model_answered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "chat.sqlite3"
+            save_turn("α", {"answer": "x", "sources": [], "unverified_numbers": [], "ollama": "not_needed",
+                            "mode": "facts"}, path=db)
+            save_turn("β", {"answer": "y", "sources": [], "unverified_numbers": [], "ollama": "ok"}, path=db)
+            self.assertEqual([t["mode"] for t in history(path=db)], ["facts", "model"])
+
+    def test_old_chat_table_gets_the_mode_column(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "chat.sqlite3"
+            conn = sqlite3.connect(db)
+            conn.execute("CREATE TABLE chat (at TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,"
+                         " sources_json TEXT NOT NULL, unverified_json TEXT NOT NULL, ollama TEXT NOT NULL)")
+            conn.execute("INSERT INTO chat VALUES ('t','παλιά','x','[]','[]','down')")
+            conn.commit()
+            conn.close()
+            self.assertEqual([t["mode"] for t in history(path=db)], ["model"])

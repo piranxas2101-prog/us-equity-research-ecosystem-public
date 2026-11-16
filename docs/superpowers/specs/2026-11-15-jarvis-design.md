@@ -144,6 +144,10 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
 - If Ollama is not running, the page says so; Jarvis does not start it. Model and context size in
   `jarvis_config.json`.
 - It can only read. It has no tools to run anything.
+- Numbers without the model (owner 2026-11-16): a question about the market, the session, the lessons in shadow
+  (all, or one agent's) or the nightly run is answered by `jarvis_facts.py` straight from the files' own sentences
+  and numbers; a missing file is answered as unknown; only other questions go to the model. The page says which
+  answered ("Από τα αρχεία, χωρίς μοντέλο" / "Από το τοπικό μοντέλο").
 - What it may read is the knowledge map `jarvis_knowledge.json` (owner 2026-11-16: Jarvis is told about everything
   in its work): per topic (session, learning, market, news, held positions, traders, Sokratis, fundamentals, results,
   labs, RULES_REVIEW, ...) its files and keywords, matched without accents. Only files under `output/` or `docs/`;

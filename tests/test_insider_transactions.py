@@ -189,6 +189,35 @@ class DailyTests(unittest.TestCase):
             self.assertIn("2026-10-01", result["stopped"])
             self.assertFalse((Path(folder) / "2026-10-01.json").exists())
 
+    def test_a_temporary_refusal_is_retried(self):
+        fetch, _ = self.fetcher()
+        answers = iter([(503, None), (503, None)])
+
+        def flaky(url):
+            if url.endswith("0001-26-000001.txt"):
+                nxt = next(answers, None)
+                if nxt:
+                    return nxt
+            return fetch(url)
+        waits = []
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(flaky, start=date(2026, 10, 1), today=date(2026, 10, 2), listed={320193},
+                                   directory=Path(folder), sleeper=waits.append)
+            self.assertEqual(result["read"], ["2026-10-01"])
+            self.assertIn(2.0, waits)
+            self.assertIn(10.0, waits)
+
+    def test_a_refusal_that_does_not_clear_stops_the_day(self):
+        fetch, _ = self.fetcher()
+
+        def refusing(url):
+            return (503, None) if url.endswith("0001-26-000001.txt") else fetch(url)
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(refusing, start=date(2026, 10, 1), today=date(2026, 10, 2), listed={320193},
+                                   directory=Path(folder), sleeper=lambda s: None)
+            self.assertIn("http 503", result["stopped"])
+            self.assertFalse((Path(folder) / "2026-10-01.json").exists())
+
     def test_a_recent_weekday_without_an_index_is_not_yet_published(self):
         fetch, _ = self.fetcher()
         with tempfile.TemporaryDirectory() as folder:

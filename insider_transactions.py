@@ -303,12 +303,31 @@ def parse_form4(document: str, filed: date) -> list[dict[str, Any]]:
     return out
 
 
+RETRY_STATUS = {429, 500, 502, 503, 504}
+RETRY_WAITS = (2.0, 10.0, 30.0)  # the SEC answers 503 now and then under load; a short wait usually clears it
+
+
+def _get(fetch: StatusFetch, url: str, sleeper: Callable[[float], None]) -> tuple[int, bytes | None]:
+    """One request, retried on a temporary refusal or a network error; the last answer is returned as it is."""
+    for wait in (*RETRY_WAITS, None):
+        try:
+            status, body = fetch(url)
+        except OSError:
+            status, body = 0, None
+        if status not in RETRY_STATUS and status != 0:
+            return status, body
+        if wait is None:
+            return status, body
+        sleeper(wait)
+    return 0, None
+
+
 def _business_days_after(day: date, today: date) -> int:
     return sum((day + timedelta(days=n)).weekday() < 5 for n in range(1, (today - day).days + 1))
 
 
 def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int] | None = None,
-               directory: Path = DAILY, max_filings: int = DAILY_MAX_FILINGS, pause: float = 0.12,
+               directory: Path = DAILY, max_filings: int = DAILY_MAX_FILINGS, pause: float = 0.15,
                sleeper: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     """Read the days from ``start`` to yesterday in order, stopping at the first day that cannot be completed."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -320,7 +339,7 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
             day += timedelta(days=1)
             continue
         url = DAILY_INDEX.format(year=day.year, quarter=(day.month - 1) // 3 + 1, day=day.strftime("%Y%m%d"))
-        status, body = fetch(url)
+        status, body = _get(fetch, url, sleeper)
         sleeper(pause)
         if status in (403, 404) and (day.weekday() >= 5 or _business_days_after(day, today) >= 2):
             path.write_text(json.dumps({"day": day.isoformat(), "status": "no_index", "trades": []}), encoding="utf-8")
@@ -337,7 +356,7 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
         trades: list[list[Any]] = []
         failed = None
         for name in files:
-            status, body = fetch(ARCHIVES + name)
+            status, body = _get(fetch, ARCHIVES + name, sleeper)
             sleeper(pause)
             if status != 200 or body is None:
                 failed = f"{name}: http {status}"

@@ -58,7 +58,13 @@ class FactorTests(unittest.TestCase):
         # b bought twice in the 90 days (one insider); a's buy is older than 90 days; d filed later and is not seen
         self.assertEqual(f["insider_buyers_90d"], 1)
         self.assertEqual(it.factors(self.TRADES, date(2024, 5, 25), self.COVER)["insider_buyers_90d"], 2)
-        self.assertAlmostEqual(f["insider_net_buy_180d"], (150001 - 50000) / 200001)
+        # filings counted once per insider and day: buys a, b (twice, two days) = 3, sells c = 1; dollars do not weigh
+        self.assertAlmostEqual(f["insider_net_buy_180d"], (3 - 1) / 4)
+
+    def test_one_absurd_price_does_not_decide_the_ratio(self):
+        trades = [["2024-05-01", "a", "P", 7e15], ["2024-05-02", "b", "S", 1e5], ["2024-05-03", "c", "S", 1e5],
+                  ["2024-05-03", "c", "S", 2e5]]  # c's two lines of one filing are one sale
+        self.assertAlmostEqual(it.factors(trades, date(2024, 6, 1), self.COVER)["insider_net_buy_180d"], -1 / 3)
 
     def test_no_trades_inside_coverage_is_a_known_zero_and_no_ratio(self):
         self.assertEqual(it.factors([], date(2024, 6, 1), self.COVER),

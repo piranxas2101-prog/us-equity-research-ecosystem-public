@@ -10,7 +10,9 @@ option exercises, gifts and tax withholdings are not decisions to trade and stay
 Two factors per company and day, from the filings *filed* by that day (point in time):
 
 * ``insider_buyers_90d``: how many different insiders bought on the open market in the last 90 days;
-* ``insider_net_buy_180d``: (bought - sold) / (bought + sold) in dollars over 180 days, from -1 to +1.
+* ``insider_net_buy_180d``: (buys - sells) / (buys + sells) over 180 days, counting each insider's filing once per
+  side (Lakonishok-Lee's net purchase ratio by count), from -1 to +1. Counts, not dollars: a few hundred lines in the
+  data sets carry impossible prices or sizes (up to 10^15 dollars), and one of them would decide a dollar ratio.
 
 A Form 4 is due within two business days, so inside the period the data sets cover, no filing means no trade: zero
 buyers is a known zero. Outside that period (before the first quarter loaded, after the last one) the factor is
@@ -187,16 +189,15 @@ def factors(trades: list[list[Any]] | None, as_of: date, coverage: list[str] | N
         return unknown
     day, buyers_from, net_from = as_of.isoformat(), (as_of - timedelta(days=BUYERS_DAYS)).isoformat(), \
         (as_of - timedelta(days=NET_DAYS)).isoformat()
-    buyers, bought, sold = set(), 0.0, 0.0
-    for filed, owner, code, usd in trades or []:
+    buyers: set[str] = set()
+    events: dict[str, set[tuple[str, str]]] = {"P": set(), "S": set()}
+    for filed, owner, code, _usd in trades or []:
         if filed > day or filed <= net_from:
             continue
-        if code == "P":
-            bought += usd
-            if filed > buyers_from:
-                buyers.add(owner)
-        else:
-            sold += usd
+        events[code].add((owner, filed))  # one filing's several lines count once
+        if code == "P" and filed > buyers_from:
+            buyers.add(owner)
+    bought, sold = len(events["P"]), len(events["S"])
     total = bought + sold
     return {"insider_buyers_90d": len(buyers), "insider_net_buy_180d": None if total == 0 else (bought - sold) / total}
 

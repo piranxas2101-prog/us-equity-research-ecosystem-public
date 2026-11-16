@@ -51,9 +51,31 @@ class FactsTests(unittest.TestCase):
     def test_session_answer_has_the_day_numbers(self):
         self.write("output/paper_session/session_report_latest.json", SESSION)
         out = answer_facts("πώς πήγε η συνεδρία;", self.root)
-        for text in ("2026-11-13", "18 θέσεις", "-0.42%", "8 κερδισμένες", "10 χαμένες", "SPY -0.77%",
-                     "periklis momentum_12_1 long: 7 έκλεισαν, μέσο -1.13%, 3 κερδισμένες"):
+        for text in ("13/11", "18 θέσεις", "-0.42%", "οι 8 κέρδισαν", "οι 10 έχασαν", "-0.77%",
+                     "Periklis", "momentum_12_1", "-1.13%"):
             self.assertIn(text, out["answer"])
+
+    def test_session_is_told_as_a_story(self):
+        """Owner 2026-11-16: say it naturally, not as a list of the agents' results."""
+        report = {**SESSION, "per_strategy": [
+            {"agent": "periklis", "playbook": "momentum_12_1", "direction": "long", "closed": 7, "average_pct": -1.13, "winners": 3},
+            {"agent": "yankos", "playbook": "support_bounce_swing", "direction": "long", "closed": 6, "average_pct": -3.35, "winners": 2},
+            {"agent": "periklis", "playbook": "momentum_12_1", "direction": "short", "closed": 3, "average_pct": 6.08, "winners": 2},
+            {"agent": "yankos", "playbook": "failed_breakdown_reclaim", "direction": "long", "closed": 1, "average_pct": 2.61, "winners": 1}]}
+        self.write("output/paper_session/session_report_latest.json", report)
+        text = answer_facts("πώς πήγε η συνεδρία;", self.root)["answer"]
+        self.assertTrue(text.startswith("Την Παρασκευή 13/11 κλείσαμε 18 θέσεις"), text)
+        self.assertIn("πήγαμε καλύτερα από την αγορά", text)  # -0.42% against SPY -0.77%
+        self.assertIn("Το καλύτερο ήταν τα short του Periklis στο momentum_12_1: 3 θέσεις με μέσο +6.08%", text)
+        self.assertIn("Το χειρότερο ήταν τα long του Yankos στο support_bounce_swing: 6 θέσεις με μέσο -3.35%", text)
+        self.assertIn("1 θέση με +2.61%, κερδισμένη", text)
+        self.assertNotIn("\n- ", text)  # sentences, not a list
+
+    def test_session_without_strategies_or_spy_is_still_a_sentence(self):
+        self.write("output/paper_session/session_report_latest.json",
+                   {"session_date": "2026-11-16", "day_result": {"positions": 0}})
+        text = answer_facts("πώς πήγε η συνεδρία;", self.root)["answer"]
+        self.assertTrue(text.startswith("Τη Δευτέρα 16/11 δεν κλείσαμε καμία θέση"), text)
 
     def test_lessons_of_one_agent(self):
         self.write("output/paper_learning/evaluation_latest.json", EVALUATION)

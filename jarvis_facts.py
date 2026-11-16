@@ -7,6 +7,7 @@ A missing file is answered as unknown, never sent to the model to guess.
 """
 from __future__ import annotations
 
+from datetime import date
 import json
 from pathlib import Path
 import re
@@ -77,15 +78,69 @@ def session(root: Path) -> dict[str, Any]:
     report = _read(root, SESSION_FILE)
     if report is None:
         return _unknown(SESSION_FILE)
+    return _result([session_story(report)], [SESSION_FILE])
+
+
+WEEKDAY_GR = ("Τη Δευτέρα", "Την Τρίτη", "Την Τετάρτη", "Την Πέμπτη", "Την Παρασκευή", "Το Σάββατο", "Την Κυριακή")
+
+
+def _signed(value: Any) -> str:
+    return "άγνωστο" if not isinstance(value, (int, float)) or isinstance(value, bool) else f"{value:+g}%"
+
+
+def _when(session_date: Any) -> str:
+    try:
+        day = date.fromisoformat(str(session_date))
+    except ValueError:
+        return "Στη συνεδρία"
+    return f"{WEEKDAY_GR[day.weekday()]} {day.day}/{day.month}"
+
+
+def _group(row: dict[str, Any]) -> str:
+    return f"τα {row.get('direction')} του {str(row.get('agent') or '').capitalize()} στο {row.get('playbook')}"
+
+
+def _outcome(row: dict[str, Any]) -> str:
+    if row.get("closed") == 1:
+        return f"1 θέση με {_signed(row.get('average_pct'))}, {'κερδισμένη' if row.get('winners') else 'χαμένη'}"
+    return (f"{row.get('closed')} θέσεις με μέσο {_signed(row.get('average_pct'))} "
+            f"({row.get('winners')} κερδισμένες)")
+
+
+def session_story(report: dict[str, Any]) -> str:
+    """The day told in sentences (owner 2026-11-16: "say it naturally, not as a list of the agents' results"), with
+    the report's own numbers; the only derived word is better / worse than the market."""
     day = report.get("day_result") or {}
-    lines = [f"Συνεδρία {report.get('session_date') or 'άγνωστο'}: {day.get('positions', 'άγνωστο')} θέσεις, "
-             f"μέσο αποτέλεσμα {_pct(day.get('average_result_pct'))}, {day.get('winners', 'άγνωστο')} κερδισμένες, "
-             f"{day.get('losers', 'άγνωστο')} χαμένες (SPY {_pct(report.get('spy_open_to_close_pct'))} από το άνοιγμα "
-             f"στο κλείσιμο)."]
-    for row in (report.get("per_strategy") or [])[:STRATEGIES_SHOWN]:
-        lines.append(f"- {row.get('agent')} {row.get('playbook')} {row.get('direction')}: {row.get('closed')} "
-                     f"έκλεισαν, μέσο {_pct(row.get('average_pct'))}, {row.get('winners')} κερδισμένες")
-    return _result(lines, [SESSION_FILE])
+    when = _when(report.get("session_date"))
+    positions = day.get("positions")
+    if positions is None:
+        return f"{when}: άγνωστο πόσες θέσεις κλείσαμε (η αναφορά δεν το γράφει)."
+    if not positions:
+        return f"{when} δεν κλείσαμε καμία θέση."
+    sentences = [f"{when} κλείσαμε {positions} θέσεις: οι {day.get('winners', 'άγνωστο')} κέρδισαν και οι "
+                 f"{day.get('losers', 'άγνωστο')} έχασαν, με μέσο αποτέλεσμα {_signed(day.get('average_result_pct'))}."]
+    spy, average = report.get("spy_open_to_close_pct"), day.get("average_result_pct")
+    if isinstance(spy, (int, float)) and isinstance(average, (int, float)):
+        compared = ("πήγαμε καλύτερα από την αγορά" if average > spy else
+                    "πήγαμε χειρότερα από την αγορά" if average < spy else "πήγαμε όσο και η αγορά")
+        sentences.append(f"Η αγορά (SPY) έκανε {_signed(spy)} από το άνοιγμα στο κλείσιμο, οπότε {compared}.")
+    rows = [r for r in report.get("per_strategy") or []
+            if r.get("closed") and isinstance(r.get("average_pct"), (int, float))]
+    if len(rows) == 1:
+        sentences.append(f"Όλες ήταν {_group(rows[0])}: {_outcome(rows[0])}.")
+    elif rows:
+        best = max(rows, key=lambda r: r["average_pct"])
+        worst = min(rows, key=lambda r: r["average_pct"])
+        sentences.append(f"Το καλύτερο ήταν {_group(best)}: {_outcome(best)}.")
+        sentences.append(f"Το χειρότερο ήταν {_group(worst)}: {_outcome(worst)}.")
+        rest = [r for r in rows if r is not best and r is not worst]
+        shown = rest[:STRATEGIES_SHOWN]
+        if shown:
+            parts = [f"{_group(r)} έκαναν {_outcome(r)}" for r in shown]
+            joined = parts[0] if len(parts) == 1 else "· ".join(parts[:-1]) + ", και " + parts[-1]
+            more = f" (και {len(rest) - len(shown)} ακόμα στρατηγικές)" if len(rest) > len(shown) else ""
+            sentences.append(f"Από τα υπόλοιπα, {joined}{more}.")
+    return " ".join(sentences)
 
 
 def _about(item: dict[str, Any], agent: str) -> bool:

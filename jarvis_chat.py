@@ -38,7 +38,9 @@ DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 LEARNING_WORDS = ("μάθ", "κανόν", "πρόταση", "προτάσ")
 SYSTEM = ("Είσαι ο Jarvis, ο βοηθός του οικοσυστήματος. Απαντάς στα ελληνικά, σύντομα, ΜΟΝΟ από τα κείμενα που σου "
           "δίνονται. Γράψε από ποιο αρχείο είναι κάθε στοιχείο. Μην επινοείς αριθμούς, μετοχές ή αποτελέσματα. "
-          "Αν τα κείμενα δεν απαντούν, πες «δεν το ξέρω». Δεν αποφασίζεις και δεν προτείνεις συναλλαγές.")
+          "Αν τα κείμενα δεν απαντούν, πες «δεν το ξέρω». Δεν αποφασίζεις και δεν προτείνεις συναλλαγές. "
+          "Γράψε το πολύ τρεις σύντομες προτάσεις. Πρόσεξε την κατεύθυνση: πάνω ή κάτω, καλύτερα ή χειρότερα, "
+          "όπως ακριβώς τη γράφει το κείμενο.")
 
 
 class Client(Protocol):
@@ -191,6 +193,16 @@ def excerpt(text: str, question: str, budget: int) -> str:
     return out[:budget]
 
 
+def whole_sentences(text: str) -> str:
+    """Drop a last sentence the token limit cut off (2026-11-16: an answer ended "..., με"); kept as is when the text
+    has no sentence end at all."""
+    text = text.strip()
+    if not text or text[-1] in ".;!?»)":
+        return text
+    end = max(text.rfind(mark) for mark in (". ", "; ", "! ", "? ", ".\n"))
+    return text[:end + 1] if end > 0 else text
+
+
 def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root.resolve()).as_posix()
 
@@ -217,7 +229,7 @@ def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 
     prompt = "\n\n".join(f"### Αρχείο: {name}\n{text}" for name, text in texts.items())
     prompt += f"\n\n### Ερώτηση\n{question}"
     try:
-        text = client.generate(SYSTEM, prompt).strip()
+        text = whole_sentences(client.generate(SYSTEM, prompt))
     except (OSError, urllib.error.URLError, ValueError) as exc:
         return {"answer": f"Το Ollama δεν απάντησε ({type(exc).__name__}).", "sources": list(texts),
                 "unverified_numbers": [], "ollama": "down", "ollama_started": started}

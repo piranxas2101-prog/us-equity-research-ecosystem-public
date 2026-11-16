@@ -237,3 +237,27 @@ class ShippedKnowledgeTests(unittest.TestCase):
                 with self.subTest(topic=topic["id"], file=rel):
                     self.assertTrue(rel.startswith(("output/", "docs/")) and ".." not in rel)
             self.assertTrue(topic["keywords"])
+
+
+class ShortAnswerTests(unittest.TestCase):
+    """2026-11-16: an answer was cut mid-sentence at the token limit - the model is asked for at most three short
+    sentences, and the limit leaves room for them."""
+
+    def test_system_prompt_asks_for_three_sentences_and_correct_direction(self):
+        import jarvis_chat
+        self.assertIn("τρεις σύντομες προτάσεις", jarvis_chat.SYSTEM)
+        self.assertIn("πάνω ή κάτω", jarvis_chat.SYSTEM)
+
+    def test_shipped_limit_leaves_room(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / "jarvis_config.json").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(config["num_predict"], 320)
+
+
+class WholeSentenceTests(ChatTests):
+    def test_cut_answer_keeps_only_whole_sentences(self):
+        out = answer("πώς πήγε;", root=self.root, client=Fake(text="Πρώτη πρόταση. Δεύτερη πρόταση. Η αγορά ανταμείβεται, με"))
+        self.assertTrue(out["answer"].startswith("Πρώτη πρόταση. Δεύτερη πρόταση."))
+        self.assertNotIn("ανταμείβεται, με", out["answer"])
+
+    def test_answer_without_a_full_stop_is_kept(self):
+        self.assertEqual(answer("x", root=self.root, client=Fake(text="ναι"))["answer"], "ναι")

@@ -295,5 +295,24 @@ lines carry impossible prices (up to 10^15 dollars). Rank IC (t) at 20 / 60 / 12
   gate cannot pass; the long side (+1.6%, 5/5 years) is the only cell. Far below cash profitability (IC +0.15).
 * The net ratio is reversed: companies whose insiders mostly *sold* did better. Selling follows price run-ups
   (planned 10b5-1 sales, option-funded sales in rising growth stocks), so it carries momentum, not bad news.
-* Decision: neither goes live or into the composites. Buyers stay a lab factor; a better test (opportunistic vs
-  routine insiders, Cohen-Malloy-Pomorski) needs each insider's history and is a candidate for later.
+* Decision: neither goes live or into the composites.
+
+**Opportunistic insiders, 2026-11-16** (owner: "make a better version"; Cohen-Malloy-Pomorski 2012). History from
+2018q1 (33 quarters, 964,358 trades, 7,860 issuers). An insider who traded in each of the three years before is
+*routine* if one calendar month holds a trade in all three, otherwise *opportunistic* (2025: 2,171 routine, 3,447
+opportunistic). Sparse events are now tested as "has one" against "has none". 60 sessions:
+
+| factor | rank IC (t) | has one − has none | large caps | micro | rules score ≥ 60 | verdict |
+|---|---|---|---|---|---|---|
+| insider_buyers_90d (all) | +0.019 (2.9) | +1.55% [0.73, 2.36] 6/6 | +0.47% [−0.25, 1.25] | +2.63% | +0.74% | passes, weak |
+| **insider_opp_buyers_90d** | +0.019 (**5.4**) | **+2.71%** [1.56, 3.70] 6/6 | **+1.31%** [0.18, 2.38] 6/6 | +3.13% | +1.80% | **passes (to shadow)** |
+| insider_opp_sellers_90d | −0.044 (−9.4) | −2.48% (sellers did *better*) | −3.04% | −2.05% | −0.68% | reversed |
+
+* **Opportunistic buying is the better version**: the edge almost doubles against all buyers and, unlike them, holds
+  in large caps every year. The paper's result replicates here.
+* Opportunistic *selling* is reversed, against the paper: companies whose insiders sold outside their routine did
+  better by ~2.5%. In 2021-2026 such sales follow price run-ups and the run-ups continued (momentum); it is not
+  usable as a warning.
+* Live use is not possible yet: the SEC's quarterly data sets end at 2026-03-31, so a value for tonight's run is
+  unknown. A shadow tag needs the daily Form 4 filings (the SEC daily index the universe preparation already reads,
+  plus each filing's XML). Owner's call.

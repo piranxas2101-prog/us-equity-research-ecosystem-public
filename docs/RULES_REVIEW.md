@@ -313,6 +313,10 @@ opportunistic). Sparse events are now tested as "has one" against "has none". 60
 * Opportunistic *selling* is reversed, against the paper: companies whose insiders sold outside their routine did
   better by ~2.5%. In 2021-2026 such sales follow price run-ups and the run-ups continued (momentum); it is not
   usable as a warning.
-* Live use is not possible yet: the SEC's quarterly data sets end at 2026-03-31, so a value for tonight's run is
-  unknown. A shadow tag needs the daily Form 4 filings (the SEC daily index the universe preparation already reads,
-  plus each filing's XML). Owner's call.
+* **Live in shadow, 2026-11-16** (owner: "build it"). The SEC moved the newer quarters to a second folder
+  (2026q2-q3 now download). After the last quarter, `insider_transactions.py daily` reads each day's form index and
+  every listed company's Form 4 (cache/sec_insider/daily/; a day is written only when complete, a gap stops the
+  coverage there). The universe preparation runs it every night within a budget of 4,000 filings. Giannis writes
+  `insider_factors` next to his score (as of the last covered day, unknown if older than 5 days), and
+  `outcome_evaluator.py` judges `giannis_insider_opp_buy` (opportunistic buyer / none). No score, tier or order
+  changes.

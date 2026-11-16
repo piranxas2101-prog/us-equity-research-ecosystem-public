@@ -11,6 +11,7 @@ from typing import Any
 from run_context import attach_run_context, resolve_run_id
 import periodic_filing
 import fundamental_factors
+import insider_transactions
 import quality_factors
 import sec_fundamental_ratios
 import unknown_data
@@ -540,6 +541,13 @@ def main() -> int:
         print(f"[INFO] fundamental factors (shadow) for {known} of {len(scored)} rows")
     except Exception as exc:  # noqa: BLE001 - shadow evidence never stops the scoring
         print(f"[WARN] fundamental factors not computed: {type(exc).__name__}")
+    # Form 4 insiders (owner 2026-11-16, insider_transactions.py): opportunistic buyers passed the lab; in shadow next
+    # to the score, unknown when the SEC data do not reach the last few days. Never part of the score.
+    try:
+        known = insider_transactions.annotate(scored)
+        print(f"[INFO] insider factors (shadow) for {known} of {len(scored)} rows")
+    except Exception as exc:  # noqa: BLE001 - shadow evidence never stops the scoring
+        print(f"[WARN] insider factors not computed: {type(exc).__name__}")
     scored_sorted = sorted(scored, key=lambda x: x["score_final"], reverse=True)
     run_ts = data.get("run_timestamp") or ""
     unknown_events = [

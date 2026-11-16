@@ -75,9 +75,11 @@ class QualityFactorTests(unittest.TestCase):
                                         "beneish": {"flag": True}}}
         self.assertEqual(oe.factor_labels(decision), {"giannis_piotroski": "strong (7-9)", "giannis_altman": "grey",
                                                       "giannis_beneish": "manipulation warning",
-                                                      "giannis_long_quality": None, "giannis_avoid": None})
+                                                      "giannis_long_quality": None, "giannis_avoid": None,
+                                                      "giannis_insider_opp_buy": None})
         self.assertEqual(oe.factor_labels({}), {"giannis_piotroski": None, "giannis_altman": None, "giannis_beneish": None,
-                                                "giannis_long_quality": None, "giannis_avoid": None})
+                                                "giannis_long_quality": None, "giannis_avoid": None,
+                                                "giannis_insider_opp_buy": None})
 
 
 if __name__ == "__main__":

@@ -81,6 +81,22 @@ def sync_filing_index(db: Any) -> dict[str, Any]:
         return {"status": "failed", "error_type": type(exc).__name__, "error": str(exc)[:300]}
 
 
+def sync_insiders() -> dict[str, Any]:
+    """Form 4 insider trades for Giannis's shadow tag (owner 2026-11-16): new quarters, then the days after them,
+    within a nightly budget. A failure is reported and the research goes on; the tag is then unknown."""
+    try:
+        import insider_transactions
+        from research_registry.sec_filing_index import sec_today
+
+        load_env(ROOT / ".env")  # SEC_USER_AGENT, never printed
+        agent = os.getenv("SEC_USER_AGENT", "").strip()
+        if not agent:
+            return {"status": "not_configured"}
+        return {"status": "ok", **insider_transactions.sync_nightly(agent, sec_today())}
+    except Exception as exc:  # noqa: BLE001 - surfaced in the result, research continues
+        return {"status": "failed", "error_type": type(exc).__name__, "error": str(exc)[:300]}
+
+
 def prepare(root: Path, *, refresh_sources: bool) -> dict[str, Any]:
     if refresh_sources:
         acquire_universe.main()
@@ -152,6 +168,7 @@ def prepare(root: Path, *, refresh_sources: bool) -> dict[str, Any]:
         "classification_reassessment": reassess_summary,
         "instrument_links": links_summary,
         "sec_filing_index": filing_index_summary,
+        "insider_transactions": sync_insiders() if refresh_sources else {"status": "skipped"},
     }
 
 

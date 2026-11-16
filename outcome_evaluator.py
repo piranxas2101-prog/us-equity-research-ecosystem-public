@@ -43,11 +43,13 @@ LABEL_ORDER = {
     # fundamental composites ranked across each run (fundamental_factors.py, owner 2026-11-15), in shadow
     "giannis_long_quality": ("fundamental_long_quality", ("top 20%", "middle 60%", "bottom 20%")),
     "giannis_avoid": ("fundamental_avoid", ("bottom 20%", "middle 60%", "top 20%")),  # a high avoid score is the bad end
+    # Form 4: an opportunistic insider bought in the last 90 days (insider_transactions.py, owner 2026-11-16)
+    "giannis_insider_opp_buy": ("insider_opportunistic_buying", ("opportunistic buyer", "none")),
 }
 TASKS = {"giannis": "fundamental_quality", "petros": "fundamental_synthesis",
          "giannis_piotroski": "fundamental_quality", "giannis_altman": "fundamental_quality",
          "giannis_beneish": "fundamental_quality", "giannis_long_quality": "fundamental_quality",
-         "giannis_avoid": "fundamental_quality"}
+         "giannis_avoid": "fundamental_quality", "giannis_insider_opp_buy": "fundamental_quality"}
 SOURCE_AGENTS = ("giannis", "petros")
 
 
@@ -58,12 +60,14 @@ def factor_labels(decision: dict[str, Any]) -> dict[str, str | None]:
     z = factors.get("altman_z2") or {}
     m = factors.get("beneish") or {}
     combos = ((decision.get("fundamental_factors") or {}).get("composites")) or {}
+    buyers = (decision.get("insider_factors") or {}).get("insider_opp_buyers_90d")
     return {
         "giannis_piotroski": None if f_score is None else "strong (7-9)" if f_score >= 7 else "middle (4-6)" if f_score >= 4 else "weak (0-3)",
         "giannis_altman": z.get("zone"),
         "giannis_beneish": None if m.get("flag") is None else "manipulation warning" if m["flag"] else "no warning",
         "giannis_long_quality": fundamental_factors.quintile_label(combos.get("long_quality")),
         "giannis_avoid": fundamental_factors.quintile_label(combos.get("avoid")),
+        "giannis_insider_opp_buy": None if buyers is None else "opportunistic buyer" if buyers > 0 else "none",
     }
 
 

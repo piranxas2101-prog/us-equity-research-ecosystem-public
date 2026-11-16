@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from datetime import date
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
 import zipfile
 
 import fundamental_lab as fl
+import outcome_evaluator as oe
 import insider_transactions as it
 
 
@@ -113,6 +115,117 @@ class OpportunisticTests(unittest.TestCase):
         report = fl.factor_report(rows, "insider_opp_buyers_90d", 60)
         self.assertGreater(report["best_vs_worst"]["spread_pct"], 4)
         self.assertGreater(report["large_caps"]["spread_pct"], 4)
+
+
+FORM4 = """<SEC-DOCUMENT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+  <documentType>4</documentType>
+  <issuer><issuerCik>0000320193</issuerCik></issuer>
+  <reportingOwner><reportingOwnerId><rptOwnerCik>0001214156</rptOwnerCik></reportingOwnerId></reportingOwner>
+  <nonDerivativeTable>
+    <nonDerivativeTransaction><transactionCoding><transactionCode>P</transactionCode></transactionCoding>
+      <transactionAmounts><transactionShares><value>100</value></transactionShares>
+      <transactionPricePerShare><value>20.5</value></transactionPricePerShare></transactionAmounts>
+    </nonDerivativeTransaction>
+    <nonDerivativeTransaction><transactionCoding><transactionCode>M</transactionCode></transactionCoding>
+      <transactionAmounts><transactionShares><value>500</value></transactionShares>
+      <transactionPricePerShare><value>1</value></transactionPricePerShare></transactionAmounts>
+    </nonDerivativeTransaction>
+  </nonDerivativeTable>
+</ownershipDocument>
+</XML>
+</SEC-DOCUMENT>"""
+INDEX = """Form Type   Company Name      CIK         Date Filed  File Name
+-----------------------------------------------------------------
+4           APPLE INC         320193      20261001    edgar/data/320193/0001-26-000001.txt
+4           COOK TIMOTHY      1214156     20261001    edgar/data/320193/0001-26-000001.txt
+4           PRIVATE FUND LP   999999      20261001    edgar/data/999999/0002-26-000002.txt
+10-K        APPLE INC         320193      20261001    edgar/data/320193/0003-26-000003.txt
+"""
+
+
+class DailyTests(unittest.TestCase):
+    def test_a_form_4_gives_its_open_market_trades(self):
+        trades = it.parse_form4(FORM4, date(2026, 10, 1))
+        self.assertEqual(trades, [{"cik": 320193, "filed": "2026-10-01", "owner": "1214156", "code": "P",
+                                   "usd": 2050.0}])
+        self.assertEqual(sorted(it.form4_filings(INDEX)), ["edgar/data/320193/0001-26-000001.txt",
+                                                          "edgar/data/999999/0002-26-000002.txt"])
+
+    def fetcher(self, missing=()):
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            if any(m in url for m in missing):
+                return 404, None
+            if "form.20261001" in url:
+                return 200, INDEX.encode()
+            if url.endswith("0001-26-000001.txt"):
+                return 200, FORM4.encode()
+            return 404, None
+        return fetch, calls
+
+    def test_days_are_read_in_order_weekends_recorded_and_unlisted_filers_skipped(self):
+        fetch, calls = self.fetcher()
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(fetch, start=date(2026, 10, 1), today=date(2026, 10, 6), listed={320193},
+                                   directory=Path(folder), sleeper=lambda s: None)
+            # Thursday read; Friday 10-02 has no index but is a weekday only 2 business days back -> settled holiday
+            self.assertEqual(result["read"], ["2026-10-01"])
+            self.assertIn("2026-10-03", result["no_index"])
+            self.assertFalse(any("0002-26" in c for c in calls))  # a filer that is not a listed company
+            day = json.loads((Path(folder) / "2026-10-01.json").read_text(encoding="utf-8"))
+            self.assertEqual(day["trades"], [["2026-10-01", "1214156", "P", 2050.0, 320193]])
+
+    def test_a_failed_filing_leaves_the_day_unwritten_and_stops(self):
+        fetch, _ = self.fetcher(missing=("0001-26-000001",))
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(fetch, start=date(2026, 10, 1), today=date(2026, 10, 6), listed={320193},
+                                   directory=Path(folder), sleeper=lambda s: None)
+            self.assertEqual(result["read"], [])
+            self.assertIn("2026-10-01", result["stopped"])
+            self.assertFalse((Path(folder) / "2026-10-01.json").exists())
+
+    def test_a_recent_weekday_without_an_index_is_not_yet_published(self):
+        fetch, _ = self.fetcher()
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(fetch, start=date(2026, 10, 2), today=date(2026, 10, 3),
+                                   directory=Path(folder), sleeper=lambda s: None)
+            self.assertIn("http 404", result["stopped"])
+
+    def test_daily_files_extend_coverage_until_the_first_gap_and_feed_the_live_tag(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            quarter = lambda url: data_set([(320193, "15-SEP-2026", "o1", "P", "10", "10")] if "2026q3" in url  # noqa: E731
+                                           else [])
+            it.sync(quarter, ["2026q1", "2026q2", "2026q3"], directory, sleeper=lambda s: None)  # 180 days of history
+            it.build(directory, directory / "index.json.gz")
+            (directory / "daily").mkdir()
+            for day, trades in (("2026-10-01", [["2026-10-01", "o2", "P", 5.0, 320193]]), ("2026-10-02", []),
+                                ("2026-10-04", [["2026-10-04", "o3", "P", 5.0, 320193]])):  # 10-03 missing
+                (directory / "daily" / f"{day}.json").write_text(json.dumps({"trades": trades}), encoding="utf-8")
+            source = it.InsiderSource(directory / "index.json.gz")
+            self.assertEqual((source.coverage[1], source.daily_days), ("2026-10-02", 2))
+            self.assertEqual([t[1] for t in source.trades(320193)], ["o1", "o2"])  # o3 after the gap is not used
+            rows = [{"ticker": "AAPL"}, {"ticker": "NOPE"}]
+            it.annotate(rows, source, {"AAPL": 320193}, today=date(2026, 10, 5))
+            self.assertEqual(rows[0]["insider_factors"]["as_of"], "2026-10-02")
+            self.assertEqual(rows[0]["insider_factors"]["insider_buyers_90d"], 2)
+            self.assertIsNone(rows[0]["insider_factors"]["insider_opp_buyers_90d"])  # no three years of history
+            self.assertIsNone(rows[1]["insider_factors"]["insider_buyers_90d"])
+            stale = [{"ticker": "AAPL"}]
+            it.annotate(stale, source, {"AAPL": 320193}, today=date(2026, 10, 20))
+            self.assertIsNone(stale[0]["insider_factors"]["as_of"])
+            self.assertIsNone(stale[0]["insider_factors"]["insider_buyers_90d"])
+
+    def test_the_outcome_label(self):
+        label = lambda v: oe.factor_labels({"insider_factors": {"insider_opp_buyers_90d": v}})  # noqa: E731
+        self.assertEqual(label(2)["giannis_insider_opp_buy"], "opportunistic buyer")
+        self.assertEqual(label(0)["giannis_insider_opp_buy"], "none")
+        self.assertIsNone(label(None)["giannis_insider_opp_buy"])
 
 
 class StoreTests(unittest.TestCase):

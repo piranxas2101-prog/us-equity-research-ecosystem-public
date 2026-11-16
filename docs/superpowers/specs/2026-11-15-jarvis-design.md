@@ -129,6 +129,9 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
   path `paper_learning` uses), so it is followed out of sample and taught by Sokratis, and appears as a proposal.
   It never changes active scores, policies, limits or orders.
 - It complements `paper_learning.py` (group statistics), it does not replace it.
+- Sokratis teaches these lessons too (owner 2026-11-16): `sokratis_strategy_teacher.build_paper_trade_lesson` reads
+  the follow from `output/jarvis/report_latest.json`; a rule naming a trader goes to him, one naming none to both.
+  Advisory only, like every Sokratis lesson.
 
 ### 5.3 The chat (`jarvis_chat.py`, local Ollama)
 

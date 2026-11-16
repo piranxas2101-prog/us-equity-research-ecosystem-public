@@ -427,11 +427,23 @@ def build_backdrop_lesson(lab: dict[str, Any], macro: dict[str, Any]) -> dict[st
             "authority": "advisory_only: the trader's own playbook still decides; nothing is switched on or off"}
 
 
-def build_paper_trade_lesson(evaluation: dict[str, Any]) -> dict[str, Any]:
+TRADERS = ("yankos", "periklis")
+
+
+def jarvis_shadow_lessons(report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Jarvis's loss rules in shadow, with how they held after entering shadow (output/jarvis/report_latest.json)."""
+    learning = ((report or {}).get("sections") or {}).get("learning") or {}
+    return [item for item in learning.get("follow") or [] if isinstance(item, dict) and item.get("lesson_id")]
+
+
+def build_paper_trade_lesson(evaluation: dict[str, Any], jarvis: dict[str, Any] | None = None) -> dict[str, Any]:
     """What the real paper trades and all candidates (shadow trades) taught each trader about his own strategies:
-    live results per strategy and the category findings that passed the luck checks. Advisory only."""
-    if not evaluation:
+    live results per strategy and the category findings that passed the luck checks; and the loss rules Jarvis put in
+    shadow (owner 2026-11-16: Sokratis teaches them too). Advisory only."""
+    jarvis_items = jarvis_shadow_lessons(jarvis or {})
+    if not evaluation and not jarvis_items:
         return {"status": "unavailable", "reason": "no paper-learning evaluation yet"}
+    evaluation = evaluation or {}
     findings = (evaluation.get("category_findings") or {}).get("findings") or []
     traders: dict[str, dict[str, Any]] = {}
     for source in ("strategies",):
@@ -464,6 +476,16 @@ def build_paper_trade_lesson(evaluation: dict[str, Any]) -> dict[str, Any]:
             traders.setdefault(agent, {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
                 "shadow_lessons", []).append({k: item.get(k) for k in (
                     "lesson_id", "target_agent", "proposed_change", "shadow_since", "sessions_after", "verdict")})
+    # Jarvis's loss rules in shadow (owner 2026-11-16): a rule naming a trader goes to him, one naming none to both
+    for item in jarvis_items:
+        agent = (item.get("conditions") or {}).get("agent")
+        for name in ([agent] if agent in TRADERS else [] if agent else list(TRADERS)):
+            traders.setdefault(name, {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
+                "shadow_lessons", []).append({
+                    "source": "jarvis", "lesson_id": item["lesson_id"], "target_agent": agent or "both",
+                    "proposed_change": item.get("proposed_change"), "shadow_since": item.get("shadow_since"),
+                    "sessions_after": None, "trades_after": item.get("n"), "losses_after": item.get("losses"),
+                    "verdict": item.get("verdict")})
     # whether each swing long's hold should change (owner 2026-11-05), as the ecosystem judged it
     for review in evaluation.get("swing_hold_review") or []:
         traders.setdefault(review["agent"], {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
@@ -530,7 +552,8 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     macro_path = Path(getattr(args, "macro", None) or "output/macro_environment_latest.json")
     backdrop_lesson = build_backdrop_lesson(load_json(lab_path, default={}), load_json(macro_path, default={}))
     paper_path = Path(getattr(args, "paper_learning", None) or "output/paper_learning/evaluation_latest.json")
-    paper_lesson = build_paper_trade_lesson(load_json(paper_path, default={}))
+    jarvis_path = Path(getattr(args, "jarvis_report", None) or "output/jarvis/report_latest.json")
+    paper_lesson = build_paper_trade_lesson(load_json(paper_path, default={}), load_json(jarvis_path, default={}))
     journal_path = Path(getattr(args, "earnings_journal", None) or "output/earnings_journal_latest.json")
     results_lesson = build_results_lesson(load_json(journal_path, default={}))
     sources += [source_record(name, path) for name, path in (("strategy_lab", lab_path), ("macro_environment", macro_path))
@@ -754,6 +777,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
                              f"vs same day {fmt(cell.get('mean_gap_pct'))} on {cell.get('records')} | "
                              f"{item.get('verdict')}")
             for item in view.get("shadow_lessons", []):
+                if item.get("source") == "jarvis":
+                    lines.append(f"- {trader} | Jarvis shadow lesson | {item.get('proposed_change')} | "
+                                 f"{item.get('verdict')}: {item.get('losses_after')}/{item.get('trades_after')} lost "
+                                 f"since {item.get('shadow_since')}")
+                    continue
                 lines.append(f"- {trader} | shadow lesson | {item.get('proposed_change')} | {item.get('verdict')} "
                              f"after {item.get('sessions_after')} sessions since {item.get('shadow_since')}")
     results = payload.get("results_lesson") or {}
@@ -795,6 +823,7 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--lab", default="output/strategy_lab/strategy_lab_latest.json")
     build.add_argument("--macro", default="output/macro_environment_latest.json")
     build.add_argument("--paper-learning", default="output/paper_learning/evaluation_latest.json")
+    build.add_argument("--jarvis-report", default="output/jarvis/report_latest.json")
     build.add_argument("--earnings-journal", default="output/earnings_journal_latest.json")
     build.add_argument("--out-prefix", default="output/sokratis_strategy_teacher")
     build.set_defaults(func=command_build)

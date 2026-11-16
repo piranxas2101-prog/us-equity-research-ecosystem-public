@@ -10,10 +10,13 @@ from __future__ import annotations
 from contextlib import closing
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
-from typing import Any, Protocol
+import subprocess
+import time
+from typing import Any, Callable, Protocol
 import unicodedata
 import urllib.error
 import urllib.request
@@ -22,6 +25,11 @@ ROOT = Path(__file__).resolve().parent
 CHAT_DB = ROOT / "data" / "jarvis" / "chat.sqlite3"
 CONFIG = ROOT / "jarvis_config.json"
 KNOWLEDGE = "jarvis_knowledge.json"
+# owner 2026-11-16: Jarvis starts the Ollama server itself, only when the owner asks a question on its page
+OLLAMA_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe"
+OLLAMA_LISTEN = "127.0.0.1:11434"
+START_WAIT_SECONDS = 30
+NO_WINDOW_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 READABLE_ROOTS = ("output", "docs")
 MAX_SOURCES = 3
 NUMBER = re.compile(r"\d+(?:[.,]\d+)?%?")
@@ -67,6 +75,19 @@ class OllamaClient:
                                          headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             return str(json.loads(response.read().decode("utf-8")).get("response") or "")
+
+
+def start_ollama_server(*, exe: Path = OLLAMA_EXE, log_dir: Path = ROOT / "logs") -> bool:
+    """Start ``ollama serve`` hidden, listening on this computer only (not the Ollama app). False when Ollama is not
+    installed. Called only from the Jarvis page when the owner asks a question and Ollama is not running."""
+    if not exe.is_file():
+        return False
+    log_dir.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "OLLAMA_HOST": OLLAMA_LISTEN}
+    with (log_dir / "ollama_serve.log").open("ab") as log:
+        subprocess.Popen([str(exe), "serve"], env=env, creationflags=NO_WINDOW_FLAGS, close_fds=True,
+                         stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+    return True
 
 
 def _check_outputs(root: Path) -> dict[str, str]:
@@ -137,11 +158,22 @@ def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root.resolve()).as_posix()
 
 
-def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 12000) -> dict[str, Any]:
-    if not client.available():
-        return {"answer": "Το Ollama δεν τρέχει (ή δεν έχει το μοντέλο), οπότε δεν μπορώ να απαντήσω τώρα. "
-                          "Η αναφορά της ημέρας είναι στη σελίδα.", "sources": [], "unverified_numbers": [],
-                "ollama": "down"}
+def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 12000,
+           start_ollama: Callable[[], bool] | None = None, wait_seconds: float = START_WAIT_SECONDS,
+           poll: Callable[[], None] = lambda: time.sleep(1)) -> dict[str, Any]:
+    started = False
+    ready = client.available()
+    if not ready and start_ollama is not None:
+        started = bool(start_ollama())
+        deadline = time.monotonic() + wait_seconds
+        while started and not ready and time.monotonic() < deadline:
+            poll()
+            ready = client.available()
+    if not ready:
+        text = ("Ξεκίνησα το Ollama, αλλά δεν απάντησε ακόμα (ή δεν έχει το μοντέλο). Ξαναρώτα σε λίγο."
+                if started else "Το Ollama δεν τρέχει (ή δεν έχει το μοντέλο), οπότε δεν μπορώ να απαντήσω τώρα. "
+                                "Η αναφορά της ημέρας είναι στη σελίδα.")
+        return {"answer": text, "sources": [], "unverified_numbers": [], "ollama": "down", "ollama_started": started}
     sources = select_sources(question, root)
     share = max_total_chars // max(1, len(sources))  # the whole prompt must fit the model's context (num_ctx)
     texts = {_rel(p, root): p.read_text(encoding="utf-8", errors="replace")[:share] for p in sources}
@@ -151,12 +183,13 @@ def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 
         text = client.generate(SYSTEM, prompt).strip()
     except (OSError, urllib.error.URLError, ValueError) as exc:
         return {"answer": f"Το Ollama δεν απάντησε ({type(exc).__name__}).", "sources": list(texts),
-                "unverified_numbers": [], "ollama": "down"}
+                "unverified_numbers": [], "ollama": "down", "ollama_started": started}
     corpus = "\n".join(texts.values())
     unverified = [n for n in dict.fromkeys(NUMBER.findall(text)) if n not in corpus]
     if unverified:
         text += ("\n\n⚠ Οι αριθμοί " + ", ".join(unverified) + " δεν βρίσκονται στις πηγές: μην τους εμπιστευτείς.")
-    return {"answer": text or "δεν το ξέρω", "sources": list(texts), "unverified_numbers": unverified, "ollama": "ok"}
+    return {"answer": text or "δεν το ξέρω", "sources": list(texts), "unverified_numbers": unverified, "ollama": "ok",
+            "ollama_started": started}
 
 
 def _connect(path: Path) -> sqlite3.Connection:

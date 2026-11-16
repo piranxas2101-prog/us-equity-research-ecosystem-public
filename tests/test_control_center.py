@@ -263,7 +263,9 @@ class JarvisPageTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         (self.root / "output").mkdir()
         self.token = "test-token-123"
-        actions = cc.Actions(self.root, launcher=lambda path: 4242, chat_client=FakeChat())
+        actions = cc.Actions(self.root, launcher=lambda path: 4242, chat_client=FakeChat(),
+                             ollama_starter=lambda: False)
+        self.actions = actions
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), cc.make_handler(cc.Views(self.root), actions, self.token, 0))
         self.port = self.server.server_address[1]
         self.server.RequestHandlerClass = cc.make_handler(cc.Views(self.root), actions, self.token, self.port)
@@ -345,6 +347,21 @@ class JarvisPageTests(unittest.TestCase):
         log = (self.root / "data" / "control_center" / "actions.jsonl").read_text(encoding="utf-8")
         self.assertIn("jarvis_chat", log)
         self.assertNotIn("Ollama δεν τρέχει", log)  # the question is logged, not the answer
+
+
+class JarvisStartsOllamaTests(JarvisPageTests):
+    def test_default_starter_is_jarvis_chat_server_start(self):
+        self.assertIs(cc.Actions(self.root)._ollama_starter, None)  # None: the module's starter, looked up per call
+        self.assertTrue(callable(cc.JARVIS_OLLAMA_STARTER))
+
+    def test_chat_action_lets_jarvis_start_ollama(self):
+        calls = []
+        self.actions._ollama_starter = lambda: calls.append(1) or False  # FakeChat is down: Jarvis tries to start it
+        response, body = self.action("/api/actions/jarvis-chat", {"question": "τι έγινε;"})
+        self.assertEqual(response.status, 200, body)
+        self.assertEqual(calls, [1])
+        log = (self.root / "data" / "control_center" / "actions.jsonl").read_text(encoding="utf-8")
+        self.assertIn("ollama_started", log)
 
 
 if __name__ == "__main__":

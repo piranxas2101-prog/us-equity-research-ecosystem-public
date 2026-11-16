@@ -129,6 +129,57 @@ class KnowledgeTests(ChatTests):
         self.assertLess(len(fake.prompts[0][1]), 9000 + 500)
 
 
+class StartOnQuestionTests(ChatTests):
+    """Owner 2026-11-16: Jarvis starts the Ollama server itself, only when the owner asks a question on its page."""
+
+    class Sleepy(Fake):
+        def __init__(self, wakes_after: int) -> None:
+            super().__init__(available=False, text="μέσο -0.42%")
+            self.calls, self.wakes_after = 0, wakes_after
+
+        def available(self) -> bool:
+            self.calls += 1
+            return self.calls > self.wakes_after
+
+    def test_starts_the_server_then_answers(self):
+        started = []
+        client = self.Sleepy(wakes_after=2)
+        out = answer("πώς πήγε;", root=self.root, client=client, start_ollama=lambda: started.append(1) or True,
+                     wait_seconds=5, poll=lambda: None)
+        self.assertEqual((started, out["ollama"], out["ollama_started"]), ([1], "ok", True))
+
+    def test_does_not_start_when_already_running(self):
+        started = []
+        out = answer("πώς πήγε;", root=self.root, client=Fake(), start_ollama=lambda: started.append(1) or True)
+        self.assertEqual((started, out["ollama_started"]), ([], False))
+
+    def test_server_that_never_answers_gives_plain_message(self):
+        out = answer("πώς πήγε;", root=self.root, client=self.Sleepy(wakes_after=10**6),
+                     start_ollama=lambda: True, wait_seconds=0.05, poll=lambda: None)
+        self.assertEqual(out["ollama"], "down")
+        self.assertIn("Ξεκίνησα το Ollama", out["answer"])
+
+    def test_without_a_starter_nothing_is_started(self):
+        self.assertEqual(answer("x", root=self.root, client=Fake(available=False))["ollama"], "down")
+
+    def test_starter_runs_ollama_serve_hidden_on_localhost(self):
+        from unittest import mock
+        import jarvis_chat
+
+        exe = self.root / "ollama.exe"
+        exe.write_text("", encoding="utf-8")
+        with mock.patch.object(jarvis_chat.subprocess, "Popen") as popen:
+            self.assertTrue(jarvis_chat.start_ollama_server(exe=exe, log_dir=self.root / "logs"))
+        args, kwargs = popen.call_args
+        self.assertEqual(args[0], [str(exe), "serve"])
+        self.assertEqual(kwargs["env"]["OLLAMA_HOST"], "127.0.0.1:11434")
+        self.assertTrue(kwargs["creationflags"] & 0x08000000)  # no window
+
+    def test_starter_without_ollama_installed_says_no(self):
+        import jarvis_chat
+        self.assertFalse(jarvis_chat.start_ollama_server(exe=self.root / "missing.exe", log_dir=self.root / "logs"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

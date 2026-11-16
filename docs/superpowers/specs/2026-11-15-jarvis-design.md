@@ -44,7 +44,9 @@ Anti-goals: it fails even if it works, if
 
 ## 3. Constraints (from CLAUDE.md and the owner's decisions)
 
-- LLMs only locally through Ollama, never hosted, never deciding, and Jarvis never starts the Ollama app.
+- LLMs only locally through Ollama, never hosted, never deciding. Jarvis never starts the Ollama app; one exception
+  (owner 2026-11-16): when the owner asks a question on the Jarvis page and Ollama is not running, the page starts
+  the server (`ollama serve`, hidden, 127.0.0.1) and waits up to 30 s. The scheduled passes never start it.
   Machine: Intel Iris Xe (no discrete GPU), 16 GB RAM; today's model `qwen2.5:3b`.
 - Libraries open source, embeddable, local; prefer what is in `requirements-windows-py312.lock` (scikit-learn 1.9.1,
   numpy, pandas, scipy are there). No new dependency without a license check.

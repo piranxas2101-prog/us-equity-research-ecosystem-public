@@ -66,7 +66,7 @@ Details: `README.md`, `PIPELINE_OVERVIEW.md`, `ADVANCED_USAGE.md`, `docs/` (lear
 - Do not change agent thresholds, risk settings or promotion gates without a documented rationale and focused tests.
 - Default/full-universe workflows must stay unable to submit orders.
 - General note (owner 2026-11-07): the opposite position after a direction flip (a short closed by `thesis_direction_flip` becoming a long) is measured in shadow by `flip_shadow.py` and is meant to move into the main code at some point, once its cases pass the test in `docs/RULES_REVIEW.md` section 8. Until then it sends no order. When the verdict passes, raise it with the owner; moving it stays the owner's call.
-- LLMs run only locally through Ollama (never Claude, Anthropic, OpenAI or any hosted model), never start the Ollama app, and never make decisions. `filing_llm_extractor.py` produces quote-verified *candidate* evidence for human review; it writes no Sector Context Packets and nothing downstream reads it until promotion is explicitly decided.
+- LLMs run only locally through Ollama (never Claude, Anthropic, OpenAI or any hosted model), never start the Ollama app (one exception, owner 2026-11-16: the Jarvis page in the Control Center starts the server, `ollama serve`, hidden on 127.0.0.1, when the owner asks Jarvis a question and Ollama is not running; nothing else starts it), and never make decisions. `filing_llm_extractor.py` produces quote-verified *candidate* evidence for human review; it writes no Sector Context Packets and nothing downstream reads it until promotion is explicitly decided.
 
 ## Repo layout
 

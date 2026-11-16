@@ -63,6 +63,16 @@ JARVIS_QUESTION_MAX = 500
 JARVIS_CHAT_TURNS = 50
 
 
+def _start_ollama() -> bool:
+    import jarvis_chat
+
+    return jarvis_chat.start_ollama_server(log_dir=ROOT / "logs")
+
+
+# owner 2026-11-16: the Jarvis page starts the Ollama server when the owner asks a question and it is not running
+JARVIS_OLLAMA_STARTER = _start_ollama
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -644,11 +654,12 @@ class Views:
 class Actions:
     """The only things the page can change. Each call is appended to the audit log."""
 
-    def __init__(self, root: Path = ROOT, launcher: Any = None, chat_client: Any = None):
+    def __init__(self, root: Path = ROOT, launcher: Any = None, chat_client: Any = None, ollama_starter: Any = None):
         self.root = root
         self.launcher = launcher or self._launch_detached
         self._lock = threading.Lock()
         self._chat_client = chat_client
+        self._ollama_starter = ollama_starter
 
     def jarvis_decision(self, payload: dict[str, Any]) -> dict[str, Any]:
         """The owner's yes / no / later on a Jarvis proposal: recorded in Jarvis's own store only. Nothing is applied
@@ -678,9 +689,11 @@ class Actions:
             self._chat_client = jarvis_chat.OllamaClient(jarvis_chat.load_config(ROOT / "jarvis_config.json"))
         config = jarvis_chat.load_config(ROOT / "jarvis_config.json")
         result = jarvis_chat.answer(question, root=self.root, client=self._chat_client,
-                                    max_total_chars=int(config.get("max_total_chars") or 12000))
+                                    max_total_chars=int(config.get("max_total_chars") or 12000),
+                                    start_ollama=self._ollama_starter or JARVIS_OLLAMA_STARTER)
         jarvis_chat.save_turn(question, result, path=self.root / "data" / "jarvis" / "chat.sqlite3")
-        self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"]})
+        self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"],
+                                                          "ollama_started": result.get("ollama_started", False)})
         return result
 
     def log(self, action: str, payload: dict[str, Any], result: dict[str, Any]) -> None:

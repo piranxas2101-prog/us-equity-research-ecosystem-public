@@ -44,6 +44,7 @@ while ($true) {
     if ($null -ne $started -and $started -ge $LaunchedAfter.AddSeconds(-5)) { break }
     if ((Get-Date) -gt $deadline) {
         Write-Log "No run started after $($LaunchedAfter.ToString('s')) appeared in the pointer within 10 minutes; staying on."
+        if (-not $DryRun) { try { $jarvisExit = Invoke-Logged { & (Join-Path $projectRoot ".venv-next\Scripts\python.exe") -W ignore (Join-Path $projectRoot "jarvis.py") "after-nightly" }; Write-Log "Jarvis ended with exit code $jarvisExit." } catch { Write-Log "Jarvis step failed: $($_.Exception.Message)" } }
         exit 0
     }
     Start-Sleep -Seconds 5
@@ -74,6 +75,11 @@ if ($final.status -in @("failed", "interrupted")) {
         $fallbackExit = Invoke-Logged { & $python -W ignore $fallbackScript "ensure" "--trigger" "nightly" "--wait" }
         Write-Log "Fallback research step ended with exit code $fallbackExit."
     }
+}
+# Jarvis (owner 2026-11-15): health, due checks, proposals; writes the day's report on a day without a session.
+if (-not $DryRun) {
+    $python = Join-Path $projectRoot ".venv-next\Scripts\python.exe"
+    try { $jarvisExit = Invoke-Logged { & $python -W ignore (Join-Path $projectRoot "jarvis.py") "after-nightly" }; Write-Log "Jarvis ended with exit code $jarvisExit." } catch { Write-Log "Jarvis step failed: $($_.Exception.Message)" }
 }
 & (Join-Path $projectRoot "hibernate_if_idle.ps1") -LogPath $LogPath -Switch "hibernate_after_nightly" `
     -Reason "Run $($final.run_id) finished ($($final.status))" -DryRun:$DryRun

@@ -256,6 +256,7 @@ try {
             Wait-Eastern 9 35
             $null = Invoke-Logged { & (Join-Path $projectRoot "start_multi_day_monitor_today.ps1") -PythonExe $python }
         }
+        $jarvisExit = Invoke-Retried "Jarvis" { & $python -W ignore "jarvis.py" "after-session" }; Write-Log "Jarvis ended with exit code $jarvisExit."  # Jarvis: daily report (owner 2026-11-15)
         Invoke-Rest "No paper orders today ($reason)" $sessionWorkers
         exit 0
     }
@@ -306,6 +307,8 @@ try {
     $ledgerExit = Invoke-Retried "Ledger" { & $python -W ignore "paper_trade_ledger.py" }
     $learnExit = Invoke-Retried "Learning evaluation" { & $python -W ignore "paper_learning.py" "evaluate" }
     Write-Log "Ledger exit $ledgerExit, evaluation exit $learnExit."
+    $jarvisExit = Invoke-Retried "Jarvis" { & $python -W ignore "jarvis.py" "after-session" }; Write-Log "Jarvis ended with exit code $jarvisExit."  # Jarvis: daily report (owner 2026-11-15)
+    Show-Notice "Jarvis" "I anafora tis imeras einai etoimi: Kentro Elegxou -> Jarvis"  # Jarvis notice
 
     # 4. Rest, once the session's workers are done
     Invoke-Rest "Paper session finished" $sessionWorkers
@@ -313,6 +316,7 @@ try {
     $message = $_.Exception.Message
     Write-Log "Afternoon session stopped by an error: $message"
     Show-Notice "Paper trading: sfalma" "To apogevmatino stamatise: $message. Log: $log"
+    try { $jarvisExit = Invoke-Retried "Jarvis" { & $python -W ignore "jarvis.py" "after-session" }; Write-Log "Jarvis ended with exit code $jarvisExit." } catch { Write-Log "Jarvis step failed: $($_.Exception.Message)" }
     Invoke-Rest "Afternoon session stopped by an error" $sessionWorkers
     exit 1
 }

@@ -609,6 +609,68 @@ async function refreshLiveDot() {
   } catch (e) { /* the dot is only a hint */ }
 }
 
+// ------------------------------------------------------------ Jarvis (αναφορά, προτάσεις, συζήτηση)
+// Read-only except the owner's yes / no / later, recorded in Jarvis's own store; the chat runs on the local Ollama.
+const DECISION_GR = { yes: "Ναι", no: "Όχι", later: "Αργότερα" };
+function jarvisTurn(t) {
+  const warn = (t.unverified_numbers || []).length ? `<div class="small bad-text">Αριθμοί χωρίς πηγή: ${esc(t.unverified_numbers.join(", "))}</div>` : "";
+  return `<div class="chat-turn"><div class="chat-q">${esc(t.question)}</div>
+    <div class="chat-a">${markdown(t.answer)}</div>${warn}
+    ${(t.sources || []).length ? `<div class="muted small">Πηγές: ${t.sources.map(esc).join(", ")}</div>` : ""}</div>`;
+}
+async function pageJarvis(day) {
+  setActive("jarvis");
+  const d = await api("/api/jarvis" + (day ? "?day=" + encodeURIComponent(day) : ""));
+  const proposals = d.proposals.map((p) => `<div class="card jarvis-proposal" data-id="${esc(p.proposal_id)}">
+      <h2>${esc(p.title)}</h2>
+      <div class="small">${esc(p.change || "")}${p.rules_review ? ` · ${pill(p.rules_review, "violet")}` : ""} · ${pill(p.source)}</div>
+      ${kv(p.evidence)}
+      <textarea class="note" placeholder="Σημείωση (προαιρετική)"></textarea>
+      <div class="actions">${Object.entries(DECISION_GR).map(([k, v]) => `<button data-decision="${k}" class="${k === "yes" ? "good" : ""}">${v}</button>`).join("")}</div>
+    </div>`).join("") || `<p class="muted">Καμία πρόταση δεν περιμένει απόφαση.</p>`;
+  app.innerHTML = `<h1>Jarvis</h1>
+    <div class="sub">Ο Jarvis ελέγχει το nightly και τη συνεδρία, τρέχει τους ελέγχους που έφτασαν, μαθαίνει από τα λάθη (σε shadow) και σου φέρνει προτάσεις. Δεν αλλάζει τίποτα μόνος του: το «Ναι» καταγράφεται και η αλλαγή γίνεται μαζί με το Claude.</div>
+    <h2>Προτάσεις που περιμένουν απόφαση</h2><div class="grid wide">${proposals}</div>
+    <h2>Συζήτηση</h2>
+    <div class="card span"><div id="chat-log">${d.chat.map(jarvisTurn).join("") || `<p class="muted small">Ρώτα κάτι για τη μέρα, μια μετοχή ή έναν έλεγχο.</p>`}</div>
+      <textarea id="chat-q" class="chat-box" maxlength="500" placeholder="π.χ. Τι πήγε στραβά σήμερα;"></textarea>
+      <div class="actions"><button id="chat-send" class="primary">Ρώτα</button><span id="chat-wait" class="muted small hidden">σκέφτεται… (τοπικό μοντέλο, μπορεί να αργήσει)</span></div></div>
+    <div class="filters"><h2>Αναφορά</h2>${d.dates.length ? `<select id="jarvis-day">${d.dates.map((x) => `<option ${x === d.day ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>` : ""}</div>
+    <div class="card report">${d.report_md ? markdown(d.report_md) : `<p class="muted">Δεν υπάρχει ακόμα αναφορά. Γράφεται μετά τη συνεδρία (ή από το nightly σε μέρες χωρίς συνεδρία).</p>`}</div>`;
+  document.getElementById("jarvis-day")?.addEventListener("change", (e) => { location.hash = "#/jarvis/" + encodeURIComponent(e.target.value); });
+  document.querySelectorAll(".jarvis-proposal").forEach((card) => {
+    card.querySelectorAll("button[data-decision]").forEach((b) => b.addEventListener("click", async () => {
+      card.querySelectorAll("button").forEach((x) => (x.disabled = true));
+      try {
+        await post("/api/actions/jarvis-decision", { proposal_id: card.dataset.id, decision: b.dataset.decision, note: card.querySelector(".note").value.trim() });
+        toast(`Καταγράφηκε: ${DECISION_GR[b.dataset.decision]}.`);
+        card.remove(); refreshJarvisBadge();
+      } catch (e) { toast("Δεν καταγράφηκε: " + e.message, true); card.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
+    }));
+  });
+  const send = document.getElementById("chat-send"), box = document.getElementById("chat-q"), wait = document.getElementById("chat-wait");
+  send.addEventListener("click", async () => {
+    const question = box.value.trim();
+    if (!question) return;
+    send.disabled = true; wait.classList.remove("hidden");
+    try {
+      const res = await post("/api/actions/jarvis-chat", { question });
+      const log = document.getElementById("chat-log");
+      if (log.querySelector("p.muted")) log.innerHTML = "";
+      log.insertAdjacentHTML("beforeend", jarvisTurn({ question, ...res }));
+      box.value = "";
+    } catch (e) { toast("Δεν απάντησε: " + e.message, true); }
+    finally { send.disabled = false; wait.classList.add("hidden"); }
+  });
+}
+async function refreshJarvisBadge() {
+  try {
+    const d = await api("/api/jarvis");
+    const b = document.getElementById("jarvis-badge");
+    b.textContent = d.proposals.length || ""; b.classList.toggle("hidden", !d.proposals.length);
+  } catch (e) { /* the page still works without the badge */ }
+}
+
 async function route() {
   const hash = decodeURIComponent(location.hash.slice(1) || "/");
   const [, page, arg] = hash.split("/");
@@ -624,6 +686,7 @@ async function route() {
     else if (page === "review") await pageReview();
     else if (page === "reports") await pageReports(arg);
     else if (page === "trading") await pageTrading(arg);
+    else if (page === "jarvis") await pageJarvis(arg);
     else if (page === "live") { await pageTrading(null, true); route.timer = setInterval(() => location.hash === "#/live" && pageTrading(null, true).catch(() => {}), 30000); }
     else app.innerHTML = `<p class="muted">Η σελίδα δεν υπάρχει.</p>`;
   } catch (e) {
@@ -635,6 +698,7 @@ async function route() {
 window.addEventListener("hashchange", route);
 route();
 refreshBadge();
+refreshJarvisBadge();
 tickClocks();
 setInterval(tickClocks, 20000);
 refreshLiveDot();

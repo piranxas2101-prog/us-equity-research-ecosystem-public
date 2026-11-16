@@ -239,5 +239,113 @@ class ControlCenterHttpTests(unittest.TestCase):
         self.assertEqual(json.loads(body)["runs"], [])
 
 
+class FakeChat:
+    def __init__(self, available: bool = False) -> None:
+        self._available = available
+
+    def available(self) -> bool:
+        return self._available
+
+    def generate(self, system: str, prompt: str) -> str:
+        return "μέσο 18"
+
+
+class JarvisPageTests(unittest.TestCase):
+    """The Jarvis page: report, proposals with yes / no / later, chat - through the same token/Origin/JSON path."""
+
+    request = ControlCenterHttpTests.request
+    action = ControlCenterHttpTests.action
+
+    def setUp(self) -> None:
+        import jarvis_state
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "output").mkdir()
+        self.token = "test-token-123"
+        actions = cc.Actions(self.root, launcher=lambda path: 4242, chat_client=FakeChat())
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), cc.make_handler(cc.Views(self.root), actions, self.token, 0))
+        self.port = self.server.server_address[1]
+        self.server.RequestHandlerClass = cc.make_handler(cc.Views(self.root), actions, self.token, self.port)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.state = jarvis_state
+
+    def tearDown(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.tmp.cleanup()
+
+    def get(self, path: str) -> dict:
+        response, body = self.request("GET", path)
+        self.assertEqual(response.status, 200, body)
+        return json.loads(body)
+
+    def proposal(self) -> str:
+        conn = self.state.connect(self.root / "data" / "jarvis" / "proposals.sqlite3")
+        check_id = "flip_shadow_s8"
+        try:
+            pid, _ = self.state.upsert_proposal(conn, self.state.Proposal(
+                source="check", source_key=check_id, title="Flip", evidence={"verdict": "passes"}),
+                session_date="2026-11-16")
+        finally:
+            conn.close()
+        return pid
+
+    def test_jarvis_view_without_files(self):
+        data = self.get("/api/jarvis")
+        self.assertEqual((data["proposals"], data["report_md"], data["dates"], data["chat"]), ([], None, [], []))
+
+    def test_jarvis_view_reads_report_by_day(self):
+        folder = self.root / "output" / "jarvis"
+        folder.mkdir()
+        (folder / "report_2026-11-13.md").write_text("# παλιά", encoding="utf-8")
+        (folder / "report_2026-11-16.md").write_text("# νέα", encoding="utf-8")
+        (folder / "report_latest.md").write_text("# νέα", encoding="utf-8")
+        self.assertEqual(self.get("/api/jarvis")["dates"], ["2026-11-16", "2026-11-13"])
+        self.assertEqual(self.get("/api/jarvis?day=2026-11-13")["report_md"], "# παλιά")
+        self.assertEqual(self.get("/api/jarvis?day=../../.env")["report_md"], "# νέα")  # bad day: the latest
+
+    def test_decision_needs_token(self):
+        pid = self.proposal()
+        response, _ = self.action("/api/actions/jarvis-decision", {"proposal_id": pid, "decision": "yes"},
+                                  **{"X-Control-Token": "wrong"})
+        self.assertEqual(response.status, 403)
+        self.assertEqual([p["state"] for p in self.get("/api/jarvis")["proposals"]], ["open"])
+
+    def test_decision_is_recorded_and_logged(self):
+        pid = self.proposal()
+        response, body = self.action("/api/actions/jarvis-decision", {"proposal_id": pid, "decision": "yes", "note": "ok"})
+        self.assertEqual(response.status, 200, body)
+        self.assertEqual(json.loads(body)["state"], "approved")
+        self.assertEqual(self.get("/api/jarvis")["proposals"], [])
+        log = (self.root / "data" / "control_center" / "actions.jsonl").read_text(encoding="utf-8")
+        self.assertIn('"action": "jarvis_decision"', log)
+
+    def test_bad_decision_is_400(self):
+        pid = self.proposal()
+        self.assertEqual(self.action("/api/actions/jarvis-decision", {"proposal_id": pid, "decision": "maybe"})[0].status, 400)
+
+    def test_decision_never_touches_learning_registry(self):
+        intel = self.root / "data" / "market_intel.db"
+        intel.parent.mkdir(parents=True, exist_ok=True)
+        intel.write_bytes(b"untouched")
+        pid = self.proposal()
+        self.action("/api/actions/jarvis-decision", {"proposal_id": pid, "decision": "yes"})
+        self.assertEqual(intel.read_bytes(), b"untouched")
+
+    def test_chat_rejects_empty_or_long_question(self):
+        self.assertEqual(self.action("/api/actions/jarvis-chat", {"question": "x" * 501})[0].status, 400)
+        self.assertEqual(self.action("/api/actions/jarvis-chat", {"question": "  "})[0].status, 400)
+
+    def test_chat_with_ollama_down_is_200_and_kept(self):
+        response, body = self.action("/api/actions/jarvis-chat", {"question": "τι έγινε;"})
+        self.assertEqual(response.status, 200, body)
+        self.assertEqual(json.loads(body)["ollama"], "down")
+        self.assertEqual([t["question"] for t in self.get("/api/jarvis")["chat"]], ["τι έγινε;"])
+        log = (self.root / "data" / "control_center" / "actions.jsonl").read_text(encoding="utf-8")
+        self.assertIn("jarvis_chat", log)
+        self.assertNotIn("Ollama δεν τρέχει", log)  # the question is logged, not the answer
+
+
 if __name__ == "__main__":
     unittest.main()

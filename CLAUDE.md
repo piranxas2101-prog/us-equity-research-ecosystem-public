@@ -40,6 +40,7 @@ Use the locked runtime `.venv-next` (Python 3.12):
 .\.venv-next\Scripts\python.exe flip_shadow.py                            # the opposite position after a direction flip, in shadow (output/paper_learning/flip_shadow_latest.md)
 .\.venv-next\Scripts\python.exe news_watch.py --label manual           # headlines for held positions + candidates (Yahoo feed, read-only; output/news_watch_latest.md; nightly + pre-open)
 .\.venv-next\Scripts\python.exe market_state.py [--rebuild]                 # the state of the market: reading, Greek paragraph, evidence Koulis uses (owner 2026-11-04)
+.\.venv-next\Scripts\python.exe jarvis.py after-nightly|after-session [--today YYYY-MM-DD]  # Jarvis pass (run by the launchers at their end): output/jarvis/report_<day>.md, Control Center -> Jarvis
 ```
 
 `.venv-next` is built from the standalone python.org 3.12 in `%LOCALAPPDATA%\Programs\Python\Python312` (no dependency on any Codex runtime).
@@ -50,7 +51,7 @@ CI (`.github/workflows/ci.yml`) runs on Windows with Python 3.12: `compileall` o
 
 ## Architecture
 
-Flow: sources → identity/evidence registry → **Babis** (discovery, classification, routing) → sector context (`sector_agents/`, 12 sector sub-agents) → **Giannis** (deterministic fundamental scoring) → **Petros** (synthesis, deterministic valuation) → frozen, hashed Fundamental Research Packet → traders **Yankos** (short-horizon) and **Periklis** (swing) → **Sokratis** (teaches traders only) → control team **Miltos** (15Min entry confirmation), **Koulis** (portfolio risk gate), **Thymios** (intent contract validation) → separate Alpaca paper service.
+Flow: sources → identity/evidence registry → **Babis** (discovery, classification, routing) → sector context (`sector_agents/`, 12 sector sub-agents) → **Giannis** (deterministic fundamental scoring) → **Petros** (synthesis, deterministic valuation) → frozen, hashed Fundamental Research Packet → traders **Yankos** (short-horizon) and **Periklis** (swing) → **Sokratis** (teaches traders only) → control team **Miltos** (15Min entry confirmation), **Koulis** (portfolio risk gate), **Thymios** (intent contract validation) → separate Alpaca paper service. **Jarvis** (operator, owner 2026-11-15) runs at the end of the nightly and of the afternoon session: health, due re-checks, loss rules as shadow lessons, proposals for the owner's yes/no/later, daily report and a Control Center page with a local-Ollama chat; it decides nothing (design: `docs/superpowers/specs/2026-11-15-jarvis-design.md`).
 
 Details: `README.md`, `PIPELINE_OVERVIEW.md`, `ADVANCED_USAGE.md`, `docs/` (learning control plane, personality system, playbook framework, technical research lab, unknown-data architecture, security).
 

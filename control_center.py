@@ -23,6 +23,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import re
 import secrets
 import sqlite3
 import subprocess
@@ -57,6 +58,9 @@ MAX_BODY = 16 * 1024
 TRADING_HISTORY_SESSIONS = 60
 TRADING_NEWS_ROWS = 60
 LAUNCH_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+JARVIS_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+JARVIS_QUESTION_MAX = 500
+JARVIS_CHAT_TURNS = 50
 
 
 def now() -> str:
@@ -608,6 +612,31 @@ class Views:
     def taxonomy_nodes(self) -> dict[str, Any]:
         return {"nodes": [{"id": n, "label": info[5], "level": info[4]} for n, info in sorted(self.taxonomy()[1].items())]}
 
+    def jarvis(self, day: str | None) -> dict[str, Any]:
+        """Jarvis's page: a day's report (the latest when the day is missing or malformed), the open proposals and the
+        chat so far. Read-only."""
+        import jarvis
+        import jarvis_chat
+        import jarvis_state
+
+        folder = self.root / "output" / "jarvis"
+        dates = sorted((p.stem[len("report_"):] for p in folder.glob("report_*.md")
+                        if JARVIS_DAY.match(p.stem[len("report_"):])), reverse=True)
+        path = folder / f"report_{day}.md" if day and JARVIS_DAY.match(day) and day in dates else folder / "report_latest.md"
+        report = path.read_text(encoding="utf-8") if path.is_file() else None
+        db = self.root / "data" / "jarvis" / "proposals.sqlite3"
+        proposals: list[dict[str, Any]] = []
+        if db.exists():
+            conn = jarvis_state.connect(db)
+            try:
+                proposals = jarvis_state.open_proposals(conn, session_date=dates[0] if dates else "",
+                                                        sessions_since=jarvis.sessions_since(self.root))
+            finally:
+                conn.close()
+        chat = jarvis_chat.history(JARVIS_CHAT_TURNS, path=self.root / "data" / "jarvis" / "chat.sqlite3")
+        return {"report_md": report, "day": path.stem[len("report_"):], "dates": dates, "proposals": proposals,
+                "chat": chat}
+
 
 # ---------------------------------------------------------------- actions
 
@@ -615,10 +644,44 @@ class Views:
 class Actions:
     """The only things the page can change. Each call is appended to the audit log."""
 
-    def __init__(self, root: Path = ROOT, launcher: Any = None):
+    def __init__(self, root: Path = ROOT, launcher: Any = None, chat_client: Any = None):
         self.root = root
         self.launcher = launcher or self._launch_detached
         self._lock = threading.Lock()
+        self._chat_client = chat_client
+
+    def jarvis_decision(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """The owner's yes / no / later on a Jarvis proposal: recorded in Jarvis's own store only. Nothing is applied
+        and the learning registry is never written (a "yes" is carried out with Claude through the existing paths)."""
+        import jarvis
+        import jarvis_state
+
+        pid = str(payload.get("proposal_id") or "")
+        decision = str(payload.get("decision") or "")
+        note = str(payload.get("note") or "")[:500]
+        with self._lock:
+            conn = jarvis_state.connect(self.root / "data" / "jarvis" / "proposals.sqlite3")
+            try:
+                result = jarvis_state.decide(conn, pid, decision, note=note, session_date=jarvis.ny_today().isoformat())
+            finally:
+                conn.close()
+        self.log("jarvis_decision", payload, result)
+        return result
+
+    def jarvis_chat(self, payload: dict[str, Any]) -> dict[str, Any]:
+        import jarvis_chat
+
+        question = str(payload.get("question") or "").strip()
+        if not question or len(question) > JARVIS_QUESTION_MAX:
+            raise ValueError(f"the question must have 1-{JARVIS_QUESTION_MAX} characters")
+        if self._chat_client is None:
+            self._chat_client = jarvis_chat.OllamaClient(jarvis_chat.load_config(ROOT / "jarvis_config.json"))
+        config = jarvis_chat.load_config(ROOT / "jarvis_config.json")
+        result = jarvis_chat.answer(question, root=self.root, client=self._chat_client,
+                                    max_source_chars=int(config.get("max_source_chars") or 6000))
+        jarvis_chat.save_turn(question, result, path=self.root / "data" / "jarvis" / "chat.sqlite3")
+        self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"]})
+        return result
 
     def log(self, action: str, payload: dict[str, Any], result: dict[str, Any]) -> None:
         path = self.root / "data" / "control_center" / "actions.jsonl"
@@ -689,10 +752,13 @@ def make_handler(views: Views, actions: Actions, token: str, port: int, assets: 
         "/api/reports": lambda q: views.reports(q.get("run")),
         "/api/trading": lambda q: views.trading(q.get("session")),
         "/api/trading/live": lambda q: views.trading_live(),
+        "/api/jarvis": lambda q: views.jarvis(q.get("day")),
     }
     post_routes = {
         "/api/actions/review-decision": actions.review_decision,
         "/api/actions/start-research-run": actions.start_research_run,
+        "/api/actions/jarvis-decision": actions.jarvis_decision,
+        "/api/actions/jarvis-chat": actions.jarvis_chat,
     }
 
     class Handler(BaseHTTPRequestHandler):

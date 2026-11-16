@@ -138,3 +138,11 @@ ul.plain li, .para, .sub, .card dd { overflow-wrap: anywhere; }
 ::-webkit-scrollbar { width: 9px; height: 7px; }
 ::-webkit-scrollbar-thumb { background: var(--blue-deep); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* Jarvis */
+.jarvis-proposal textarea { width: 100%; min-height: 38px; margin-top: 8px; }
+.chat-box { width: 100%; min-height: 64px; margin-top: 10px; }
+.chat-turn { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.chat-q { font-weight: 600; color: var(--accent); }
+.chat-a p { margin: 4px 0; }
+.bad-text { color: var(--bad); }

@@ -1,0 +1,56 @@
+"""Jarvis daily report: Greek sections in a fixed order; every unknown printed as unknown with its reason."""
+from __future__ import annotations
+
+import unittest
+
+from jarvis_report import SECTIONS, render
+
+RECORD = {
+    "schema": "ecosystem.jarvis_pass.v1", "kind": "after-session", "day": "2026-11-16",
+    "started_at": "2026-11-16T23:15:00+02:00", "finished_at": "2026-11-16T23:16:00+02:00",
+    "sections": {
+        "nightly": {"steps": [{"name": "run", "state": "failed", "detail": "το run r είναι failed, στο βήμα giannis",
+                               "diagnosis": "rate_limit", "evidence": ["output/x.json"]}]},
+        "session": {"steps": [{"name": "session_report", "state": "missing", "detail": "δεν υπάρχει αναφορά",
+                               "diagnosis": None, "evidence": []}]},
+        "checks": {"results": [{"id": "T3_volume_basis", "title": "T3", "state": "needs_lab", "verdict": None,
+                                "detail": "δεν υπάρχει εργαστήριο", "evidence": [], "rules_review": "T3"}]},
+        "learning": {"error": "RuntimeError: boom"},
+        "proposals": {"open": [{"proposal_id": "prop_1", "title": "Αλλαγή Α", "change": "κάτι",
+                                "evidence": {"verdict": "confirmed", "n": 12}, "source": "paper_learning"}]},
+    },
+}
+
+
+class ReportTests(unittest.TestCase):
+    def test_sections_in_order(self):
+        md, _ = render(RECORD)
+        positions = [md.index(title) for title in SECTIONS]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_problems_are_listed(self):
+        md, data = render(RECORD)
+        problems = md[md.index("Τι πήγε στραβά"):md.index("Έλεγχοι")]
+        self.assertIn("giannis", problems)
+        self.assertIn("όριο αιτήσεων", problems)  # rate_limit in Greek
+        self.assertIn("RuntimeError", problems)
+        self.assertEqual(data["problems"], 3)  # failed run, missing session report, learning error
+
+    def test_missing_section_is_unknown(self):
+        record = {**RECORD, "sections": {}}
+        md, _ = render(record)
+        self.assertGreaterEqual(md.count("άγνωστο"), 2)
+
+    def test_proposal_is_shown_with_evidence(self):
+        md, data = render(RECORD)
+        self.assertIn("Αλλαγή Α", md)
+        self.assertIn("confirmed", md)
+        self.assertEqual(data["open_proposals"], 1)
+
+    def test_json_keeps_the_record(self):
+        _, data = render(RECORD)
+        self.assertEqual((data["day"], data["sections"]["checks"]["results"][0]["state"]), ("2026-11-16", "needs_lab"))
+
+
+if __name__ == "__main__":
+    unittest.main()

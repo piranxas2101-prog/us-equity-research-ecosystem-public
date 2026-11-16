@@ -1,0 +1,65 @@
+{
+  "schema": "ecosystem.jarvis_checks.v1",
+  "note": "Recurring re-judgements of docs/RULES_REVIEW.md that Jarvis runs when due. Producers must be in jarvis_checks.PRODUCERS. A check with producer and output null needs a lab, built with the owner.",
+  "checks": [
+    {
+      "id": "flip_shadow_s8",
+      "title": "Αντίθετη θέση μετά από αλλαγή κατεύθυνσης (shadow)",
+      "rules_review": "section 8",
+      "due": {"kind": "every_pass"},
+      "producer": null,
+      "output": "output/paper_learning/flip_shadow_latest.json",
+      "verdict_path": "verdict",
+      "ready_values": ["the opposite entry would have helped"],
+      "change": "Αν περνά το τεστ του section 8: συζήτηση για να μπει στον κύριο κώδικα (απόφαση του ιδιοκτήτη)"
+    },
+    {
+      "id": "news_shadow",
+      "title": "Ειδήσεις για κρατούμενες θέσεις και υποψήφιες (shadow)",
+      "rules_review": "news watch, 2026-11-09",
+      "due": {"kind": "every_pass"},
+      "producer": null,
+      "output": "output/paper_learning/news_shadow_latest.json",
+      "verdict_path": "verdict",
+      "ready_values": ["news-flagged did better"],
+      "change": "Αν οι ειδήσεις ξεχωρίζουν αποτελέσματα: συζήτηση για χρήση τους"
+    },
+    {
+      "id": "exit_lab_horizon",
+      "title": "Καμπύλη ορίζοντα διακράτησης",
+      "rules_review": null,
+      "due": {"kind": "weekly"},
+      "producer": "exit_lab_horizon",
+      "timeout_seconds": 420,
+      "output": "output/strategy_lab/horizon_curve_latest.json",
+      "report_only": true
+    },
+    {
+      "id": "T3_volume_basis",
+      "title": "T3: βάση του όγκου στην επιβεβαίωση του Miltos",
+      "rules_review": "T3",
+      "due": {"kind": "sessions_since", "date": "2026-10-24", "sessions": 20},
+      "producer": null,
+      "output": null
+    },
+    {
+      "id": "F4_held_positions",
+      "title": "F4: stop των κρατούμενων θέσεων, ζωντανό έναντι κλάσης (exit shadow)",
+      "rules_review": "F4",
+      "due": {"kind": "every_pass"},
+      "producer": null,
+      "output": "output/paper_learning/stop_shadow_latest.json",
+      "verdict_path": "verdict",
+      "waiting_values": ["insufficient_sample", "no clear difference"],
+      "change": "Αν το stop της κλάσης βγαίνει καλύτερο: απόφαση για το stop των κρατούμενων θέσεων"
+    },
+    {
+      "id": "shock_longs_1105",
+      "title": "Οι 40 long που έκλεισε το σοκ της 11/05, πέντε συνεδρίες μετά",
+      "rules_review": "section 7",
+      "due": {"kind": "sessions_since", "date": "2026-11-05", "sessions": 5},
+      "producer": null,
+      "output": null
+    }
+  ]
+}

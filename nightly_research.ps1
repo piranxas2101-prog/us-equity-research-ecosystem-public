@@ -89,6 +89,7 @@ if ($launchExit -eq 0) {
     Write-Log "Full run did not start: fallback research on the shortlist and the held positions..."
     $fallbackExit = Invoke-Logged { & $python -W ignore "fallback_research.py" "ensure" "--trigger" "nightly" "--wait" }
     Write-Log "Fallback research step ended with exit code $fallbackExit."
+    try { $jarvisExit = Invoke-Logged { & $python -W ignore "jarvis.py" "after-nightly" }; Write-Log "Jarvis ended with exit code $jarvisExit." } catch { Write-Log "Jarvis step failed: $($_.Exception.Message)" }  # Jarvis (owner 2026-11-15)
     try {
         & ".\hibernate_if_idle.ps1" -LogPath $log -Switch "hibernate_after_nightly" -Reason "Fallback research step finished"
     } catch {

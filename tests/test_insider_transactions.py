@@ -233,11 +233,13 @@ class DailyTests(unittest.TestCase):
             it.sync(quarter, ["2026q1", "2026q2", "2026q3"], directory, sleeper=lambda s: None)  # 180 days of history
             it.build(directory, directory / "index.json.gz")
             (directory / "daily").mkdir()
-            for day, trades in (("2026-10-01", [["2026-10-01", "o2", "P", 5.0, 320193]]), ("2026-10-02", []),
+            for day, trades in (("2026-10-01", [["2026-10-01", "o2", "P", 5.0, 320193], ["2026-10-01", "1780525", "S", 1.0, 1]]),
+                                ("2026-10-02", []),
                                 ("2026-10-04", [["2026-10-04", "o3", "P", 5.0, 320193]])):  # 10-03 missing
                 (directory / "daily" / f"{day}.json").write_text(json.dumps({"trades": trades}), encoding="utf-8")
             source = it.InsiderSource(directory / "index.json.gz")
             self.assertEqual((source.coverage[1], source.daily_days), ("2026-10-02", 2))
+            self.assertEqual(source.trades(1)[0][1], "0001780525")  # the quarterly sets' form of the same CIK
             self.assertEqual([t[1] for t in source.trades(320193)], ["o1", "o2"])  # o3 after the gap is not used
             rows = [{"ticker": "AAPL"}, {"ticker": "NOPE"}]
             it.annotate(rows, source, {"AAPL": 320193}, today=date(2026, 10, 5))

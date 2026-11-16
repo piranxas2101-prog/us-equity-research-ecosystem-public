@@ -400,6 +400,8 @@ class InsiderSource:
             except (OSError, ValueError):
                 break
             for filed, owner, code, usd, cik in payload.get("trades") or []:
+                # the quarterly data sets write the owner CIK with leading zeros: the same insider, the same key
+                owner = owner.zfill(10) if str(owner).isdigit() else owner
                 self.issuers.setdefault(str(int(cik)), []).append([filed, owner, code, usd])
             self.coverage = [self.coverage[0], day.isoformat()]
             day, added = day + timedelta(days=1), added + 1

@@ -280,6 +280,20 @@ beta × SPY, mean per decision date (t across dates):
 one zip a quarter, standard library only, instead of edgartools' one request per filing). Open-market purchases (P)
 and sales (S) of Forms 4 / 4/A, point in time by filing date: `insider_buyers_90d` (distinct buyers) and
 `insider_net_buy_180d` ((bought − sold) / (bought + sold)). Inside the covered quarters no filing is a known zero;
-outside them unknown. Both enter `fundamental_lab.py` in the literature's direction. Not measured yet: the download
-needs the owner's SEC identity (`SEC_USER_AGENT` in `.env`), so the owner runs `insider_transactions.py sync`, then
-`build`, then `fundamental_lab.py`. Live use waits for the lab verdict.
+outside them unknown. Both enter `fundamental_lab.py` in the literature's direction.
+
+Lab, 2026-11-16 (19 quarters 2021q3..2026q1, 527,681 open-market trades, 6,481 issuers; the SEC has not published
+2026q2-q3 yet, so the factors are unknown after 2026-03-31). The net ratio counts filings, not dollars: a few hundred
+lines carry impossible prices (up to 10^15 dollars). Rank IC (t) at 20 / 60 / 120 sessions:
+
+| factor | coverage | 20 | 60 | 120 | verdict |
+|---|---|---|---|---|---|
+| insider_buyers_90d | 82% | +0.011 (2.0) | +0.019 (2.8) | +0.022 (3.3) | no edge (weak) |
+| insider_net_buy_180d | 47% | −0.023 (−3.4) | −0.033 (−4.5) | −0.051 (−7.3) | reversed |
+
+* Buying points the literature's way but is weak: most companies have no buyer, so the quintiles do not form and the
+  gate cannot pass; the long side (+1.6%, 5/5 years) is the only cell. Far below cash profitability (IC +0.15).
+* The net ratio is reversed: companies whose insiders mostly *sold* did better. Selling follows price run-ups
+  (planned 10b5-1 sales, option-funded sales in rising growth stocks), so it carries momentum, not bad news.
+* Decision: neither goes live or into the composites. Buyers stay a lab factor; a better test (opportunistic vs
+  routine insiders, Cohen-Malloy-Pomorski) needs each insider's history and is a candidate for later.

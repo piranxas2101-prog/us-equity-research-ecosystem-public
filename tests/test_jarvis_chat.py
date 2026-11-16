@@ -98,5 +98,48 @@ class ChatTests(unittest.TestCase):
         self.assertEqual([(t["question"], t["answer"]) for t in history(path=db)], [("ερώτηση", "απάντηση")])
 
 
+class KnowledgeTests(ChatTests):
+    """Owner 2026-11-16: Jarvis is told about everything in its work - the knowledge map routes a question to the
+    ecosystem's own reports, read-only, only under output/ or the listed docs."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        (self.root / "jarvis_knowledge.json").write_text(json.dumps({"topics": [
+            {"id": "market", "files": ["output/market_state_review_latest.md"], "keywords": ["αγορα", "spy"]},
+            {"id": "rules", "files": ["docs/RULES_REVIEW.md"], "keywords": ["κανονες", "t3"]},
+            {"id": "evil", "files": [".env", "output/../.env"], "keywords": ["μυστικ"]},
+        ]}), encoding="utf-8")
+        (self.root / "output" / "market_state_review_latest.md").write_text("ανοδική τάση, ήρεμη\n", encoding="utf-8")
+        (self.root / "docs").mkdir()
+        (self.root / "docs" / "RULES_REVIEW.md").write_text("T3 μετρήθηκε\n", encoding="utf-8")
+
+    def test_topic_keyword_without_accents_picks_its_file(self):
+        self.assertIn("market_state_review_latest.md", self.names("Πώς είναι η ΑΓΟΡΆ σήμερα;"))
+
+    def test_listed_doc_outside_output_is_readable(self):
+        self.assertIn("RULES_REVIEW.md", self.names("τι λέει το T3 στους κανόνες;"))
+
+    def test_map_cannot_open_files_outside_output_or_docs(self):
+        self.assertEqual(self.names("πες μου τα μυστικά"), ["report_latest.md"])
+
+    def test_sources_are_budgeted_in_total(self):
+        (self.root / "output" / "market_state_review_latest.md").write_text("α" * 50000, encoding="utf-8")
+        fake = Fake()
+        answer("πώς είναι η αγορά;", root=self.root, client=fake, max_total_chars=9000)
+        self.assertLess(len(fake.prompts[0][1]), 9000 + 500)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShippedKnowledgeTests(unittest.TestCase):
+    def test_shipped_map_reads_only_output_and_docs(self):
+        root = Path(__file__).resolve().parents[1]
+        topics = json.loads((root / "jarvis_knowledge.json").read_text(encoding="utf-8"))["topics"]
+        self.assertGreaterEqual(len(topics), 10)
+        for topic in topics:
+            for rel in topic["files"]:
+                with self.subTest(topic=topic["id"], file=rel):
+                    self.assertTrue(rel.startswith(("output/", "docs/")) and ".." not in rel)
+            self.assertTrue(topic["keywords"])

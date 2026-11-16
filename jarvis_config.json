@@ -2,8 +2,8 @@
   "schema": "ecosystem.jarvis_config.v1",
   "ollama_host": "http://127.0.0.1:11434",
   "model": "qwen2.5:3b",
-  "num_ctx": 4096,
+  "num_ctx": 8192,
   "num_predict": 400,
   "timeout_seconds": 120,
-  "max_source_chars": 6000
+  "max_total_chars": 12000
 }

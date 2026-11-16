@@ -142,6 +142,12 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
 - If Ollama is not running, the page says so; Jarvis does not start it. Model and context size in
   `jarvis_config.json`.
 - It can only read. It has no tools to run anything.
+- What it may read is the knowledge map `jarvis_knowledge.json` (owner 2026-11-16: Jarvis is told about everything
+  in its work): per topic (session, learning, market, news, held positions, traders, Sokratis, fundamentals, results,
+  labs, RULES_REVIEW, ...) its files and keywords, matched without accents. Only files under `output/` or `docs/`;
+  at most three sources, sharing `max_total_chars` so the prompt fits `num_ctx`.
+- The daily report also carries "Η εικόνα του οικοσυστήματος": the market reading (`market_state_latest.json`) and
+  the paper-learning lessons in shadow by verdict, with the three closest to a verdict.
 
 ### 5.4 The Control Center page "Jarvis"
 

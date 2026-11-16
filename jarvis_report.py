@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-SECTIONS = ("Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Τι έμαθα", "Προτάσεις που περιμένουν απόφαση")
+SECTIONS = ("Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Η εικόνα του οικοσυστήματος", "Τι έμαθα",
+            "Προτάσεις που περιμένουν απόφαση")
 PROBLEM_STEP_STATES = {"failed", "missing"}
 PROBLEM_CHECK_STATES = {"failed", "timeout"}
 STATE_GR = {"ok": "εντάξει", "failed": "απέτυχε", "missing": "λείπει", "running": "τρέχει ακόμα",
@@ -67,6 +68,31 @@ def _learning_lines(section: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _ecosystem_lines(section: dict[str, Any] | None) -> list[str]:
+    if not section:
+        return ["- άγνωστο: δεν διαβάστηκε η εικόνα του οικοσυστήματος"]
+    if section.get("error"):
+        return [f"- άγνωστο: το κομμάτι απέτυχε ({section['error']})"]
+    lines = []
+    market = section.get("market")
+    if market:
+        lines.append(f"- Αγορά ({market.get('session') or 'άγνωστο'}): τάση {market.get('trend') or 'άγνωστο'}, "
+                     f"διάθεση {market.get('mood') or 'άγνωστο'}. {market.get('paragraph') or ''}".rstrip())
+    else:
+        lines.append("- Αγορά: άγνωστο (δεν υπάρχει output/market_state_latest.json)")
+    lessons = section.get("lessons")
+    if lessons:
+        counts = lessons.get("by_verdict") or {}
+        lines.append(f"- Διδάγματα του paper learning σε shadow: {counts.get('collecting', 0)} μαζεύουν δείγμα, "
+                     f"{counts.get('confirmed', 0)} επιβεβαιώθηκαν, {counts.get('not_confirmed', 0)} δεν επιβεβαιώθηκαν.")
+        for item in lessons.get("closest") or []:
+            lines.append(f"  - πιο κοντά σε ετυμηγορία: {item.get('proposed_change')} "
+                         f"({item.get('sessions_after')}/{item.get('minimum_sessions')} συνεδρίες)")
+    else:
+        lines.append("- Διδάγματα σε shadow: άγνωστο (δεν υπάρχει η αξιολόγηση του paper learning)")
+    return lines
+
+
 def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     sections = record.get("sections") or {}
     problems = _problems(sections)
@@ -92,8 +118,9 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         out += [f"- **{r.get('title') or r['id']}**: {STATE_GR.get(r['state'], r['state'])}"
                 + (f" — «{r['verdict']}»" if r.get("verdict") not in (None, "refreshed") else "")
                 + (f" ({r['detail']})" if r.get("detail") else "") for r in results] or ["- Κανένας έλεγχος δεν ήταν σε προθεσμία."]
-    out += ["", f"## {SECTIONS[4]}", *_learning_lines(sections.get("learning")), ""]
-    out += [f"## {SECTIONS[5]}"]
+    out += ["", f"## {SECTIONS[4]}", *_ecosystem_lines(sections.get("ecosystem")), ""]
+    out += [f"## {SECTIONS[5]}", *_learning_lines(sections.get("learning")), ""]
+    out += [f"## {SECTIONS[6]}"]
     if not proposals:
         out += ["- Καμία."]
     for p in proposals:

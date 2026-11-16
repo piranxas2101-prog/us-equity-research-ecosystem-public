@@ -190,6 +190,32 @@ def _withdrawals(root: Path, sections: dict[str, Any],
     return out
 
 
+CLOSEST_LESSONS = 3
+
+
+def ecosystem(root: Path) -> dict[str, Any]:
+    """How the market reads and what the ecosystem is learning (owner 2026-11-16: Jarvis is told about everything in
+    its work). None for a part whose file is missing - shown as unknown."""
+    state = jarvis_health.read_json(root / "output" / "market_state_latest.json")
+    market = None if state is None else {k: state.get(k) for k in ("session", "trend", "mood", "paragraph")}
+    evaluation = jarvis_health.read_json(root / "output" / "paper_learning" / "evaluation_latest.json")
+    lessons = None
+    if evaluation is not None:
+        follow = [i for i in evaluation.get("shadow_follow") or [] if isinstance(i, dict)]
+        counts: dict[str, int] = {}
+        for item in follow:
+            counts[str(item.get("verdict"))] = counts.get(str(item.get("verdict")), 0) + 1
+
+        def progress(item: dict[str, Any]) -> float:
+            need = item.get("minimum_sessions") or 0
+            return (item.get("sessions_after") or 0) / need if need else 0.0
+
+        waiting = sorted((i for i in follow if i.get("verdict") == "collecting"), key=progress, reverse=True)
+        lessons = {"by_verdict": counts, "closest": [{k: i.get(k) for k in (
+            "lesson_id", "proposed_change", "sessions_after", "minimum_sessions")} for i in waiting[:CLOSEST_LESSONS]]}
+    return {"market": market, "lessons": lessons}
+
+
 def _write_report(root: Path, record: dict[str, Any]) -> dict[str, Any]:
     markdown, data = jarvis_report.render(record)
     folder = root / "output" / "jarvis"
@@ -232,6 +258,7 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
         sections["session"] = _guard(lambda: {"steps": [s.as_dict() for s in
                                                         jarvis_health.session_health(root, day.isoformat())]})
     sections["checks"], proposals = _checks(root, kind=kind, day=day, python=python, deadline=deadline, since=since)
+    sections["ecosystem"] = _guard(lambda: ecosystem(root))
     if write_report:  # learning once a day: after the session, or by the nightly on a day without one
         sections["learning"], learned = _learning(root, day)
         proposals += learned

@@ -174,5 +174,31 @@ class PassTests(unittest.TestCase):
             self.assertFalse(bad, f"{name.name} imports {bad}")
 
 
+class EcosystemSectionTests(PassTests):
+    """Owner 2026-11-16: the report also tells what the ecosystem is learning and how the market reads."""
+
+    def test_report_shows_market_and_lessons_closest_to_a_verdict(self):
+        self.write("output/market_state_latest.json", {"session": "2026-11-13", "trend": "up", "mood": "calm",
+                                                       "paragraph": "Η αγορά ανεβαίνει ήρεμα."})
+        self.write("output/paper_learning/evaluation_latest.json", {"shadow_follow": [
+            {"lesson_id": "a", "proposed_change": "Χαλάρωσε τον Miltos", "verdict": "collecting",
+             "sessions_after": 7, "minimum_sessions": 10},
+            {"lesson_id": "b", "proposed_change": "Λιγότερο rsi2", "verdict": "collecting",
+             "sessions_after": 2, "minimum_sessions": 10}]})
+        rec = jarvis.run_pass("after-session", root=self.root, today=D, python="py")
+        md = self.report(D).read_text(encoding="utf-8")
+        self.assertIn("Η εικόνα του οικοσυστήματος", md)
+        self.assertIn("Η αγορά ανεβαίνει ήρεμα.", md)
+        self.assertIn("2 μαζεύουν δείγμα", md)
+        self.assertLess(md.index("Χαλάρωσε τον Miltos"), md.index("Λιγότερο rsi2"))
+        self.assertEqual(rec["sections"]["ecosystem"]["lessons"]["by_verdict"], {"collecting": 2})
+
+    def test_missing_ecosystem_files_are_unknown(self):
+        jarvis.run_pass("after-session", root=self.root, today=D, python="py")
+        md = self.report(D).read_text(encoding="utf-8")
+        part = md[md.index("Η εικόνα του οικοσυστήματος"):]
+        self.assertIn("άγνωστο", part)
+
+
 if __name__ == "__main__":
     unittest.main()

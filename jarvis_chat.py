@@ -14,12 +14,15 @@ from pathlib import Path
 import re
 import sqlite3
 from typing import Any, Protocol
+import unicodedata
 import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent
 CHAT_DB = ROOT / "data" / "jarvis" / "chat.sqlite3"
 CONFIG = ROOT / "jarvis_config.json"
+KNOWLEDGE = "jarvis_knowledge.json"
+READABLE_ROOTS = ("output", "docs")
 MAX_SOURCES = 3
 NUMBER = re.compile(r"\d+(?:[.,]\d+)?%?")
 TICKER = re.compile(r"\b[A-Z]{1,5}\b")
@@ -74,8 +77,37 @@ def _check_outputs(root: Path) -> dict[str, str]:
     return {str(c.get("id")): str(c["output"]) for c in checks if c.get("output")}
 
 
+def fold(text: str) -> str:
+    """Lower case without accents, so "Αγορά", "ΑΓΟΡΆ" and "αγορα" match the same keyword."""
+    decomposed = unicodedata.normalize("NFD", text.lower())
+    return "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
+
+
+def knowledge_topics(root: Path) -> list[dict[str, Any]]:
+    try:
+        payload = json.loads((root / KNOWLEDGE).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return []
+    return [t for t in payload.get("topics") or [] if isinstance(t, dict)]
+
+
+def _topic_files(question: str, root: Path) -> list[Path]:
+    """The knowledge map's files for the topics the question names, the most-named topic first."""
+    folded = fold(question)
+    scored = []
+    for order, topic in enumerate(knowledge_topics(root)):
+        hits = sum(1 for word in topic.get("keywords") or [] if fold(str(word)) in folded)
+        if hits:
+            scored.append((-hits, order, topic))
+    return [root / str(rel) for _, _, topic in sorted(scored, key=lambda x: x[:2]) for rel in topic.get("files") or []]
+
+
+def _readable(path: Path, root: Path) -> bool:
+    allowed = [(root / name).resolve() for name in READABLE_ROOTS]
+    return path.is_file() and any(base in path.parents for base in allowed)
+
+
 def select_sources(question: str, root: Path) -> list[Path]:
-    output = (root / "output").resolve()
     wanted: list[Path] = [root / "output" / "jarvis" / "report_latest.md"]
     for year, month, day in DATE.findall(question):
         wanted += [root / "output" / "jarvis" / f"report_{year}-{month}-{day}.md",
@@ -90,10 +122,11 @@ def select_sources(question: str, root: Path) -> list[Path]:
             wanted.append(root / rel)
     if any(word in question.lower() for word in LEARNING_WORDS):
         wanted.append(root / "output" / "jarvis" / "report_latest.json")
+    wanted += _topic_files(question, root)
     out: list[Path] = []
     for path in wanted:
         resolved = path.resolve()
-        if resolved.is_file() and output in resolved.parents and resolved not in out:
+        if _readable(resolved, root) and resolved not in out:
             out.append(resolved)
         if len(out) == MAX_SOURCES:
             break
@@ -104,13 +137,14 @@ def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root.resolve()).as_posix()
 
 
-def answer(question: str, *, root: Path, client: Client, max_source_chars: int = 6000) -> dict[str, Any]:
+def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 12000) -> dict[str, Any]:
     if not client.available():
         return {"answer": "Το Ollama δεν τρέχει (ή δεν έχει το μοντέλο), οπότε δεν μπορώ να απαντήσω τώρα. "
                           "Η αναφορά της ημέρας είναι στη σελίδα.", "sources": [], "unverified_numbers": [],
                 "ollama": "down"}
     sources = select_sources(question, root)
-    texts = {_rel(p, root): p.read_text(encoding="utf-8", errors="replace")[:max_source_chars] for p in sources}
+    share = max_total_chars // max(1, len(sources))  # the whole prompt must fit the model's context (num_ctx)
+    texts = {_rel(p, root): p.read_text(encoding="utf-8", errors="replace")[:share] for p in sources}
     prompt = "\n\n".join(f"### Αρχείο: {name}\n{text}" for name, text in texts.items())
     prompt += f"\n\n### Ερώτηση\n{question}"
     try:

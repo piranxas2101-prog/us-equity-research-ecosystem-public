@@ -374,3 +374,12 @@ after-session pass runs `debate_shadow.py run --after-close` on the day's approv
 minutes (done before the 00:30 nightly run), with the inputs as they stood at the approval. It is now a measurement
 only; a veto would need the agents to ask for an opinion when they need one, which is not built.
 
+**Owner's decision 2026-11-18 (later the same day): the debate prepares the day, in the morning.** Jarvis's
+after-nightly pass, on New York weekdays, runs `debate_shadow.py run --morning` on **every** trade the traders
+proposed for that day (Yankos and Periklis, verdict `candidate`, about 370 a day), strongest signal first, with no
+cap; the only stop is a safety one at 14:30 Athens, before the session's preparation at 15:00. No session runs then,
+so it uses 8 threads and no session guard. The evening run is removed. The measurement now counts every kind of
+outcome the ledger keeps for a judged idea, one per idea and the most real first: trade, approved_not_entered,
+koulis_left_out, preopen_demoted, shadow_candidate. Because opinions now exist before Koulis decides, a veto through
+Koulis is possible again if the section 8 test passes; turning it on stays the owner's call.
+

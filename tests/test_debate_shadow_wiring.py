@@ -20,20 +20,6 @@ class WiringTests(unittest.TestCase):
         # owner 2026-11-18: not during the session (it must not weigh on it); Jarvis runs it after the close
         self.assertFalse([line for line in self.lines() if "debate_shadow" in line])
 
-    def test_jarvis_runs_the_debate_after_the_session(self):
-        from unittest import mock
-        import tempfile
-        import jarvis
-        calls = []
-        with tempfile.TemporaryDirectory() as tmp,                 mock.patch("jarvis.run_pass", return_value={"open_proposals": 0, "problems": 0}),                 mock.patch("jarvis.keep_awake"),                 mock.patch("jarvis.run_debate_after_close", side_effect=lambda root, day: calls.append(day)):
-            jarvis.main(["after-session", "--root", tmp, "--today", "2026-11-18"])
-            jarvis.main(["after-nightly", "--root", tmp, "--today", "2026-11-18"])
-        self.assertEqual([d.isoformat() for d in calls], ["2026-11-18"])
-
-    def test_after_close_the_debate_has_a_budget_and_no_session_guard(self):
-        import debate_shadow
-        self.assertEqual(debate_shadow.AFTER_CLOSE_MINUTES, 50)
-
     def test_jarvis_runs_the_measure_and_raises_only_a_pass(self):
         self.assertEqual(jarvis_checks.PRODUCERS["debate_shadow_evaluate"], ["debate_shadow.py", "evaluate"])
         checks = {c["id"]: c for c in jarvis_checks.load_registry(ROOT / "jarvis_checks.json")}

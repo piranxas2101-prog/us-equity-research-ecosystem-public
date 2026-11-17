@@ -50,7 +50,12 @@ NUM_THREAD = 4
 NUM_PREDICT = 220
 CALL_TIMEOUT = 300
 STOP_AT = clock_time(16, 0)  # New York
-AFTER_CLOSE_MINUTES = 50     # owner 2026-11-18: run by Jarvis after the session, done before the 00:30 nightly run
+# owner 2026-11-18: the debate prepares the day - in the morning after the nightly run, on every trade the traders
+# proposed for today; no cap, only a safety stop before the session's preparation starts at 15:00 Athens.
+MORNING_STOP = clock_time(14, 30)  # Athens
+ATHENS = ZoneInfo("Europe/Athens")
+TRADERS = ("yankos", "periklis")
+MORNING_THREADS = 8
 MILTOS_POLL_SECONDS = 300
 LATE_TOLERANCE_SECONDS = 60
 LATE_STRIKES = 2
@@ -230,8 +235,8 @@ def store(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
 class DebateClient:
     """Local Ollama only; returns the answer and the token probabilities (Ollama >= 0.12.11)."""
 
-    def __init__(self, host: str = OLLAMA_HOST, model: str = MODEL) -> None:
-        self.host, self.model = host.rstrip("/"), model
+    def __init__(self, host: str = OLLAMA_HOST, model: str = MODEL, num_thread: int = NUM_THREAD) -> None:
+        self.host, self.model, self.num_thread = host.rstrip("/"), model, num_thread
 
     def available(self) -> bool:
         try:
@@ -245,7 +250,7 @@ class DebateClient:
         body = {"model": self.model, "system": system, "prompt": prompt + "\nSCORE:", "stream": False,
                 "logprobs": True, "top_logprobs": TOP_LOGPROBS, "keep_alive": "30m",
                 "options": {"temperature": 0, "seed": 0, "num_ctx": 4096, "num_predict": NUM_PREDICT,
-                            "num_thread": NUM_THREAD}}
+                            "num_thread": self.num_thread}}
         request = urllib.request.Request(self.host + "/api/generate", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=CALL_TIMEOUT) as response:
@@ -275,16 +280,64 @@ def news_for(root: Path, ticker: str, until: str | None) -> list[str]:
     return out
 
 
+def load_candidates(root: Path) -> list[dict[str, Any]]:
+    """Every trade the traders proposed for today (verdict 'candidate'), strongest signal first, shaped like an
+    approval so the same prompt serves both (owner 2026-11-18)."""
+    out = []
+    for agent in TRADERS:
+        payload = _read(root / "output" / f"{agent}_strategy_latest.json") or {}
+        for row in payload.get("results") or []:
+            if not isinstance(row, dict) or row.get("signal_verdict") != "candidate" or not row.get("ticker"):
+                continue
+            plan = row.get("paper_trade_plan") or {}
+            rationale = row.get("rationale") or []
+            out.append({
+                "intent_id": f"{agent}|{row['ticker']}|{row.get('playbook_name')}|{row.get('trade_direction')}",
+                "agent": agent, "ticker": row["ticker"], "company": row.get("company"),
+                "trade_direction": row.get("trade_direction"), "playbook_name": row.get("playbook_name"),
+                "signal_score": row.get("signal_score"), "strategy_rank_pct": None,
+                "market_state_fit": row.get("market_state_fit"),
+                "trade_plan": {"initial_rationale": rationale if isinstance(rationale, list) else [str(rationale)],
+                               "invalidators": list(plan.get("invalidators") or []),
+                               "holding_horizon": plan.get("holding_horizon") or {},
+                               "catalog_holding_horizon": plan.get("catalog_holding_horizon")},
+                "_candidate": row})
+    def order(i: dict[str, Any]) -> tuple:  # an unknown score is judged last, never given a value
+        known = isinstance(i["signal_score"], (int, float))
+        return (not known, -i["signal_score"] if known else 0, i["agent"], i["ticker"])
+
+    return sorted(out, key=order)
+
+
+def candidate_thesis(intent: dict[str, Any]) -> dict[str, Any] | None:
+    """The fundamental side a candidate already carries from the packet (no 43 MB packet read in the morning)."""
+    row = intent.get("_candidate")
+    if not row:
+        return None
+    return {"fundamental_summary": {"giannis_score": row.get("giannis_score"), "giannis_tier": row.get("giannis_tier")},
+            "long_case": row.get("fundamental_long_case") or {}, "short_case": row.get("fundamental_short_case") or {},
+            "kill_criteria": list(row.get("fundamental_kill_criteria") or []),
+            "readiness_status": row.get("fundamental_security_readiness")}
+
+
+def past_morning_stop(now: datetime) -> bool:
+    return now.astimezone(ATHENS).time() >= MORNING_STOP
+
+
 def run(root: Path, *, client: Any, session_date: str, deadline: Callable[[], bool], guard: Any,
-        theses: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
-    koulis = _read(root / KOULIS) or {}
-    if str(koulis.get("session_date")) != session_date:
-        return {"status": "no_approvals_for_session", "judged": 0, "stopped": None}
-    intents = [i for i in koulis.get("approved_intents") or [] if isinstance(i, dict) and i.get("intent_id")]
-    if theses is None:
+        theses: dict[str, dict[str, Any]] | None = None, intents: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    if intents is None:
+        koulis = _read(root / KOULIS) or {}
+        if str(koulis.get("session_date")) != session_date:
+            return {"status": "no_approvals_for_session", "judged": 0, "stopped": None}
+        intents = [i for i in koulis.get("approved_intents") or [] if isinstance(i, dict) and i.get("intent_id")]
+        approved_at = str(koulis.get("generated_at") or "") or None
+    else:
+        approved_at = datetime.now(timezone.utc).isoformat()  # the morning: what is known now
+    if theses is None and any(not i.get("_candidate") for i in intents):
         theses = load_theses(root)
+    theses = theses or {}
     market = _read(root / MARKET)
-    approved_at = str(koulis.get("generated_at") or "") or None
     judged, stopped, started = 0, None, _now()
     with closing(connect(root / DB)) as conn:
         done = {r[0] for r in conn.execute("SELECT intent_id FROM opinions WHERE session_date=?", (session_date,))}
@@ -301,8 +354,8 @@ def run(root: Path, *, client: Any, session_date: str, deadline: Callable[[], bo
                 stopped = f"guard: {guard.reason}"
                 break
             ticker = str(intent.get("ticker") or "")
-            inputs = build_inputs(intent, theses.get(ticker.upper()), market=market,
-                                  news=news_for(root, ticker, approved_at))
+            thesis = candidate_thesis(intent) if intent.get("_candidate") else theses.get(ticker.upper())
+            inputs = build_inputs(intent, thesis, market=market, news=news_for(root, ticker, approved_at))
             t0 = time.monotonic()
             try:
                 opinion = parse_opinion(*client.generate(SYSTEM, build_prompt(inputs)))
@@ -392,6 +445,7 @@ def lower_ollama_priority(runner: Callable[..., Any] = subprocess.run) -> None:
 
 # ----------------------------------------------------------------------------------------------- evaluate
 
+KIND_ORDER = ("trade", "approved_not_entered", "koulis_left_out", "preopen_demoted", "shadow_candidate")
 MIN_OUTCOMES = 30
 MIN_SESSIONS = 10
 MARGIN_PCT = 0.5
@@ -418,10 +472,14 @@ def outcomes(root: Path, *, as_of: date) -> list[dict[str, Any]]:
         with closing(sqlite3.connect(f"file:{ledger_db.as_posix()}?mode=ro", uri=True)) as conn:
             for record_id, day, kind, payload in conn.execute(
                     "SELECT record_id, session_date, kind, record_json FROM paper_trade_ledger"
-                    " WHERE kind IN ('trade', 'approved_not_entered')"):
+                    " WHERE kind IN ('trade', 'approved_not_entered', 'koulis_left_out', 'preopen_demoted',"
+                    " 'shadow_candidate')"):
                 r = json.loads(payload)
                 key = (day, r.get("agent"), str(r.get("ticker")).upper(), r.get("playbook"), r.get("direction"))
-                records[key] = {**r, "record_id": record_id, "kind": kind}
+                # one outcome per trade idea: the real trade first, then the closest to it (2026-11-18: every
+                # candidate is judged in the morning, most never become trades)
+                if key not in records or KIND_ORDER.index(kind) < KIND_ORDER.index(records[key]["kind"]):
+                    records[key] = {**r, "record_id": record_id, "kind": kind}
             try:
                 rows = conn.execute("SELECT c.record_id, c.open_close_pct, c.spy_open_close_pct, l.session_date"
                                     " FROM paper_counterfactuals c JOIN paper_trade_ledger l USING(record_id)").fetchall()
@@ -535,8 +593,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("run", "evaluate"))
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--session-date", default=None, help="New York date (default: today)")
-    parser.add_argument("--after-close", action="store_true",
-                        help="owner 2026-11-18: run after the session (Jarvis), within AFTER_CLOSE_MINUTES, no session guard")
+    parser.add_argument("--morning", action="store_true",
+                        help="owner 2026-11-18: every trader candidate for today, run by Jarvis after the nightly run")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     today = datetime.now(NEW_YORK).date()
@@ -546,18 +604,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     import jarvis_chat
 
-    client = DebateClient()
+    client = DebateClient(num_thread=MORNING_THREADS if args.morning else NUM_THREAD)
     if not ensure_ollama(client, starter=lambda: jarvis_chat.start_ollama_server(log_dir=root / "logs")):
         print("DEBATE Ollama is not available; nothing judged")
         return 0
     lower_ollama_priority()
-    if args.after_close:  # the session is over: nothing to guard, a time budget so it ends before the nightly run
-        end = time.monotonic() + AFTER_CLOSE_MINUTES * 60
-        guard, deadline = None, (lambda: time.monotonic() >= end)
+    if args.morning:  # no session running: nothing to guard; only the safety stop before the session's preparation
+        result = run(root, client=client, session_date=args.session_date or today.isoformat(),
+                     deadline=lambda: past_morning_stop(datetime.now(timezone.utc)), guard=None,
+                     intents=load_candidates(root))
     else:
-        guard, deadline = SessionGuard(root), (lambda: past_stop(datetime.now(timezone.utc)))
-    result = run(root, client=client, session_date=args.session_date or today.isoformat(), deadline=deadline,
-                 guard=guard)
+        result = run(root, client=client, session_date=args.session_date or today.isoformat(),
+                     deadline=lambda: past_stop(datetime.now(timezone.utc)), guard=SessionGuard(root))
     print(f"DEBATE {result['status']} judged={result['judged']} stopped={result['stopped']}")
     return 0
 

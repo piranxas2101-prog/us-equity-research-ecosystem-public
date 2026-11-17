@@ -115,3 +115,11 @@ The owner moved the debate out of the session (it must not weigh on it). Jarvis'
 "before entry" share is no longer a measure of a possible veto; a veto would need agents asking for an opinion on
 demand (not built).
 
+## 11. Moved to the morning, on every candidate (owner 2026-11-18)
+Jarvis prepares the day: after the nightly run (after-nightly pass, New York weekdays only) it runs the debate on
+every trader candidate for that day (`load_candidates`: Yankos and Periklis rows with verdict `candidate`, signal
+score descending, no cap). The candidate row already carries the fundamental cases, so the 43 MB packet is not read.
+Safety stop 14:30 Athens; 8 threads; no session guard. The evening run is gone. `evaluate` joins opinions to every
+outcome kind (trade, approved_not_entered, koulis_left_out, preopen_demoted, shadow_candidate), one per idea, the
+most real first. Opinions exist before Koulis decides, so the veto path of section 8 is open again.
+

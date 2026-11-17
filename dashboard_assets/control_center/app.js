@@ -384,6 +384,8 @@ async function pageReview() {
         <div class="vote-list">${nodes.map((v) => `<button data-node="${esc(v.node)}">Επιλογή: ${esc(v.label || v.node)}</button>`).join("")}
           ${i.current_node ? `<button class="good" data-confirm="1">Ο τωρινός είναι σωστός</button>` : ""}</div>
         <div class="actions"><select class="other"><option value="">…ή άλλος κόμβος</option>${options}</select><button data-other="1">Εφαρμογή</button></div>
+        ${i.suggestion && i.suggestion.decision ? `<div class="small jarvis-suggestion">Πρόταση Jarvis (${esc(i.suggestion.confidence === "strong" ? "ισχυρή" : "αδύναμη")}): <b>${esc(i.suggestion.label || i.suggestion.node)}</b> · ${esc(i.suggestion.reason)}
+          <button class="good" data-suggest="1">Δέξου την πρόταση</button></div>` : (i.suggestion ? `<div class="muted small">Jarvis: ${esc(i.suggestion.reason)}</div>` : "")}
         <textarea class="note" placeholder="Σύντομη αιτιολογία (υποχρεωτική)"></textarea></div>`;
     }).join("") || `<p class="muted">Καμία ανοιχτή διαφωνία.</p>`;
     document.querySelectorAll(".review-card").forEach((card) => {
@@ -400,6 +402,12 @@ async function pageReview() {
       };
       card.querySelectorAll("button[data-node]").forEach((b) => b.addEventListener("click", () => send("choose", b.dataset.node)));
       card.querySelector("button[data-confirm]")?.addEventListener("click", () => send("confirm", null));
+      card.querySelector("button[data-suggest]")?.addEventListener("click", () => {
+        const item = d.items.find((x) => x.ticker === card.dataset.ticker && x.venue_code === card.dataset.venue);
+        const note = card.querySelector(".note");
+        if (!note.value.trim()) note.value = "Πρόταση Jarvis: " + item.suggestion.reason;
+        send(item.suggestion.decision, item.suggestion.decision === "choose" ? item.suggestion.node : null);
+      });
       card.querySelector("button[data-other]").addEventListener("click", () => {
         const node = card.querySelector(".other").value; if (!node) { toast("Διάλεξε κόμβο από τη λίστα.", true); return; } send("choose", node);
       });

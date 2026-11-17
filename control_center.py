@@ -496,6 +496,11 @@ class Views:
         for vote in item["votes"] + item["advisory_votes"]:
             vote["label"] = self.label(vote.get("node"))
         item["current_label"] = self.label(item.get("current_node"))
+        import jarvis_classify
+
+        suggestion = jarvis_classify.suggest(item)  # Jarvis's homework (owner 2026-11-17); applying is the owner's click
+        suggestion["label"] = self.label(suggestion.get("node"))
+        item["suggestion"] = suggestion
         return item
 
     def _history(self, ticker: str) -> dict[str, Any]:

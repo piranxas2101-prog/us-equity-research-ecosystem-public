@@ -22,15 +22,25 @@ class OwnerTests(unittest.TestCase):
         data = self.root / "data"
         data.mkdir()
         with closing(sqlite3.connect(data / "research_registry.db")) as conn:
-            conn.execute("CREATE TABLE classification_review_item (ticker TEXT, reason TEXT, status TEXT)")
-            conn.executemany("INSERT INTO classification_review_item VALUES (?,?,?)",
-                             [("A", "no_two_sources_agree", "open"), ("B", "no_two_sources_agree", "open"),
-                              ("C", "probable_spac_needs_second_signal", "open"), ("D", "no_two_sources_agree", "closed")])
+            conn.execute("CREATE TABLE classification_review_item (ticker TEXT, reason TEXT, status TEXT,"
+                         " current_node TEXT, votes_json TEXT, advisory_json TEXT)")
+            agree = json.dumps([{"source": "profile", "basis": "explicit_provider_alias", "node": "tech.a"},
+                                {"source": "directory", "basis": "explicit_internal_industry_crosswalk", "node": "tech.b"}])
+            split = json.dumps([{"source": "profile", "basis": "explicit_provider_alias", "node": "materials.x"},
+                                {"source": "directory", "basis": "explicit_internal_industry_crosswalk", "node": "energy.y"}])
+            conn.executemany("INSERT INTO classification_review_item VALUES (?,?,?,?,?,?)",
+                             [("A", "no_two_sources_agree", "open", None, agree, "[]"),
+                              ("B", "no_two_sources_agree", "open", None, split, "[]"),
+                              ("C", "probable_spac_needs_second_signal", "open", None, "[]", "[]"),
+                              ("D", "no_two_sources_agree", "closed", None, agree, "[]")])
             conn.commit()
         with closing(sqlite3.connect(data / "market_intel.db")) as conn:
-            conn.execute("CREATE TABLE agent_model_registry (model_id TEXT, agent_id TEXT, state TEXT)")
-            conn.executemany("INSERT INTO agent_model_registry VALUES (?,?,?)",
-                             [("m1", "petros", "candidate"), ("m2", "petros", "candidate"), ("m3", "petros", "champion")])
+            conn.execute("CREATE TABLE agent_model_registry (model_id TEXT, agent_id TEXT, task_id TEXT, model_version TEXT,"
+                         " state TEXT, training_rows INTEGER, metrics_json TEXT, created_at TEXT)")
+            metrics = json.dumps({"roc_auc": 0.615, "status": "walk_forward_validated"})
+            conn.executemany("INSERT INTO agent_model_registry VALUES (?,?,?,?,?,?,?,?)",
+                             [("m1", "petros", "t", "1", "candidate", 100, metrics, "2026-11-15"),
+                              ("m2", "petros", "t", "2", "candidate", 100, metrics, "2026-11-16")])
             conn.commit()
         with closing(jarvis_state.connect(data / "jarvis" / "proposals.sqlite3")) as conn:
             jarvis_state.upsert_proposal(conn, jarvis_state.Proposal(
@@ -49,7 +59,8 @@ class OwnerTests(unittest.TestCase):
         groups = {g["kind"]: g for g in jarvis_owner.pending(self.root)["groups"]}
         self.assertEqual(groups["proposals"]["count"], 1)
         self.assertEqual(groups["classification"]["count"], 3)
-        self.assertEqual(groups["models"]["count"], 2)
+        self.assertEqual(groups["models"]["count"], 1)  # only the latest is worth a look; 1 superseded
+        self.assertEqual(groups["classification"]["suggested"], 1)
         self.assertEqual(groups["labs"]["count"], 1)
         self.assertIn("T3: βάση του όγκου", groups["labs"]["items"])
 
@@ -62,7 +73,8 @@ class OwnerTests(unittest.TestCase):
         text = jarvis_owner.story(jarvis_owner.pending(self.root))
         self.assertTrue(text.startswith("Περιμένουν εσένα"), text)
         for part in ("1 πρόταση του Jarvis", "Το run r1 σταμάτησε", "3 σύμβολα στον έλεγχο κατηγοριοποίησης",
-                     "2 όπου διαφωνούν οι πηγές", "2 εκπαιδευμένα μοντέλα", "1 εργαστήριο"):
+                     "2 όπου διαφωνούν οι πηγές", "για 1 έχω έτοιμη πρόταση", "1 εκπαιδευμένο μοντέλο αξίζει",
+                     "1 παλαιότερο", "1 εργαστήριο"):
             self.assertIn(part, text)
 
     def test_chat_answers_without_the_model(self):

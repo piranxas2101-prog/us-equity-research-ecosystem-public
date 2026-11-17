@@ -370,3 +370,26 @@ class JarvisStartsOllamaTests(JarvisPageTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewSuggestionTests(unittest.TestCase):
+    """Owner 2026-11-17: each classification review carries Jarvis's suggestion; applying it stays the owner's click."""
+
+    def test_review_items_carry_a_suggestion(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "data").mkdir()
+            conn = sqlite3.connect(root / "data" / "research_registry.db")
+            conn.execute("CREATE TABLE classification_review_item (venue_code TEXT, ticker TEXT, name TEXT, status TEXT,"
+                         " reason TEXT, current_node TEXT, votes_json TEXT, advisory_json TEXT, first_seen_at TEXT)")
+            votes = json.dumps([{"source": "profile", "basis": "explicit_provider_alias", "node": "tech.a"},
+                                {"source": "directory", "basis": "explicit_internal_industry_crosswalk", "node": "tech.b"}])
+            conn.execute("INSERT INTO classification_review_item VALUES ('Q','X','x','open','no_two_sources_agree',NULL,?,'[]','t')",
+                         (votes,))
+            conn.commit()
+            conn.close()
+            views = cc.Views(root)
+            views.taxonomy = lambda: ({}, {})
+            item = views.review()["items"][0]
+        self.assertEqual((item["suggestion"]["decision"], item["suggestion"]["node"]), ("choose", "tech.a"))

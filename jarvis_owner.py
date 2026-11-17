@@ -48,22 +48,34 @@ def _proposals(root: Path) -> dict[str, Any]:
 
 
 def _classification(root: Path) -> dict[str, Any]:
+    import jarvis_classify
+
     rows = _query(root / "data" / "research_registry.db",
-                  "SELECT reason, COUNT(*) FROM classification_review_item WHERE status='open' GROUP BY reason")
+                  "SELECT reason, current_node, votes_json, advisory_json FROM classification_review_item"
+                  " WHERE status='open'")
     group = {"kind": "classification", "where": "Κέντρο Ελέγχου → Έλεγχος κατηγοριοποίησης"}
     if rows is None:
-        return {**group, "count": None, "items": []}
-    return {**group, "count": sum(n for _, n in rows),
-            "items": [f"{n} {REASON_GR.get(reason, reason)}" for reason, n in sorted(rows, key=lambda r: -r[1])]}
+        return {**group, "count": None, "items": [], "suggested": None}
+    counts: dict[str, int] = {}
+    suggested = 0
+    for reason, current, votes, advisory in rows:
+        counts[reason] = counts.get(reason, 0) + 1
+        item = {"reason": reason, "current_node": current, "votes": json.loads(votes or "[]"),
+                "advisory_votes": json.loads(advisory or "[]")}
+        suggested += 1 if jarvis_classify.suggest(item)["decision"] else 0
+    return {**group, "count": len(rows), "suggested": suggested,
+            "items": [f"{n} {REASON_GR.get(reason, reason)}" for reason, n in sorted(counts.items(), key=lambda r: -r[1])]}
 
 
 def _models(root: Path) -> dict[str, Any]:
-    rows = _query(root / "data" / "market_intel.db",
-                  "SELECT agent_id, COUNT(*) FROM agent_model_registry WHERE state='candidate' GROUP BY agent_id")
+    import jarvis_models
+
     group = {"kind": "models", "where": "προαγωγή με το Claude (candidate → shadow → champion)"}
-    if rows is None:
-        return {**group, "count": None, "items": []}
-    return {**group, "count": sum(n for _, n in rows), "items": [f"{n} του {agent}" for agent, n in rows]}
+    result = jarvis_models.worth(root)
+    if result is None:
+        return {**group, "count": None, "items": [], "superseded": None}
+    return {**group, "count": len(result["worth"]), "superseded": result["superseded"],
+            "items": [f"{m['agent_id']}: {m['reason']}" for m in result["worth"]]}
 
 
 def _labs(root: Path) -> dict[str, Any]:
@@ -102,10 +114,14 @@ def _phrase(group: dict[str, Any]) -> str | None:
         shown = "· ".join(items[:ITEMS_SHOWN]) + (" κ.ά." if len(items) > ITEMS_SHOWN else "")
         return f"{head} ({shown}) στη {group['where']}"
     if kind == "classification":
-        return f"{n} σύμβολα στον έλεγχο κατηγοριοποίησης ({', '.join(items)}) στο {group['where']}"
+        ready = f", για {group['suggested']} έχω έτοιμη πρόταση" if group.get("suggested") else ""
+        return f"{n} σύμβολα στον έλεγχο κατηγοριοποίησης ({', '.join(items)}{ready}) στο {group['where']}"
     if kind == "models":
-        head = "1 εκπαιδευμένο μοντέλο" if n == 1 else f"{n} εκπαιδευμένα μοντέλα"
-        return f"{head} σε αναμονή προαγωγής ({', '.join(items)}), {group['where']}"
+        head = "1 εκπαιδευμένο μοντέλο αξίζει" if n == 1 else f"{n} εκπαιδευμένα μοντέλα αξίζουν"
+        older = group.get("superseded") or 0
+        rest = f"· τα {older} παλαιότερα είναι το ίδιο μοντέλο ξανά" if older > 1 else (
+            "· 1 παλαιότερο είναι το ίδιο μοντέλο ξανά" if older == 1 else "")
+        return f"{head} ματιά για προαγωγή ({'; '.join(items)}{rest}), {group['where']}"
     head = "1 εργαστήριο" if n == 1 else f"{n} εργαστήρια"
     return f"{head} για ελέγχους που έφτασαν στην ώρα τους ({'; '.join(items)}), {group['where']}"
 

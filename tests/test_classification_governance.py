@@ -121,6 +121,31 @@ class ClassificationGovernanceTests(unittest.TestCase):
         self.assertEqual(result["carried"], 2)
         self.assertEqual(result["base_changed_needs_review"], [])
 
+    def test_carry_forward_keeps_a_confirmation_of_the_base_node(self):
+        # 2026-11-18: an owner's confirmation keeps the base node and only raises its status to
+        # approved_provisional. The new snapshot's base saying the same node is not enough: without the
+        # carried override the status falls back to provisional and the review desk reopens the item.
+        db = self._carry_db()
+        db.executemany("INSERT INTO listed_symbol VALUES(?,'Q','CONF','n','equity_candidate','s','2.1.0','real_estate','provisional','{}')",
+                       [("old",), ("new",)])
+        db.execute("INSERT INTO listing_classification_override VALUES('old','Q','CONF','equity_candidate',"
+                   "'real_estate','approved_provisional','b1','2026-09-17')")
+        result = carry_forward_overrides(db, "new")
+        self.assertEqual(result["carried"], 2)  # SAME and CONF
+        status = db.execute("SELECT status FROM effective_listed_symbol WHERE snapshot_id='new' AND ticker='CONF'").fetchone()[0]
+        self.assertEqual(status, "approved_provisional")
+        self.assertEqual(carry_forward_overrides(db, "new")["carried"], 0)
+
+    def test_carry_forward_skips_when_the_base_already_says_the_same_with_the_same_status(self):
+        db = self._carry_db()
+        db.executemany("INSERT INTO listed_symbol VALUES(?,'Q','BASE','n','equity_candidate','s','2.1.0','real_estate',?,'{}')",
+                       [("old", "provisional"), ("new", "approved_provisional")])
+        db.execute("INSERT INTO listing_classification_override VALUES('old','Q','BASE','equity_candidate',"
+                   "'real_estate','approved_provisional','b1','2026-09-17')")
+        result = carry_forward_overrides(db, "new")
+        self.assertEqual(result["carried"], 1)  # SAME only
+        self.assertEqual(result["already_current"], 1)
+
     def test_carry_forward_is_idempotent_and_reversible(self):
         db = self._carry_db()
         first = carry_forward_overrides(db, "new")

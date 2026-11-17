@@ -370,14 +370,16 @@ def carry_forward_overrides(db, target_snapshot, actor="carry_forward"):
                       (target_snapshot, venue, ticker)).fetchone():
             already += 1
             continue
-        base = db.execute("SELECT instrument_type,node_id,version FROM listed_symbol WHERE snapshot_id=? AND venue_code=? AND ticker=?",
+        base = db.execute("SELECT instrument_type,node_id,version,status FROM listed_symbol WHERE snapshot_id=? AND venue_code=? AND ticker=?",
                           (target_snapshot, venue, ticker)).fetchone()
         if not base:
             missing.append({"venue_code": venue, "ticker": ticker})
             continue
-        if (base["instrument_type"], base["node_id"]) == (row["instrument_type"], row["node_id"]):
-            already += 1  # the new snapshot already says what was approved
+        if (base["instrument_type"], base["node_id"], base["status"]) == (row["instrument_type"], row["node_id"], row["status"]):
+            already += 1  # the new snapshot already says what was approved, with the same status
             continue
+        # A confirmation keeps the base node and only raises its status (2026-11-18: 262 of the owner's
+        # confirmations were dropped here and reopened on the review desk), so it is carried like any change.
         # A base that became unknown (e.g. a guessed sector was withdrawn) cannot
         # contradict the approved value, so the approval still stands.
         withdrawn = base["node_id"] is None and base["instrument_type"] == row["base_type"]

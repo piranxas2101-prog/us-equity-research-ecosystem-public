@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Any
 
 SECTIONS = ("Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Η εικόνα του οικοσυστήματος", "Τι έμαθα",
-            "Προτάσεις που περιμένουν απόφαση")
+            "Τι άλλαξα μόνος μου (AUTO)", "Προτάσεις που περιμένουν απόφαση")
+ACTION_GR = {"lowered": "μείωσα", "raised": "αύξησα", "undone": "αναίρεσα"}
 PROBLEM_STEP_STATES = {"failed", "missing"}
 PROBLEM_CHECK_STATES = {"failed", "timeout"}
 STATE_GR = {"ok": "εντάξει", "failed": "απέτυχε", "missing": "λείπει", "running": "τρέχει ακόμα",
@@ -120,7 +121,14 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
                 + (f" ({r['detail']})" if r.get("detail") else "") for r in results] or ["- Κανένας έλεγχος δεν ήταν σε προθεσμία."]
     out += ["", f"## {SECTIONS[4]}", *_ecosystem_lines(sections.get("ecosystem")), ""]
     out += [f"## {SECTIONS[5]}", *_learning_lines(sections.get("learning")), ""]
+    tuning = sections.get("tuning") or {}
+    changes = tuning.get("changes") or []
     out += [f"## {SECTIONS[6]}"]
+    if tuning.get("error"):
+        out += [f"- άγνωστο: η ρύθμιση απέτυχε ({tuning['error']})"]
+    out += [f"- {ACTION_GR.get(c.get('action'), c.get('action'))} το {c.get('setting')}: {c.get('old')} → {c.get('new')} "
+            f"({c.get('reason')})" for c in changes] or ["- Τίποτα (μόνο ρυθμίσεις της συζήτησης μπορούν να αλλάξουν μόνες τους)."]
+    out += ["", f"## {SECTIONS[7]}"]
     if not proposals:
         out += ["- Καμία."]
     for p in proposals:

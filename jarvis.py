@@ -33,6 +33,7 @@ import jarvis_health
 import jarvis_learning
 import jarvis_report
 import jarvis_state
+import jarvis_tiers
 
 ROOT = Path(__file__).resolve().parent
 NEW_YORK = ZoneInfo("America/New_York")
@@ -216,6 +217,13 @@ def ecosystem(root: Path) -> dict[str, Any]:
     return {"market": market, "lessons": lessons}
 
 
+def _chat_budget() -> int:
+    try:
+        return int(json.loads((ROOT / "jarvis_config.json").read_text(encoding="utf-8-sig"))["max_total_chars"])
+    except (OSError, ValueError, KeyError):
+        return 1800
+
+
 def _write_report(root: Path, record: dict[str, Any]) -> dict[str, Any]:
     markdown, data = jarvis_report.render(record)
     folder = root / "output" / "jarvis"
@@ -259,6 +267,8 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
                                                         jarvis_health.session_health(root, day.isoformat())]})
     sections["checks"], proposals = _checks(root, kind=kind, day=day, python=python, deadline=deadline, since=since)
     sections["ecosystem"] = _guard(lambda: ecosystem(root))
+    if kind == "after-nightly":  # the AUTO tier: Jarvis's own chat settings (owner 2026-11-17)
+        sections["tuning"] = _guard(lambda: {"changes": jarvis_tiers.tune(root, base=_chat_budget())})
     if write_report:  # learning once a day: after the session, or by the nightly on a day without one
         sections["learning"], learned = _learning(root, day)
         proposals += learned

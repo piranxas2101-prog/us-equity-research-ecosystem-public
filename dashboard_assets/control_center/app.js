@@ -624,7 +624,7 @@ async function pageJarvis(day) {
   const d = await api("/api/jarvis" + (day ? "?day=" + encodeURIComponent(day) : ""));
   const proposals = d.proposals.map((p) => `<div class="card jarvis-proposal" data-id="${esc(p.proposal_id)}">
       <h2>${esc(p.title)}</h2>
-      <div class="small">${esc(p.change || "")}${p.rules_review ? ` · ${pill(p.rules_review, "violet")}` : ""} · ${pill(p.source)}</div>
+      <div class="small">${esc(p.change || "")}${p.rules_review ? ` · ${pill(p.rules_review, "violet")}` : ""} · ${pill(p.source)}${p.tier ? " · " + pill(p.tier === "REVIEW" ? "REVIEW: απόφαση δική σου" : p.tier, "warn") : ""}</div>
       ${kv(p.evidence)}
       <textarea class="note" placeholder="Σημείωση (προαιρετική)"></textarea>
       <div class="actions">${Object.entries(DECISION_GR).map(([k, v]) => `<button data-decision="${k}" class="${k === "yes" ? "good" : ""}">${v}</button>`).join("")}</div>

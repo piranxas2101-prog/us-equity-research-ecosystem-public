@@ -191,3 +191,12 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
 - The learning model's features, minimum sample and validation split (documented with the first run's numbers).
 - How the chat picks files, and the prompt.
 - The page layout within the existing style.
+
+## Risk tiers (owner 2026-11-17, after OpenJarvis's `risk_tier.py` / `pending_queue.py` / `gate/regression.py`)
+- `jarvis_tiers.py` holds a fixed table: the kind of change decides its tier, never a model. Unknown kinds are REVIEW.
+- AUTO: only Jarvis's own chat settings, inside bounds (`max_total_chars` 800-2400). Jarvis times every model answer;
+  after enough answers it lowers the budget when answers time out and raises it when they are fast. Every change is
+  written in the daily report; a regression check compares the timeouts before and after and undoes a change that
+  made them worse.
+- REVIEW: everything else (lessons, checks, debate verdicts, run resumes) - the proposals with yes / no / later.
+

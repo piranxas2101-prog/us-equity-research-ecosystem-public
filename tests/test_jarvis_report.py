@@ -54,3 +54,18 @@ class ReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoChangesSectionTests(unittest.TestCase):
+    def test_auto_changes_are_listed(self):
+        record = {**RECORD, "sections": {**RECORD["sections"], "tuning": {"changes": [
+            {"setting": "max_total_chars", "old": 1800, "new": 1440, "action": "lowered", "tier": "AUTO",
+             "reason": "4 από τις 20 απαντήσεις του μοντέλου έληξαν"}]}}}
+        md, _ = render(record)
+        part = md[md.index("Τι άλλαξα μόνος μου"):]
+        self.assertIn("1800 → 1440", part)
+        self.assertIn("έληξαν", part)
+
+    def test_no_tuning_section_says_nothing_changed(self):
+        md, _ = render(RECORD)
+        self.assertIn("Τι άλλαξα μόνος μου (AUTO)", md)

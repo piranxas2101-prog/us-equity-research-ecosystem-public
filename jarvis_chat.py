@@ -207,7 +207,7 @@ def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root.resolve()).as_posix()
 
 
-def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 1800,
+def _answer(question: str, *, root: Path, client: Client, max_total_chars: int = 1800,
            start_ollama: Callable[[], bool] | None = None, wait_seconds: float = START_WAIT_SECONDS,
            poll: Callable[[], None] = lambda: time.sleep(1)) -> dict[str, Any]:
     import jarvis_facts
@@ -236,7 +236,8 @@ def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 
     try:
         text = whole_sentences(client.generate(SYSTEM, prompt))
     except (OSError, urllib.error.URLError, ValueError) as exc:
-        return {"answer": f"Το Ollama δεν απάντησε ({type(exc).__name__}).", "sources": list(texts),
+        timed_out = isinstance(exc, TimeoutError) or "timed out" in str(exc).lower()
+        return {"answer": f"Το Ollama δεν απάντησε ({type(exc).__name__}).", "sources": list(texts), "timed_out": timed_out,
                 "unverified_numbers": [], "ollama": "down", "ollama_started": started}
     corpus = "\n".join(texts.values())
     unverified = [n for n in dict.fromkeys(NUMBER.findall(text)) if n not in corpus]
@@ -246,26 +247,39 @@ def answer(question: str, *, root: Path, client: Client, max_total_chars: int = 
             "ollama_started": started}
 
 
+def answer(question: str, *, root: Path, client: Client, **options: Any) -> dict[str, Any]:
+    """The answer, timed: ``seconds`` and ``outcome`` (ok / timeout / down) feed the AUTO tuning of the chat's
+    settings (jarvis_tiers, owner 2026-11-17)."""
+    started = time.monotonic()
+    result = _answer(question, root=root, client=client, **options)
+    result["seconds"] = round(time.monotonic() - started, 2)
+    result["outcome"] = ("timeout" if result.pop("timed_out", False) else
+                         "down" if result.get("ollama") == "down" else "ok")
+    return result
+
+
 def _connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE IF NOT EXISTS chat (at TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,"
                  " sources_json TEXT NOT NULL, unverified_json TEXT NOT NULL, ollama TEXT NOT NULL,"
                  " mode TEXT NOT NULL DEFAULT 'model')")
-    if "mode" not in {row[1] for row in conn.execute("PRAGMA table_info(chat)")}:  # a table from before 2026-11-16
-        conn.execute("ALTER TABLE chat ADD COLUMN mode TEXT NOT NULL DEFAULT 'model'")
-        conn.commit()
+    have = {row[1] for row in conn.execute("PRAGMA table_info(chat)")}
+    for column, kind in (("mode", "TEXT NOT NULL DEFAULT 'model'"), ("seconds", "REAL"), ("outcome", "TEXT")):
+        if column not in have:  # a table from an older version
+            conn.execute(f"ALTER TABLE chat ADD COLUMN {column} {kind}")
+    conn.commit()
     return conn
 
 
 def save_turn(question: str, result: dict[str, Any], *, path: Path = CHAT_DB) -> None:
     with closing(_connect(path)) as conn:
-        conn.execute("INSERT INTO chat (at, question, answer, sources_json, unverified_json, ollama, mode)"
-                     " VALUES (?,?,?,?,?,?,?)",
+        conn.execute("INSERT INTO chat (at, question, answer, sources_json, unverified_json, ollama, mode, seconds,"
+                     " outcome) VALUES (?,?,?,?,?,?,?,?,?)",
                      (datetime.now(timezone.utc).isoformat(timespec="seconds"), question, result["answer"],
                       json.dumps(result.get("sources") or [], ensure_ascii=False),
                       json.dumps(result.get("unverified_numbers") or [], ensure_ascii=False), result.get("ollama", ""),
-                      result.get("mode") or "model"))
+                      result.get("mode") or "model", result.get("seconds"), result.get("outcome")))
         conn.commit()
 
 

@@ -202,3 +202,13 @@ class EcosystemSectionTests(PassTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TuningPassTests(PassTests):
+    def test_nightly_pass_runs_the_auto_tuning_and_session_pass_does_not(self):
+        calls = []
+        with mock.patch("jarvis.jarvis_tiers.tune", side_effect=lambda root, base: calls.append(base) or []):
+            jarvis.run_pass("after-session", root=self.root, today=D, python="py")
+            self.assertEqual(calls, [])
+            jarvis.run_pass("after-nightly", root=self.root, today=D, python="py")
+        self.assertEqual(len(calls), 1)

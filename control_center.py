@@ -641,6 +641,10 @@ class Views:
             try:
                 proposals = jarvis_state.open_proposals(conn, session_date=dates[0] if dates else "",
                                                         sessions_since=jarvis.sessions_since(self.root))
+                import jarvis_tiers
+
+                for item in proposals:  # every proposal is REVIEW: the owner's decision (owner 2026-11-17)
+                    item["tier"] = jarvis_tiers.tier_for(str(item.get("source")))
             finally:
                 conn.close()
         chat = jarvis_chat.history(JARVIS_CHAT_TURNS, path=self.root / "data" / "jarvis" / "chat.sqlite3")
@@ -681,6 +685,7 @@ class Actions:
 
     def jarvis_chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         import jarvis_chat
+        import jarvis_tiers
 
         question = str(payload.get("question") or "").strip()
         if not question or len(question) > JARVIS_QUESTION_MAX:
@@ -689,7 +694,8 @@ class Actions:
             self._chat_client = jarvis_chat.OllamaClient(jarvis_chat.load_config(ROOT / "jarvis_config.json"))
         config = jarvis_chat.load_config(ROOT / "jarvis_config.json")
         result = jarvis_chat.answer(question, root=self.root, client=self._chat_client,
-                                    max_total_chars=int(config.get("max_total_chars") or 1800),
+                                    max_total_chars=jarvis_tiers.effective(  # AUTO tier (owner 2026-11-17)
+                                        self.root, "max_total_chars", int(config.get("max_total_chars") or 1800)),
                                     start_ollama=self._ollama_starter or JARVIS_OLLAMA_STARTER)
         jarvis_chat.save_turn(question, result, path=self.root / "data" / "jarvis" / "chat.sqlite3")
         self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"],

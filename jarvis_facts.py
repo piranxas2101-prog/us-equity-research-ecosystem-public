@@ -26,11 +26,13 @@ STRATEGIES_SHOWN = 6
 AGENTS = {"miltos": ("miltos", "μιλτο"), "koulis": ("koulis", "κουλη"), "yankos": ("yankos", "γιανκο", "γιαγκο"),
           "periklis": ("periklis", "περικλ"), "sokratis": ("sokratis", "σωκρατ"), "thymios": ("thymios", "θυμιο"),
           "babis": ("babis", "μπαμπη"), "giannis": ("giannis", "γιαννη"), "petros": ("petros", "πετρο")}
-LESSON_WORDS = ("μαθ", "διδαγ", "shadow", "lesson", "κανον")
+RULE_WORDS = ("κανον", "rule")
+LESSON_WORDS = ("μαθ", "διδαγ", "shadow", "lesson")  # not "κανον": a rule question goes to the model + search
 SESSION_WORDS = ("συνεδρι", "θεσει", "θεση", "κερδ", "ζημι", "στρατηγικ")
 MARKET_WORDS = ("αγορ", "spy", "κλιμα")
 NIGHTLY_WORDS = ("nightly", "νυχτεριν", "run")
-OWNER_WORDS = ("εγκρισ", "εγκρινω", "εκκρεμ", "αποφασ", "περιμενουν", "τι περιμενει")
+OWNER_WORDS = ("εγκρισ", "εγκρινω", "εκκρεμ", "αποφασεις", "περιμενουν", "τι περιμενει")  # not "αποφασ":
+# "τι αποφάσισα" asks about a past decision (model + search), "τι αποφάσεις" about open ones (2026-11-17)
 VERDICT_GR = {"collecting": "μαζεύει δείγμα", "confirmed": "επιβεβαιώθηκε", "not_confirmed": "δεν επιβεβαιώθηκε"}
 VERDICT_PLURAL_GR = {"collecting": "μαζεύουν δείγμα", "confirmed": "επιβεβαιώθηκαν", "not_confirmed": "δεν επιβεβαιώθηκαν"}
 
@@ -206,6 +208,8 @@ def answer_facts(question: str, root: Path) -> dict[str, Any] | None:
         return _result([jarvis_owner.story(jarvis_owner.pending(root))],
                        ["data/jarvis/proposals.sqlite3", "data/research_registry.db", "data/market_intel.db",
                         "output/jarvis/report_latest.json"])
+    if _has(folded, RULE_WORDS):  # how a rule works or why it was decided: the model with the document search
+        return None
     if _has(folded, LESSON_WORDS):
         return lessons(root, agent)
     import jarvis_memory  # past days (owner 2026-11-17): a question that names a period

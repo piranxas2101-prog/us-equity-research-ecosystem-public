@@ -303,3 +303,21 @@ class SearchInChatTests(ChatTests):
             raise OSError("ollama down")
         out = answer("τι λέει ο Babis για τον κλάδο;", root=self.root, client=Fake(text="εντάξει"), searcher=broken)
         self.assertEqual(out["ollama"], "ok")
+
+
+class PassagesTests(ChatTests):
+    """2026-11-17: the search found the right sections but the 3b model garbled them; the found passages are shown
+    under the answer, verbatim with file and heading."""
+
+    def test_found_passages_come_back_verbatim(self):
+        hit = {"path": "docs/RULES_REVIEW.md", "heading": "8. Owner's decision", "text": "Decision: the short still closes.",
+               "mode": "meaning", "score": 0.6}
+        out = answer("τι λέει ο Babis για τον κλάδο;", root=self.root, client=Fake(text="κάτι"), searcher=lambda q: [hit])
+        self.assertEqual(out["passages"], [{"path": "docs/RULES_REVIEW.md", "heading": "8. Owner's decision",
+                                            "text": "Decision: the short still closes."}])
+
+    def test_passages_are_kept_in_history(self):
+        db = self.root / "data" / "jarvis" / "chat.sqlite3"
+        save_turn("q", {"answer": "a", "sources": [], "unverified_numbers": [], "ollama": "ok",
+                        "passages": [{"path": "p", "heading": "h", "text": "t"}]}, path=db)
+        self.assertEqual(history(path=db)[0]["passages"], [{"path": "p", "heading": "h", "text": "t"}])

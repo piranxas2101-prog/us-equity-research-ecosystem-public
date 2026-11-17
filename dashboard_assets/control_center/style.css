@@ -146,3 +146,4 @@ ul.plain li, .para, .sub, .card dd { overflow-wrap: anywhere; }
 .chat-q { font-weight: 600; color: var(--accent); }
 .chat-a p { margin: 4px 0; }
 .bad-text { color: var(--bad); }
+.chat-passage { border-left: 2px solid var(--line); padding: 4px 8px; margin: 6px 0; white-space: pre-wrap; }

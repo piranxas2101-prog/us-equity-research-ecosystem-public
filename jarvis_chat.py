@@ -33,6 +33,7 @@ NO_WINDOW_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_N
 READABLE_ROOTS = ("output", "docs")
 MAX_SOURCES = 3
 SEARCH_HITS = 3
+PASSAGE_CHARS = 600
 NUMBER = re.compile(r"\d+(?:[.,]\d+)?%?")
 TICKER = re.compile(r"\b[A-Z]{1,5}\b")
 DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -254,7 +255,10 @@ def _answer(question: str, *, root: Path, client: Client, max_total_chars: int =
     if unverified:
         text += ("\n\n⚠ Οι αριθμοί " + ", ".join(unverified) + " δεν βρίσκονται στις πηγές: μην τους εμπιστευτείς.")
     return {"answer": text or "δεν το ξέρω", "sources": list(texts), "unverified_numbers": unverified, "ollama": "ok",
-            "ollama_started": started}
+            "ollama_started": started,
+            # the found passages, verbatim (2026-11-17: the small model can garble what the search found)
+            "passages": [{"path": h["path"], "heading": h.get("heading") or "", "text": str(h["text"])[:PASSAGE_CHARS]}
+                         for h in hits]}
 
 
 def answer(question: str, *, root: Path, client: Client, **options: Any) -> dict[str, Any]:
@@ -275,7 +279,8 @@ def _connect(path: Path) -> sqlite3.Connection:
                  " sources_json TEXT NOT NULL, unverified_json TEXT NOT NULL, ollama TEXT NOT NULL,"
                  " mode TEXT NOT NULL DEFAULT 'model')")
     have = {row[1] for row in conn.execute("PRAGMA table_info(chat)")}
-    for column, kind in (("mode", "TEXT NOT NULL DEFAULT 'model'"), ("seconds", "REAL"), ("outcome", "TEXT")):
+    for column, kind in (("mode", "TEXT NOT NULL DEFAULT 'model'"), ("seconds", "REAL"), ("outcome", "TEXT"),
+                         ("passages_json", "TEXT")):
         if column not in have:  # a table from an older version
             conn.execute(f"ALTER TABLE chat ADD COLUMN {column} {kind}")
     conn.commit()
@@ -285,11 +290,12 @@ def _connect(path: Path) -> sqlite3.Connection:
 def save_turn(question: str, result: dict[str, Any], *, path: Path = CHAT_DB) -> None:
     with closing(_connect(path)) as conn:
         conn.execute("INSERT INTO chat (at, question, answer, sources_json, unverified_json, ollama, mode, seconds,"
-                     " outcome) VALUES (?,?,?,?,?,?,?,?,?)",
+                     " outcome, passages_json) VALUES (?,?,?,?,?,?,?,?,?,?)",
                      (datetime.now(timezone.utc).isoformat(timespec="seconds"), question, result["answer"],
                       json.dumps(result.get("sources") or [], ensure_ascii=False),
                       json.dumps(result.get("unverified_numbers") or [], ensure_ascii=False), result.get("ollama", ""),
-                      result.get("mode") or "model", result.get("seconds"), result.get("outcome")))
+                      result.get("mode") or "model", result.get("seconds"), result.get("outcome"),
+                      json.dumps(result.get("passages") or [], ensure_ascii=False)))
         conn.commit()
 
 
@@ -297,7 +303,7 @@ def history(limit: int = 50, *, path: Path = CHAT_DB) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     with closing(_connect(path)) as conn:
-        rows = conn.execute("SELECT at, question, answer, sources_json, unverified_json, mode FROM chat"
+        rows = conn.execute("SELECT at, question, answer, sources_json, unverified_json, mode, passages_json FROM chat"
                             " ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
     return [{"at": a, "question": q, "answer": t, "sources": json.loads(s), "unverified_numbers": json.loads(u),
-             "mode": m} for a, q, t, s, u, m in reversed(rows)]
+             "mode": m, "passages": json.loads(pj or "[]")} for a, q, t, s, u, m, pj in reversed(rows)]

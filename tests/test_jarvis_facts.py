@@ -133,3 +133,16 @@ class ChatUsesFactsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RoutingTests(unittest.TestCase):
+    """2026-11-17 on real questions: 'τι αποφάσισα' is about a past decision and 'ο κανόνας' about a rule - both
+    belong to the model with the document search, not to the owner list or the lessons list."""
+
+    def test_past_decisions_and_rules_go_to_the_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertIsNone(answer_facts("Τι αποφάσισα για το flip;", root))
+            self.assertIsNone(answer_facts("Τι κάνει ο κανόνας του σοκ αγοράς;", root))
+            self.assertIsNotNone(answer_facts("Τι εγκρίσεις έχω να δώσω;", root))
+            self.assertIsNotNone(answer_facts("Τι αποφάσεις περιμένουν από μένα;", root))

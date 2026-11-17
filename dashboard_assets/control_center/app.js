@@ -625,6 +625,7 @@ function jarvisTurn(t) {
   return `<div class="chat-turn"><div class="chat-q">${esc(t.question)}</div>
     <div class="chat-a">${markdown(t.answer)}</div>${warn}
     <div class="muted small">${t.mode === "facts" ? "Από τα αρχεία, χωρίς μοντέλο" : "Από το τοπικό μοντέλο: έλεγξε τις πηγές"}</div>
+    ${(t.passages || []).length ? `<details class="small"><summary>Τι βρήκα στα αρχεία (${t.passages.length})</summary>${t.passages.map((p) => `<div class="chat-passage"><b>${esc(p.path)}</b>${p.heading ? " · " + esc(p.heading) : ""}<div>${esc(p.text)}</div></div>`).join("")}</details>` : ""}
     ${(t.sources || []).length ? `<div class="muted small">Πηγές: ${t.sources.map(esc).join(", ")}</div>` : ""}</div>`;
 }
 async function pageJarvis(day) {

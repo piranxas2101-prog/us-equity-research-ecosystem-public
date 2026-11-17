@@ -338,3 +338,10 @@ risk debate and a portfolio manager per symbol, a reflector that turns outcomes 
   calls per symbol (30-60 minutes); the debate is built smaller, from the ecosystem's own evidence (packet, scores,
   market reading), not from TradingAgents' data vendors. Design: docs/superpowers/specs/ (to be written with the owner).
 
+Built 2026-11-17 (design docs/superpowers/specs/2026-11-16-debate-shadow-design.md, owner approved the launcher line,
+the debate starting Ollama and the pass test): `debate_shadow.py run` starts in the background after Koulis in
+`start_trader_paper_trading_today.ps1`, judges the approvals in Koulis's order with one call each (bull, bear, main
+risk, support/neutral/oppose), stops at 16:00 New York or when Miltos runs late twice; `evaluate` runs through Jarvis
+after the ledger (`debate_shadow_s12`, raised only on `veto_would_help`). Report:
+`output/paper_learning/debate_shadow_latest.md`. No order, approval, score or position changes.
+

@@ -18,6 +18,8 @@ from jarvis_state import Proposal
 
 PRODUCERS: dict[str, list[str]] = {
     "exit_lab_horizon": ["exit_lab.py", "--horizon-curve"],
+    # owner 2026-11-16: the debate shadow's nightly measure (reads the ledger and its own opinions, writes a report)
+    "debate_shadow_evaluate": ["debate_shadow.py", "evaluate"],
 }
 DEFAULT_WAITING = ("insufficient_sample", "collecting")
 MIN_PRODUCER_SECONDS = 30

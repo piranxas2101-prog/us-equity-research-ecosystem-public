@@ -103,3 +103,29 @@ class SearchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CuratedSourcesTests(unittest.TestCase):
+    """2026-11-17: 802 files / 12,791 chunks at ~2.3 s each on the owner's CPU is ~8 hours; the index keeps to the
+    knowledge map's files, the overview and the last Jarvis reports."""
+
+    def test_only_curated_files_are_indexed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "output" / "ecosystem_test_reports" / "run_1").mkdir(parents=True)
+            (root / "output" / "ecosystem_test_reports" / "run_1" / "old.md").write_text("# x\n\nold\n", encoding="utf-8")
+            (root / "output" / "jarvis").mkdir(parents=True)
+            for day in range(1, 15):
+                (root / "output" / "jarvis" / f"report_2026-11-{day:02d}.md").write_text("# J\n\nx\n", encoding="utf-8")
+            (root / "output" / "market_state_review_latest.md").write_text("# A\n\nx\n", encoding="utf-8")
+            names = {p.relative_to(root).as_posix() for p in js.source_files(root)}
+        self.assertIn("output/market_state_review_latest.md", names)
+        self.assertNotIn("output/ecosystem_test_reports/run_1/old.md", names)
+        self.assertEqual(len([n for n in names if n.startswith("output/jarvis/report_2026")]), js.RECENT_JARVIS)
+
+    def test_the_session_pass_refreshes_the_index_only_if_ollama_runs(self):
+        import jarvis
+        self.assertTrue(hasattr(jarvis, "refresh_search_index"))
+        with tempfile.TemporaryDirectory() as tmp:
+            out = jarvis.refresh_search_index(Path(tmp), embedder=FakeEmbedder(up=False))
+        self.assertEqual(out["available"], False)

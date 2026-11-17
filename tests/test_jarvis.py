@@ -219,3 +219,13 @@ class OwnerPassTests(PassTests):
         jarvis.run_pass("after-session", root=self.root, today=D, python="py")
         md = self.report(D).read_text(encoding="utf-8")
         self.assertIn("Τι περιμένει από σένα", md)
+
+
+class SearchRefreshTests(PassTests):
+    def test_session_pass_refreshes_the_index_through_the_given_function(self):
+        calls = []
+        rec = jarvis.run_pass("after-session", root=self.root, today=D, python="py",
+                              refresh=lambda root: calls.append(root) or {"available": False})
+        self.assertEqual((calls, rec["sections"]["search_index"]), ([self.root], {"available": False}))
+        nightly = jarvis.run_pass("after-nightly", root=self.root, today=D, python="py", refresh=lambda r: calls.append(r))
+        self.assertNotIn("search_index", nightly["sections"])

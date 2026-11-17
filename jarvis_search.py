@@ -27,7 +27,7 @@ MODEL = "bge-m3"
 OLLAMA_HOST = "http://127.0.0.1:11434"
 MAX_CHARS = 800
 MAX_FILE_BYTES = 300_000
-RECENT_DAILY = 30           # dated reports kept in the index (Jarvis reports, session reports)
+RECENT_JARVIS = 7           # dated Jarvis reports kept in the index
 DOCS = ("docs/RULES_REVIEW.md", "PIPELINE_OVERVIEW.md")
 SKIP_PREFIXES = ("alpaca_",)
 BATCH = 16
@@ -43,8 +43,8 @@ class Embedder(Protocol):
 class OllamaEmbedder:
     """Local Ollama embeddings; never starts Ollama."""
 
-    def __init__(self, model: str = MODEL, host: str = OLLAMA_HOST, timeout: float = 300) -> None:
-        self.model, self.host, self.timeout = model, host.rstrip("/"), timeout
+    def __init__(self, model: str = MODEL, host: str = OLLAMA_HOST, timeout: float = 300, num_thread: int = 4) -> None:
+        self.model, self.host, self.timeout, self.num_thread = model, host.rstrip("/"), timeout, num_thread
 
     def available(self) -> bool:
         try:
@@ -55,38 +55,43 @@ class OllamaEmbedder:
         return any(str(m.get("name", "")).split(":")[0] == self.model for m in payload.get("models") or [])
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        body = {"model": self.model, "input": texts, "keep_alive": "10m", "options": {"num_thread": 4}}
+        body = {"model": self.model, "input": texts, "keep_alive": "10m", "options": {"num_thread": self.num_thread}}
         request = urllib.request.Request(self.host + "/api/embed", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             return list(json.loads(response.read().decode("utf-8")).get("embeddings") or [])
 
 
-def _dated(paths: list[Path]) -> list[Path]:
-    """Of the dated reports in one folder, only the most recent RECENT_DAILY."""
-    dated = sorted([p for p in paths if re.search(r"_\d{4}-?\d{2}-?\d{2}\.md$", p.name)])
-    undated = [p for p in paths if p not in set(dated)]
-    return undated + dated[-RECENT_DAILY:]
+def _map_files(root: Path) -> list[str]:
+    for path in (root / "jarvis_knowledge.json", Path(__file__).resolve().parent / "jarvis_knowledge.json"):
+        try:
+            topics = json.loads(path.read_text(encoding="utf-8-sig")).get("topics") or []
+        except (OSError, ValueError):
+            continue
+        return sorted({str(f) for t in topics for f in t.get("files") or []})
+    return []
 
 
 def source_files(root: Path) -> list[Path]:
-    output = root / "output"
-    files: list[Path] = []
-    if output.exists():
-        by_folder: dict[Path, list[Path]] = {}
-        for path in output.rglob("*.md"):
-            if path.name.startswith(SKIP_PREFIXES):
+    """The curated files: the knowledge map's, the overview, and the latest Jarvis reports (2026-11-17: all 802
+    reports would be ~8 hours of embedding on the owner's CPU)."""
+    rels = _map_files(root) + list(DOCS) + ["output/jarvis/report_latest.md"]
+    jarvis_dir = root / "output" / "jarvis"
+    if jarvis_dir.exists():
+        dated = sorted(p.relative_to(root).as_posix() for p in jarvis_dir.glob("report_2*.md"))
+        rels += dated[-RECENT_JARVIS:]
+    out: list[Path] = []
+    for rel in dict.fromkeys(rels):
+        path = root / rel
+        if Path(rel).name.startswith(SKIP_PREFIXES) or not path.is_file():
+            continue
+        try:
+            if path.stat().st_size > MAX_FILE_BYTES:
                 continue
-            try:
-                if path.stat().st_size > MAX_FILE_BYTES:
-                    continue
-            except OSError:
-                continue
-            by_folder.setdefault(path.parent, []).append(path)
-        for folder in sorted(by_folder):
-            files += _dated(sorted(by_folder[folder]))
-    files += [root / rel for rel in DOCS if (root / rel).is_file()]
-    return files
+        except OSError:
+            continue
+        out.append(path)
+    return out
 
 
 def chunk(text: str, max_chars: int = MAX_CHARS) -> list[dict[str, str]]:

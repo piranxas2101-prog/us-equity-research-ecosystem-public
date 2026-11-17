@@ -217,6 +217,17 @@ def ecosystem(root: Path) -> dict[str, Any]:
     return {"market": market, "lessons": lessons}
 
 
+def refresh_search_index(root: Path, embedder: Any = None) -> dict[str, Any]:
+    """Bring the chat's search index up to date after the session (owner 2026-11-17), only if Ollama already runs:
+    the scheduled passes never start it. Changed files only, within five minutes."""
+    import jarvis_search
+
+    embedder = embedder or jarvis_search.OllamaEmbedder(num_thread=8)
+    if not embedder.available():
+        return {"available": False, "reason": "το Ollama ή το bge-m3 δεν τρέχει· το ευρετήριο ενημερώνεται στην επόμενη ερώτηση"}
+    return jarvis_search.build(root, embedder, budget_seconds=300)
+
+
 def _chat_budget() -> int:
     try:
         return int(json.loads((ROOT / "jarvis_config.json").read_text(encoding="utf-8-sig"))["max_total_chars"])
@@ -244,7 +255,8 @@ def _save_state(root: Path, record: dict[str, Any]) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable[[], float] = time.time) -> dict[str, Any]:
+def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable[[], float] = time.time,
+             refresh: Callable[[Path], dict[str, Any]] | None = None) -> dict[str, Any]:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
     start = clock()
@@ -267,6 +279,8 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
                                                         jarvis_health.session_health(root, day.isoformat())]})
     sections["checks"], proposals = _checks(root, kind=kind, day=day, python=python, deadline=deadline, since=since)
     sections["ecosystem"] = _guard(lambda: ecosystem(root))
+    if kind == "after-session" and refresh is not None:  # the chat's search index (owner 2026-11-17)
+        sections["search_index"] = _guard(lambda: refresh(root))
     if kind == "after-nightly":  # the AUTO tier: Jarvis's own chat settings (owner 2026-11-17)
         sections["tuning"] = _guard(lambda: {"changes": jarvis_tiers.tune(root, base=_chat_budget())})
     if write_report:  # learning once a day: after the session, or by the nightly on a day without one
@@ -328,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         day = ny_today()
     keep_awake(True)
     try:
-        record = run_pass(args.kind, root=root, today=day, python=sys.executable)
+        record = run_pass(args.kind, root=root, today=day, python=sys.executable, refresh=refresh_search_index)
     except Exception as exc:  # noqa: BLE001 - never stop the launcher's rest step
         print(f"JARVIS failed: {type(exc).__name__}")
         return 0

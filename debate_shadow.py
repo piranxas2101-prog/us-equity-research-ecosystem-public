@@ -42,7 +42,7 @@ NEWS = Path("output") / "news_watch_latest.json"
 MILTOS = Path("output") / "miltos_entry_stalker_latest.json"
 OUT = Path("output") / "paper_learning"
 NEW_YORK = ZoneInfo("America/New_York")
-PROMPT_VERSION = "debate.v1"
+PROMPT_VERSION = "debate.v2"
 RATINGS = ("support", "neutral", "oppose")
 MODEL = "qwen2.5:3b"
 OLLAMA_HOST = "http://127.0.0.1:11434"
@@ -54,14 +54,21 @@ MILTOS_POLL_SECONDS = 300
 LATE_TOLERANCE_SECONDS = 60
 LATE_STRIKES = 2
 MAX_NEWS = 3
-SCHEMA = {"type": "object", "required": ["bull", "bear", "main_risk", "rating", "confidence"],
-          "properties": {"bull": {"type": "string"}, "bear": {"type": "string"}, "main_risk": {"type": "string"},
-                         "rating": {"type": "string", "enum": list(RATINGS)},
-                         "confidence": {"type": "integer", "minimum": 1, "maximum": 3}}}
-SYSTEM = ("You are a trading committee of three: a bull analyst, a bear analyst and a judge. Use only the evidence "
-          "given. Write one sentence for the bull case, one for the bear case, one for the main risk, then the "
-          "judge's rating of this trade as planned: support, neutral or oppose, and confidence 1-3. If the evidence "
-          "is thin, say so and lower the confidence. Answer with JSON only.")
+# debate.v2 (2026-11-17): asked for support/neutral/oppose the 3b model said neutral to every trade; asked for odds it
+# said 8-9 to every trade (LLM forecasts are optimistic). Asked to compare the trade with a typical approved trade,
+# score first and the bear case before the bull case, it spreads around 5. The digit's probabilities give a continuous
+# expected score; the rating is its place among the previous sessions' scores (see ``rate``).
+SYSTEM = ("You are a strict trading committee reviewing one of many trades our traders approved today. Most approved "
+          "trades are ordinary; your job is to tell the weaker ones from the stronger ones. First the judge gives a "
+          "score, then the bear and bull cases. SCORE is one digit 1-9 comparing THIS trade with a typical approved "
+          "trade: 5 = typical, 3-4 = weaker than typical (real doubts in the evidence), 1-2 = clearly weak (the bear "
+          "case dominates), 6-7 = stronger than typical, 8-9 = exceptional evidence on every side. Look hardest for "
+          "what is missing, stale or contradicted. Use only the evidence given. Answer exactly in four lines:\n"
+          "SCORE: <digit>\nBEAR: <one sentence>\nBULL: <one sentence>\nRISK: <one sentence>")
+COLD_BOUNDS = (4.5, 5.5)  # before enough history: below = oppose, above = support
+MIN_HISTORY = 60
+HISTORY_LIMIT = 600
+TOP_LOGPROBS = 10
 
 
 def _read(path: Path) -> dict[str, Any] | None:
@@ -136,24 +143,59 @@ def build_prompt(inputs: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def parse_opinion(text: str) -> dict[str, Any]:
-    try:
-        value = json.loads(text or "")
-    except ValueError:
-        return {"rating": "unknown", "reason": "the answer was not JSON"}
-    if not isinstance(value, dict) or value.get("rating") not in RATINGS:
-        return {"rating": "unknown", "reason": "no valid rating in the answer"}
-    confidence = value.get("confidence")
-    return {"rating": value["rating"], "confidence": confidence if confidence in (1, 2, 3) else None,
-            "bull": str(value.get("bull") or ""), "bear": str(value.get("bear") or ""),
-            "main_risk": str(value.get("main_risk") or "")}
+def _expected(logprobs: list[dict[str, Any]]) -> tuple[float | None, dict[str, float]]:
+    """The probability-weighted score from the first digit token's alternatives (Ollama ``top_logprobs``)."""
+    import math
+
+    first = next((item for item in logprobs or [] if str(item.get("token", "")).strip().isdigit()), None)
+    probs: dict[str, float] = {}
+    for alt in (first or {}).get("top_logprobs") or []:
+        token = str(alt.get("token", "")).strip()
+        if len(token) == 1 and token in "123456789":
+            probs[token] = probs.get(token, 0.0) + math.exp(float(alt.get("logprob", -99)))
+    total = sum(probs.values())
+    if not total:
+        return None, {}
+    return round(sum(int(k) * v for k, v in probs.items()) / total, 3), {k: round(v / total, 4) for k, v in probs.items()}
+
+
+def parse_opinion(text: str, logprobs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Four lines (SCORE, BEAR, BULL, RISK). No readable score -> unknown, never neutral."""
+    import re
+
+    fields = {key: (m.group(1).strip() if (m := re.search(rf"^\s*{key}:\s*(.+)$", text or "", re.MULTILINE)) else "")
+              for key in ("SCORE", "BEAR", "BULL", "RISK")}
+    digit = re.match(r"[1-9]", fields["SCORE"])
+    if digit is None:
+        return {"rating": "unknown", "reason": "no score in the answer"}
+    expected, probs = _expected(logprobs)
+    return {"score": int(digit.group(0)), "expected_score": expected if expected is not None else float(digit.group(0)),
+            "score_probs": json.dumps(probs) if probs else None, "bear": fields["BEAR"], "bull": fields["BULL"],
+            "main_risk": fields["RISK"]}
+
+
+def rate(expected: float | None, *, history: list[float]) -> tuple[str, str | None]:
+    """support / neutral / oppose from the score's place among the previous sessions' scores (terciles), so the
+    rating only uses the past and could act in real time; fixed bounds until there are enough of them."""
+    if expected is None:
+        return "unknown", None
+    if len(history) < MIN_HISTORY:
+        low, high = COLD_BOUNDS
+        basis = "cold_start"
+    else:
+        ordered = sorted(history)
+        low, high = ordered[len(ordered) // 3], ordered[2 * len(ordered) // 3]
+        basis = f"terciles_of_{len(ordered)}"
+    return ("oppose" if expected < low else "support" if expected > high else "neutral"), basis
 
 
 # ----------------------------------------------------------------------------------------------- store
 
 COLUMNS = ("session_date", "intent_id", "priority", "agent", "ticker", "playbook", "direction", "inputs_hash",
            "prompt_version", "model", "rating", "confidence", "bull", "bear", "main_risk", "reason", "written_at",
-           "seconds")
+           "seconds", "score", "expected_score", "score_probs", "rating_basis")
+COLUMN_TYPES = {"priority": "INTEGER", "confidence": "INTEGER", "seconds": "REAL", "score": "INTEGER",
+                "expected_score": "REAL"}
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -162,8 +204,12 @@ def connect(path: Path) -> sqlite3.Connection:
     conn.execute("CREATE TABLE IF NOT EXISTS opinions (session_date TEXT NOT NULL, intent_id TEXT NOT NULL,"
                  " priority INTEGER, agent TEXT, ticker TEXT, playbook TEXT, direction TEXT, inputs_hash TEXT,"
                  " prompt_version TEXT, model TEXT, rating TEXT NOT NULL, confidence INTEGER, bull TEXT, bear TEXT,"
-                 " main_risk TEXT, reason TEXT, written_at TEXT, seconds REAL,"
-                 " PRIMARY KEY (session_date, intent_id))")
+                 " main_risk TEXT, reason TEXT, written_at TEXT, seconds REAL, score INTEGER, expected_score REAL,"
+                 " score_probs TEXT, rating_basis TEXT, PRIMARY KEY (session_date, intent_id))")
+    have = {row[1] for row in conn.execute("PRAGMA table_info(opinions)")}
+    for column in COLUMNS:  # a table from an older version gets the new columns (never rewritten)
+        if column not in have:
+            conn.execute(f"ALTER TABLE opinions ADD COLUMN {column} {COLUMN_TYPES.get(column, 'TEXT')}")
     conn.execute("CREATE TABLE IF NOT EXISTS runs (session_date TEXT NOT NULL, started_at TEXT, ended_at TEXT,"
                  " judged INTEGER, stopped TEXT, detail TEXT)")
     conn.commit()
@@ -181,7 +227,7 @@ def store(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
 # ----------------------------------------------------------------------------------------------- the model
 
 class DebateClient:
-    """Local Ollama only; asks for the JSON schema above."""
+    """Local Ollama only; returns the answer and the token probabilities (Ollama >= 0.12.11)."""
 
     def __init__(self, host: str = OLLAMA_HOST, model: str = MODEL) -> None:
         self.host, self.model = host.rstrip("/"), model
@@ -194,14 +240,19 @@ class DebateClient:
             return False
         return any(str(m.get("name")) == self.model for m in payload.get("models") or [])
 
-    def generate(self, system: str, prompt: str) -> str:
-        body = {"model": self.model, "system": system, "prompt": prompt, "stream": False, "format": SCHEMA,
-                "keep_alive": "30m", "options": {"temperature": 0, "seed": 0, "num_ctx": 4096,
-                                                 "num_predict": NUM_PREDICT, "num_thread": NUM_THREAD}}
+    def generate(self, system: str, prompt: str) -> tuple[str, list[dict[str, Any]]]:
+        body = {"model": self.model, "system": system, "prompt": prompt + "\nSCORE:", "stream": False,
+                "logprobs": True, "top_logprobs": TOP_LOGPROBS, "keep_alive": "30m",
+                "options": {"temperature": 0, "seed": 0, "num_ctx": 4096, "num_predict": NUM_PREDICT,
+                            "num_thread": NUM_THREAD}}
         request = urllib.request.Request(self.host + "/api/generate", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=CALL_TIMEOUT) as response:
-            return str(json.loads(response.read().decode("utf-8")).get("response") or "")
+            payload = json.loads(response.read().decode("utf-8"))
+        text = str(payload.get("response") or "")
+        if not text.lstrip().upper().startswith("SCORE"):
+            text = "SCORE:" + text  # the prompt ended with "SCORE:", the model may continue from it
+        return text, list(payload.get("logprobs") or [])
 
 
 # ----------------------------------------------------------------------------------------------- run
@@ -236,6 +287,9 @@ def run(root: Path, *, client: Any, session_date: str, deadline: Callable[[], bo
     judged, stopped, started = 0, None, _now()
     with closing(connect(root / DB)) as conn:
         done = {r[0] for r in conn.execute("SELECT intent_id FROM opinions WHERE session_date=?", (session_date,))}
+        history = [r[0] for r in conn.execute(
+            "SELECT expected_score FROM opinions WHERE session_date < ? AND expected_score IS NOT NULL"
+            " ORDER BY session_date DESC, priority LIMIT ?", (session_date, HISTORY_LIMIT))]
         for priority, intent in enumerate(intents):
             if intent["intent_id"] in done:
                 continue
@@ -250,9 +304,11 @@ def run(root: Path, *, client: Any, session_date: str, deadline: Callable[[], bo
                                   news=news_for(root, ticker, approved_at))
             t0 = time.monotonic()
             try:
-                opinion = parse_opinion(client.generate(SYSTEM, build_prompt(inputs)))
+                opinion = parse_opinion(*client.generate(SYSTEM, build_prompt(inputs)))
             except (OSError, urllib.error.URLError, ValueError) as exc:
                 opinion = {"rating": "unknown", "reason": f"model call failed: {type(exc).__name__}"}
+            if "expected_score" in opinion:
+                opinion["rating"], opinion["rating_basis"] = rate(opinion["expected_score"], history=history)
             store(conn, {"session_date": session_date, "intent_id": intent["intent_id"], "priority": priority,
                          "agent": intent.get("agent"), "ticker": ticker, "playbook": intent.get("playbook_name"),
                          "direction": intent.get("trade_direction"), "inputs_hash": inputs_hash(inputs),

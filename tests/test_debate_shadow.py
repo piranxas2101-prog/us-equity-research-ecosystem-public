@@ -23,8 +23,10 @@ THESIS = {"ticker": "MSGM", "fundamental_summary": {"giannis_tier": "Core Watchl
           "long_case": {"supporting_facts": ["positive_free_cash_flow"]},
           "short_case": {"supporting_facts": ["shrinking_revenue"]},
           "kill_criteria": ["Primary evidence becomes stale."], "readiness_status": "execution_ready"}
-GOOD = json.dumps({"bull": "Cash flow is positive.", "bear": "Revenue shrinks.", "main_risk": "Thin volume.",
-                   "rating": "oppose", "confidence": 2})
+GOOD_TEXT = "SCORE: 3\nBEAR: Revenue shrinks.\nBULL: Cash flow is positive.\nRISK: Thin volume."
+GOOD_LOGPROBS = [{"token": "3", "top_logprobs": [{"token": "3", "logprob": -0.105}, {"token": "4", "logprob": -2.303},
+                                                {"token": "x", "logprob": -5.0}]}]
+GOOD = (GOOD_TEXT, GOOD_LOGPROBS)
 
 
 class Fake:
@@ -73,10 +75,14 @@ class DebateTests(unittest.TestCase):
         self.assertIn("unknown", ds.build_prompt(ds.build_inputs(INTENT, None, market=None, news=[])))
 
     def test_parse_good_and_bad_answers(self):
-        self.assertEqual(ds.parse_opinion(GOOD)["rating"], "oppose")
-        self.assertEqual(ds.parse_opinion("not json")["rating"], "unknown")
-        self.assertEqual(ds.parse_opinion(json.dumps({"rating": "buy"}))["rating"], "unknown")
-        self.assertEqual(ds.parse_opinion("")["rating"], "unknown")
+        good = ds.parse_opinion(*GOOD)
+        self.assertEqual((good["score"], good["bear"], good["bull"], good["main_risk"]),
+                         (3, "Revenue shrinks.", "Cash flow is positive.", "Thin volume."))
+        self.assertAlmostEqual(good["expected_score"], 3.1, places=1)  # 0.9 on 3, 0.1 on 4
+        self.assertEqual(ds.parse_opinion("no score here", [])["rating"], "unknown")
+        self.assertEqual(ds.parse_opinion("", [])["rating"], "unknown")
+        no_probs = ds.parse_opinion(GOOD_TEXT, [])
+        self.assertEqual((no_probs["score"], no_probs["expected_score"]), (3, 3.0))  # the written digit
 
     def test_run_judges_in_koulis_order_and_skips_judged(self):
         self.koulis([INTENT, {**INTENT, "intent_id": "i2", "ticker": "AAA"}])
@@ -264,3 +270,49 @@ class EvaluateTests(unittest.TestCase):
         self.assertTrue((self.root / "output" / "paper_learning" / "debate_shadow_latest.md").exists())
         data = json.loads((self.root / "output" / "paper_learning" / "debate_shadow_latest.json").read_text("utf-8"))
         self.assertFalse(data["active_decisions_changed"])
+
+
+
+class RelativeRatingTests(unittest.TestCase):
+    """2026-11-17: the 3b model said neutral to everything, then 8-9 to everything when asked for odds; asked to compare
+    with a typical approved trade it spreads around 5. The rating comes from the score's place among the previous
+    sessions' scores (only the past, so it could act in real time), not from the bare number."""
+
+    def test_cold_start_uses_fixed_bounds(self):
+        self.assertEqual(ds.rate(4.2, history=[]), ("oppose", "cold_start"))
+        self.assertEqual(ds.rate(5.0, history=[]), ("neutral", "cold_start"))
+        self.assertEqual(ds.rate(5.7, history=[]), ("support", "cold_start"))
+
+    def test_terciles_of_the_previous_sessions(self):
+        history = [3.0 + 0.04 * i for i in range(60)]  # 3.0 .. 5.36
+        self.assertEqual(ds.rate(3.1, history=history)[0], "oppose")
+        self.assertEqual(ds.rate(4.2, history=history)[0], "neutral")
+        self.assertEqual(ds.rate(5.3, history=history), ("support", "terciles_of_60"))
+
+    def test_unknown_score_stays_unknown(self):
+        self.assertEqual(ds.rate(None, history=[]), ("unknown", None))
+
+    def test_run_stores_score_and_relative_rating(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "output").mkdir()
+            (root / "output" / "koulis_order_intents_latest.json").write_text(
+                json.dumps({"session_date": "2026-11-17", "approved_intents": [INTENT]}), encoding="utf-8")
+            ds.run(root, client=Fake(), session_date="2026-11-17", deadline=lambda: False, guard=None)
+            with closing(sqlite3.connect(root / "data" / "debate_shadow.sqlite3")) as conn:
+                row = conn.execute("SELECT rating, score, expected_score, rating_basis, prompt_version FROM opinions").fetchone()
+        self.assertEqual(row[0], "oppose")
+        self.assertEqual(row[1], 3)
+        self.assertAlmostEqual(row[2], 3.1, places=1)
+        self.assertEqual((row[3], row[4]), ("cold_start", "debate.v2"))
+
+    def test_old_table_gets_the_new_columns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "old.sqlite3"
+            with closing(sqlite3.connect(path)) as conn:
+                conn.execute("CREATE TABLE opinions (session_date TEXT NOT NULL, intent_id TEXT NOT NULL, rating TEXT NOT NULL,"
+                             " PRIMARY KEY (session_date, intent_id))")
+                conn.commit()
+            with closing(ds.connect(path)) as conn:
+                cols = {r[1] for r in conn.execute("PRAGMA table_info(opinions)")}
+        self.assertTrue({"score", "expected_score", "rating_basis", "priority"} <= cols)

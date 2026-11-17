@@ -96,3 +96,16 @@ Anti-goals: it fails, even if it works, if
 
 ## 8. Left to the builder
 - The exact prompt and packet lines, the JSON schema handling, the guard's thresholds within 5.2, the report layout.
+
+## 9. Prompt v2 (2026-11-17, owner: "make the prompt so this is not a problem; search GitHub for ways")
+- v1 (support/neutral/oppose in JSON) gave `neutral` to every trade; asked for odds of beating SPY the 3b model gave
+  8-9 to every trade (LLM forecasts are known to be optimistic).
+- From the LLM-as-a-judge literature (score first, anchored scale, decomposed judgement) and stock-ranking work
+  (cross-sectional ranks rather than bare scores): v2 asks for a 1-9 score **compared with a typical approved
+  trade** (5 = typical, anchors per band), score first and the bear case before the bull case; Ollama's token
+  probabilities (`logprobs`, Ollama 0.33.2 here) turn the digit into a continuous expected score.
+- The rating is the score's place among the previous sessions' scores (terciles of up to 600, from 60 on; fixed
+  bounds 4.5 / 5.5 before), so it uses only the past and could act in real time.
+- Trial on 8 real approvals of 11/16: scores 3.46-5.08, 3 oppose, 5 neutral, 8-15 s each. The bear text can mention
+  things not in the evidence; the measurement judges the rating, not the prose.
+

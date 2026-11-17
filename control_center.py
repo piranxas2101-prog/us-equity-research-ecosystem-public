@@ -691,6 +691,20 @@ class Actions:
         self.log("jarvis_decision", payload, result)
         return result
 
+    def _searcher(self) -> Any:
+        """Search by meaning over the ecosystem's reports (owner 2026-11-17); the index catches up on changed files
+        within a short budget before each question. None in tests that inject their own chat client."""
+        if self._chat_client is not None and not isinstance(self._chat_client, __import__("jarvis_chat").OllamaClient):
+            return None
+        import jarvis_search
+
+        embedder = jarvis_search.OllamaEmbedder()
+
+        def search(question: str) -> list[dict[str, Any]]:
+            jarvis_search.build(self.root, embedder, budget_seconds=30)
+            return jarvis_search.search(question, self.root, embedder, k=3)
+        return search
+
     def jarvis_chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         import jarvis_chat
         import jarvis_tiers
@@ -704,7 +718,8 @@ class Actions:
         result = jarvis_chat.answer(question, root=self.root, client=self._chat_client,
                                     max_total_chars=jarvis_tiers.effective(  # AUTO tier (owner 2026-11-17)
                                         self.root, "max_total_chars", int(config.get("max_total_chars") or 1800)),
-                                    start_ollama=self._ollama_starter or JARVIS_OLLAMA_STARTER)
+                                    start_ollama=self._ollama_starter or JARVIS_OLLAMA_STARTER,
+                                    searcher=self._searcher())
         jarvis_chat.save_turn(question, result, path=self.root / "data" / "jarvis" / "chat.sqlite3")
         self.log("jarvis_chat", {"question": question}, {"ollama": result["ollama"], "sources": result["sources"],
                                                           "ollama_started": result.get("ollama_started", False)})

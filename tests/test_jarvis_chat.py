@@ -285,3 +285,21 @@ class HistoryModeTests(unittest.TestCase):
             conn.commit()
             conn.close()
             self.assertEqual([t["mode"] for t in history(path=db)], ["model"])
+
+
+class SearchInChatTests(ChatTests):
+    """Owner 2026-11-17: the chat also reads the chunks closest in meaning, cited by file and heading."""
+
+    def test_search_hits_reach_the_prompt_and_the_sources(self):
+        fake = Fake(text="Οι θέσεις του σοκ: καμία καθαρή διαφορά.")
+        hit = {"path": "output/paper_learning/shock_exits_latest.md", "heading": "Σοκ",
+               "text": "Οι θέσεις που έκλεισε το σοκ: καμία καθαρή διαφορά.", "mode": "meaning", "score": 0.8}
+        out = answer("τι λέει ο Babis για τον κλάδο;", root=self.root, client=fake, searcher=lambda q: [hit])
+        self.assertIn("καμία καθαρή διαφορά", fake.prompts[0][1])
+        self.assertIn("output/paper_learning/shock_exits_latest.md — Σοκ", out["sources"])
+
+    def test_a_failing_search_does_not_stop_the_answer(self):
+        def broken(q):
+            raise OSError("ollama down")
+        out = answer("τι λέει ο Babis για τον κλάδο;", root=self.root, client=Fake(text="εντάξει"), searcher=broken)
+        self.assertEqual(out["ollama"], "ok")

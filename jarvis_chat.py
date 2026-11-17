@@ -32,6 +32,7 @@ START_WAIT_SECONDS = 30
 NO_WINDOW_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 READABLE_ROOTS = ("output", "docs")
 MAX_SOURCES = 3
+SEARCH_HITS = 3
 NUMBER = re.compile(r"\d+(?:[.,]\d+)?%?")
 TICKER = re.compile(r"\b[A-Z]{1,5}\b")
 DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -209,6 +210,7 @@ def _rel(path: Path, root: Path) -> str:
 
 def _answer(question: str, *, root: Path, client: Client, max_total_chars: int = 1800,
            start_ollama: Callable[[], bool] | None = None, wait_seconds: float = START_WAIT_SECONDS,
+           searcher: Callable[[str], list[dict[str, Any]]] | None = None,
            poll: Callable[[], None] = lambda: time.sleep(1)) -> dict[str, Any]:
     import jarvis_facts
 
@@ -229,8 +231,16 @@ def _answer(question: str, *, root: Path, client: Client, max_total_chars: int =
                                 "Η αναφορά της ημέρας είναι στη σελίδα.")
         return {"answer": text, "sources": [], "unverified_numbers": [], "ollama": "down", "ollama_started": started}
     sources = select_sources(question, root)
-    share = max_total_chars // max(1, len(sources))  # the whole prompt must fit the model's context (num_ctx)
+    hits: list[dict[str, Any]] = []
+    if searcher is not None:  # the chunks closest in meaning (jarvis_search, owner 2026-11-17)
+        try:
+            hits = list(searcher(question))[:SEARCH_HITS]
+        except Exception:  # noqa: BLE001 - the search is a help; the answer goes on without it
+            hits = []
+    share = max_total_chars // max(1, len(sources) + len(hits))  # the whole prompt must fit the model's context
     texts = {_rel(p, root): excerpt(p.read_text(encoding="utf-8", errors="replace"), question, share) for p in sources}
+    for hit in hits:
+        texts.setdefault(f"{hit['path']} — {hit.get('heading') or ''}".rstrip(" —"), str(hit["text"])[:share])
     prompt = "\n\n".join(f"### Αρχείο: {name}\n{text}" for name, text in texts.items())
     prompt += f"\n\n### Ερώτηση\n{question}"
     try:

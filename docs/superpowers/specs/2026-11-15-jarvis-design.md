@@ -200,3 +200,11 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
   made them worse.
 - REVIEW: everything else (lessons, checks, debate verdicts, run resumes) - the proposals with yes / no / later.
 
+## Search by meaning (owner 2026-11-17, OpenJarvis's deep-research idea)
+- `jarvis_search.py`: the Markdown reports under `output/` (no `alpaca_*`, no file over 300 KB, the last 30 dated
+  reports per folder) plus RULES_REVIEW and the pipeline overview, cut into chunks under their headings and embedded
+  locally with `bge-m3` (multilingual, Greek included; MIT; downloaded with the owner's yes, 1.16 GB) in
+  `data/jarvis/search.sqlite3`. Only changed files are re-embedded, within a time budget (30 s before each question).
+- The chat adds the 3 chunks closest in meaning to its sources, cited "file — heading". Without the model the search
+  falls back to words. Number questions still go to the files without the model.
+

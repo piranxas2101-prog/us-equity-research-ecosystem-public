@@ -52,6 +52,16 @@ def pocket_rule(rules: list[dict]) -> dict | None:
     return None
 
 
+
+def put_in_shadow(db, task_id):
+    """The owner's decision: every waiting lesson of the task goes to shadow (owner 2026-11-18: never automatic)."""
+    import agent_learning_control_plane as learning
+
+    with closing(sqlite3.connect(db)) as conn:
+        ids = [r[0] for r in conn.execute("SELECT lesson_id FROM agent_lesson_candidates WHERE status='candidate'"
+                                          " AND task_id=?", (task_id,))]
+        learning.apply_lesson_decisions(conn, [{"lesson_id": i, "status": "shadow", "reason": "owner"} for i in ids])
+
 class LearningTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -109,7 +119,7 @@ class LearningTests(unittest.TestCase):
     def test_missing_ledger_is_empty(self):
         self.assertEqual(jl.load_trades(self.root / "none.db"), [])
 
-    def test_record_rules_puts_lesson_in_shadow_and_is_idempotent(self):
+    def test_record_rules_leaves_lessons_waiting_and_is_idempotent(self):
         rules = jl.find_rules(make_trades(20))["rules"]
         intel = self.root / "market_intel.db"
         first = jl.record_rules(intel, rules)
@@ -119,12 +129,14 @@ class LearningTests(unittest.TestCase):
         with closing(sqlite3.connect(intel)) as conn:
             statuses = {s for (s,) in conn.execute(
                 "SELECT status FROM agent_lesson_candidates WHERE task_id='jarvis_learning'")}
-        self.assertEqual(statuses, {"shadow"})
+        self.assertEqual(statuses, {"candidate"})  # owner 2026-11-18: only the owner puts a lesson in shadow
 
     def test_follow_uses_only_sessions_after_shadow(self):
         rules = jl.find_rules(make_trades(20))["rules"]
         intel = self.root / "market_intel.db"
         jl.record_rules(intel, rules)
+        self.assertEqual(jl.follow(intel, make_trades(20)), [])  # a waiting lesson is not followed
+        put_in_shadow(intel, "jarvis_learning")  # the owner's decision (2026-11-18)
         old = make_trades(20)  # before the lesson entered shadow: never counted
         later = [t for t in make_trades(5, start=date(2099, 1, 1)) if t["agent"] == "periklis" and t["playbook"] == "gap_fade"]
         item = next(i for i in jl.follow(intel, old + later[:9]) if i["criterion_id"] == pocket_rule(rules)["criterion_id"])

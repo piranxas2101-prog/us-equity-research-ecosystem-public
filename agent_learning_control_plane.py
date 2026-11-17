@@ -12,6 +12,7 @@ import html
 import json
 import sqlite3
 from collections import Counter
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -495,9 +496,8 @@ def upsert_lesson_candidate(conn: sqlite3.Connection, *, target_agent: str, task
             (int(support_count), canonical_json(evidence), stamp, lesson_id),
         )
         conn.commit()
-        if str(existing[0]) == "candidate":  # a lesson from before the standing decision
-            set_lesson_status(conn, lesson_id, "shadow", reason=AUTO_SHADOW_REASON)
         return lesson_id, False
+    evidence = {**evidence, "decisions": [{"from": None, "to": "candidate", "reason": WAITING_REASON, "at": stamp}]}
     conn.execute(
         "INSERT INTO agent_lesson_candidates VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (lesson_id, target_agent, task_id, rubric_version, criterion_id, "candidate",
@@ -505,21 +505,28 @@ def upsert_lesson_candidate(conn: sqlite3.Connection, *, target_agent: str, task
          proposal_hash, stamp, stamp),
     )
     conn.commit()
-    set_lesson_status(conn, lesson_id, "shadow", reason=AUTO_SHADOW_REASON)
     return lesson_id, True
 
 
-# Owner's standing decision 2026-11-05: every lesson goes straight to shadow, to be followed on new data and taught to
-# the agents it concerns. Shadow changes no score, policy, limit or order; accepting a lesson stays the owner's call.
-AUTO_SHADOW_REASON = "owner 2026-11-05: every new lesson goes straight to shadow (followed and taught, changes nothing)"
+# Owner's decision 2026-11-18 (ADR-002, RULES_REVIEW section 14), replacing the one of 2026-11-05 ("every new lesson
+# goes straight to shadow"): a new lesson waits as a candidate. Nobody follows or teaches it until the owner puts it
+# in shadow for a measurement period (a decision with a reason, e.g. apply-lesson-decisions); the period's budget of
+# experiments stays the owner's to fill.
+WAITING_REASON = ("owner 2026-11-18: a new lesson waits as a candidate; only the owner puts it in shadow for a "
+                  "measurement period")
 
 
-def shadow_all_candidates(conn: sqlite3.Connection) -> int:
-    """Move the lessons still waiting as candidates to shadow under the standing decision; returns how many."""
-    ids = [row[0] for row in conn.execute("SELECT lesson_id FROM agent_lesson_candidates WHERE status='candidate'")]
-    for lesson_id in ids:
-        set_lesson_status(conn, lesson_id, "shadow", reason=AUTO_SHADOW_REASON)
-    return len(ids)
+def waiting_lessons(db_path: Path) -> dict[str, int] | None:
+    """How many lessons wait as candidates, per task (read-only; None when the store cannot be read - unknown, not 0)."""
+    if not Path(db_path).exists():
+        return None
+    try:
+        with closing(sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)) as conn:
+            rows = conn.execute("SELECT task_id, COUNT(*) FROM agent_lesson_candidates WHERE status='candidate'"
+                                " GROUP BY task_id").fetchall()
+    except sqlite3.Error:
+        return None
+    return {str(task): int(n) for task, n in rows}
 
 
 LESSON_TRANSITIONS = {"candidate": {"shadow", "rejected", "archived"}, "shadow": {"accepted", "rejected", "archived"},
@@ -528,8 +535,8 @@ LESSON_TRANSITIONS = {"candidate": {"shadow", "rejected", "archived"}, "shadow":
 
 def set_lesson_status(conn: sqlite3.Connection, lesson_id: str, status: str, *, reason: str) -> None:
     """A decision on a lesson (candidate -> shadow -> accepted, or rejected), recorded with its reason and only along
-    the allowed transitions. The one automatic move is candidate -> shadow (owner's standing decision 2026-11-05,
-    ``AUTO_SHADOW_REASON``); shadow -> accepted is never automatic."""
+    the allowed transitions. No move is automatic (owner 2026-11-18): a new lesson waits as a candidate until the
+    owner puts it in shadow, and shadow -> accepted is the owner's decision too."""
     row = conn.execute("SELECT status, evidence_json FROM agent_lesson_candidates WHERE lesson_id=?",
                        (lesson_id,)).fetchone()
     if row is None:
@@ -682,8 +689,6 @@ def build_parser() -> argparse.ArgumentParser:
     transition.add_argument("--model-id", required=True)
     transition.add_argument("--state", required=True, choices=sorted(ALLOWED_MODEL_STATES))
     transition.add_argument("--reason", required=True)
-    commands.add_parser("shadow-candidates", help="move the lessons still waiting as candidates to shadow "
-                                                  "(owner's standing decision 2026-11-05)")
     decide = commands.add_parser("apply-lesson-decisions", help="apply the owner's decisions on lessons from a JSON "
                                                                 "file (all checked before any is written)")
     decide.add_argument("--file", type=Path, required=True)
@@ -705,8 +710,6 @@ def main() -> int:
         elif args.command == "transition-model":
             transition_model(conn, args.model_id, args.state, args.reason, {"manual": True})
             print(f"{args.model_id}: {args.state}")
-        elif args.command == "shadow-candidates":
-            print(json.dumps({"moved_to_shadow": shadow_all_candidates(conn)}))
         elif args.command == "apply-lesson-decisions":
             payload = json.loads(args.file.read_text(encoding="utf-8-sig"))
             print(json.dumps(apply_lesson_decisions(conn, list(payload.get("decisions") or []))))

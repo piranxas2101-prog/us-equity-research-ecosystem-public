@@ -50,7 +50,7 @@ Anti-goals: it fails even if it works, if
   Machine: Intel Iris Xe (no discrete GPU), 16 GB RAM; today's model `qwen2.5:3b`.
 - Libraries open source, embeddable, local; prefer what is in `requirements-windows-py312.lock` (scikit-learn 1.9.1,
   numpy, pandas, scipy are there). No new dependency without a license check.
-- Learning: candidate -> shadow -> champion, manual promotion; new lessons go straight to shadow.
+- Learning: candidate -> shadow -> champion, manual promotion; new lessons go straight to shadow (since 2026-11-18 they wait as candidates until the owner puts them in shadow, RULES_REVIEW section 14).
 - Research packets and run manifests are immutable; Jarvis only reads them.
 - Control Center security: 127.0.0.1 only, Host check, session token + Origin + JSON on actions, CSP (no inline
   styles), every action logged to `data/control_center/actions.jsonl`; no Alpaca, trader or shell endpoints.

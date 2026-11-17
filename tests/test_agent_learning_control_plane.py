@@ -160,8 +160,8 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(current, second_version)
 
-    def test_lesson_goes_to_shadow_but_never_accepts_itself(self) -> None:
-        # owner 2026-11-05: every new lesson goes straight to shadow; acceptance stays manual
+    def test_new_lesson_waits_and_never_moves_by_itself(self) -> None:
+        # owner 2026-11-18: a new lesson waits as a candidate; shadow and acceptance are the owner's decisions
         conn = self.connection()
         lesson_id, created = learning.upsert_lesson_candidate(
             conn, target_agent="petros", task_id="fundamental_synthesis",
@@ -179,23 +179,33 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
             "SELECT status,support_count FROM agent_lesson_candidates WHERE lesson_id=?",
             (lesson_id,),
         ).fetchone()
-        self.assertEqual(status, "shadow")
+        self.assertEqual(status, "candidate")
         self.assertEqual(support, 25)
         decisions = json.loads(conn.execute("SELECT evidence_json FROM agent_lesson_candidates").fetchone()[0])[
             "decisions"]
-        self.assertEqual([(d["from"], d["to"]) for d in decisions], [("candidate", "shadow")])
-        self.assertEqual(decisions[0]["reason"], learning.AUTO_SHADOW_REASON)
+        self.assertEqual([(d["from"], d["to"]) for d in decisions], [(None, "candidate")])
+        self.assertEqual(decisions[0]["reason"], learning.WAITING_REASON)
+        self.assertFalse(hasattr(learning, "shadow_all_candidates"))  # no bulk move to shadow any more
+        learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner: period P1")
+        with self.assertRaises(ValueError):  # shadow never goes back to waiting
+            learning.set_lesson_status(conn, lesson_id, "candidate", reason="back")
 
-    def test_waiting_candidates_move_to_shadow(self) -> None:
-        conn = self.connection()
-        conn.execute("INSERT INTO agent_lesson_candidates VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                     ("lesson_old", "koulis", "paper_trading", "r", "c", "candidate", 3, "{}", "{}", "h", "t", "t"))
-        conn.commit()
-        self.assertEqual(learning.shadow_all_candidates(conn), 1)
-        self.assertEqual(learning.shadow_all_candidates(conn), 0)
-        self.assertEqual(conn.execute("SELECT status FROM agent_lesson_candidates").fetchone()[0], "shadow")
-        with self.assertRaises(ValueError):  # shadow -> champion-like acceptance is never skipped back
-            learning.set_lesson_status(conn, "lesson_old", "candidate", reason="back")
+    def test_waiting_lessons_are_counted_per_task_and_unknown_stays_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "intel.db"
+            self.assertIsNone(learning.waiting_lessons(db))  # no store: unknown, not zero
+            conn = sqlite3.connect(db)
+            conn.row_factory = sqlite3.Row
+            learning.init_schema(conn)
+            for task, criterion in (("paper_trading", "a"), ("paper_trading", "b"), ("earnings_journal", "c")):
+                learning.upsert_lesson_candidate(conn, target_agent="koulis", task_id=task, rubric_version="r",
+                                                 criterion_id=criterion, support_count=1, proposal={"p": criterion},
+                                                 evidence={})
+            lesson_id = conn.execute("SELECT lesson_id FROM agent_lesson_candidates WHERE criterion_id='c'"
+                                     ).fetchone()[0]
+            learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner")
+            conn.close()
+            self.assertEqual(learning.waiting_lessons(db), {"paper_trading": 2})
 
     def _shadow(self, conn: sqlite3.Connection, *ids: str) -> None:
         for lesson_id in ids:

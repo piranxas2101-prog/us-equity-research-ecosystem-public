@@ -214,7 +214,11 @@ def ecosystem(root: Path) -> dict[str, Any]:
         waiting = sorted((i for i in follow if i.get("verdict") == "collecting"), key=progress, reverse=True)
         lessons = {"by_verdict": counts, "closest": [{k: i.get(k) for k in (
             "lesson_id", "proposed_change", "sessions_after", "minimum_sessions")} for i in waiting[:CLOSEST_LESSONS]]}
-    return {"market": market, "lessons": lessons}
+    import agent_learning_control_plane
+
+    # owner 2026-11-18: new lessons wait as candidates until the owner puts them in shadow for a measurement period
+    waiting = agent_learning_control_plane.waiting_lessons(root / "data" / "market_intel.db")
+    return {"market": market, "lessons": lessons, "waiting_lessons": waiting}
 
 
 def refresh_search_index(root: Path, embedder: Any = None) -> dict[str, Any]:

@@ -141,8 +141,9 @@ the market's mood. Shorts and momentum_12_1 / high_52w_breakout / volatility_com
 unchanged (their curve is negative at every longer horizon; the owner decides separately). Tests:
 `tests/test_swing_long_hold.py`.
 
-**Every lesson goes to shadow.** New lessons move candidate -> shadow on creation (`AUTO_SHADOW_REASON`), and the
-ones still waiting move with `agent_learning_control_plane.py shadow-candidates`. Each paper-trading lesson is
+**Every lesson goes to shadow** (replaced on 2026-11-18, section 14: new lessons wait as candidates until the owner
+puts them in shadow). New lessons moved candidate -> shadow on creation, and the
+ones still waiting moved with `agent_learning_control_plane.py shadow-candidates` (removed 2026-11-18). Each paper-trading lesson is
 followed only on the sessions after it entered shadow (`paper_learning.shadow_follow`: confirmed / not confirmed /
 collecting, from 10 sessions), and Sokratis teaches the traders the lessons about them and their strategies.
 Shadow changes nothing; acceptance stays manual. Tests: `tests/test_shadow_lessons.py`,
@@ -433,3 +434,11 @@ None passes in sample. Report: `python period_experiments.py --baseline`.
 proposal text says the opposite of its numbers; `swing_hold_review` (1) conflicts with the 2026-11-05 decision that a
 swing long never closes the same day; the other 12 `category` lessons wait for a later period. An archived lesson is
 not revived by new evidence (`upsert_lesson_candidate` keeps its status).
+
+**Owner's decision 2026-11-18 (later the same day): new lessons wait.** The standing decision of 2026-11-05 (every new
+lesson straight to shadow) is replaced: a new lesson is stored as a `candidate` with the reason
+`WAITING_REASON` and nobody follows or teaches it. Only the owner puts a lesson in shadow, for a measurement period
+with a pre-registered test, through a recorded decision (`agent_learning_control_plane.py apply-lesson-decisions`);
+the bulk `shadow-candidates` command is removed. This holds for every learning task (paper trading, earnings journal,
+Jarvis loss rules, fundamental learning). Lessons already in shadow keep their status. Jarvis's daily report counts
+the waiting lessons per task, so the owner can choose from them when a period ends.

@@ -77,3 +77,27 @@ class OwnerSectionTests(unittest.TestCase):
         md, _ = render(record)
         self.assertLess(md.index("Τι περιμένει από σένα"), md.index("Νυχτερινό run"))
         self.assertIn("Περιμένουν εσένα 2 είδη αποφάσεων", md)
+
+
+class WaitingLessonsTests(unittest.TestCase):
+    """Owner 2026-11-18: new lessons wait as candidates; the report shows how many, unknown when unreadable."""
+
+    def lines(self, waiting):
+        from jarvis_report import _ecosystem_lines
+
+        return [line for line in _ecosystem_lines({"market": None, "lessons": None, "waiting_lessons": waiting})
+                if "αναμονή" in line]
+
+    def test_counts_per_task(self):
+        (line,) = self.lines({"paper_trading": 3, "earnings_journal": 1})
+        self.assertIn("σε αναμονή για επόμενη περίοδο: 4 (earnings_journal 1, paper_trading 3)", line)
+        self.assertIn("μόνο με δική σου απόφαση", line)
+
+    def test_none_waiting_is_zero_and_unreadable_is_unknown(self):
+        self.assertIn(": 0.", self.lines({})[0])
+        self.assertIn("άγνωστο", self.lines(None)[0])
+
+    def test_older_records_without_the_field_print_nothing(self):
+        from jarvis_report import _ecosystem_lines
+
+        self.assertFalse([x for x in _ecosystem_lines({"market": None, "lessons": None}) if "αναμονή" in x])

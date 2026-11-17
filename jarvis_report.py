@@ -91,6 +91,15 @@ def _ecosystem_lines(section: dict[str, Any] | None) -> list[str]:
                          f"({item.get('sessions_after')}/{item.get('minimum_sessions')} συνεδρίες)")
     else:
         lines.append("- Διδάγματα σε shadow: άγνωστο (δεν υπάρχει η αξιολόγηση του paper learning)")
+    if "waiting_lessons" in section:
+        waiting = section.get("waiting_lessons")
+        if waiting is None:
+            lines.append("- Διδάγματα σε αναμονή: άγνωστο (δεν διαβάζεται το data/market_intel.db)")
+        else:
+            parts = ", ".join(f"{task} {n}" for task, n in sorted(waiting.items()))
+            lines.append(f"- Διδάγματα σε αναμονή για επόμενη περίοδο: {sum(waiting.values())}"
+                         + (f" ({parts})" if parts else "")
+                         + ". Δεν τα ακολουθεί κανείς· μπαίνουν σε shadow μόνο με δική σου απόφαση.")
     return lines
 
 

@@ -3,8 +3,9 @@
 An interpretable model (a shallow scikit-learn decision tree) is fitted on the older sessions to tell losing trades
 from the rest; each leaf's positive conditions ("agent=periklis", "playbook=gap_fade", ...) form a candidate rule,
 kept only when it also loses often on the newer sessions it never saw. A kept rule enters the learning store as a
-lesson, which goes straight to shadow (owner 2026-11-05): it is followed on the sessions after that, changes no score,
-policy, limit or order, and reaches the owner as a proposal once its follow has a verdict.
+lesson, which waits as a candidate (owner 2026-11-18) until the owner puts it in shadow; in shadow it is followed on
+the sessions after that, changes no score, policy, limit or order, and reaches the owner as a proposal once its
+follow has a verdict.
 
 Starting values below are Claude's call (2026-11-15), to be revisited with the first real numbers.
 """
@@ -169,7 +170,7 @@ def rule_text(conditions: dict[str, str]) -> str:
 
 
 def record_rules(intel_db: Path, rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each rule as a lesson; the learning store puts a new lesson straight into shadow. Nothing else is written."""
+    """Each rule as a lesson; a new lesson waits as a candidate (owner 2026-11-18). Nothing else is written."""
     if not rules:
         return []
     import agent_learning_control_plane as learning

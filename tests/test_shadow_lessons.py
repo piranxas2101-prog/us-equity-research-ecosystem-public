@@ -29,10 +29,11 @@ class StatusTests(unittest.TestCase):
         lesson_id, _ = learning.upsert_lesson_candidate(
             conn, target_agent="giannis", task_id="earnings_journal", rubric_version="r",
             criterion_id="results:reaction:losses=widening:worse", support_count=10, proposal={"p": 1}, evidence={})
-        # owner 2026-11-05: a new lesson is already in shadow, with the reason recorded
+        # owner 2026-11-18: a new lesson waits as a candidate, with the reason recorded
         status, evidence = conn.execute("SELECT status, evidence_json FROM agent_lesson_candidates").fetchone()
-        self.assertEqual(status, "shadow")
-        self.assertIn("owner 2026-11-05", evidence)
+        self.assertEqual(status, "candidate")
+        self.assertIn("owner 2026-11-18", evidence)
+        learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner: period P1")
         with self.assertRaises(ValueError):
             learning.set_lesson_status(conn, lesson_id, "shadow", reason="again")
         with self.assertRaises(ValueError):
@@ -43,7 +44,7 @@ class StatusTests(unittest.TestCase):
             criterion_id="results:reaction:losses=widening:worse", support_count=12, proposal={"p": 1}, evidence={})
         status, evidence = conn.execute("SELECT status, evidence_json FROM agent_lesson_candidates").fetchone()
         self.assertEqual(status, "shadow")
-        self.assertIn("owner 2026-11-05", evidence)  # the decision survives new evidence
+        self.assertIn("owner: period P1", evidence)  # the decision survives new evidence
 
 
 class FollowTests(unittest.TestCase):
@@ -56,6 +57,7 @@ class FollowTests(unittest.TestCase):
                     conn, target_agent="position_monitor", task_id="earnings_journal", rubric_version="r",
                     criterion_id="results_hold:reaction:losses=widening:worse", support_count=1,
                     proposal={"p": 2}, evidence={})
+                learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner")
             records = ([record("widening", -1.0, 1 + i % 12) for i in range(40)]
                        + [record("narrowing", 1.0, 1 + i % 12, week="yes") for i in range(40)]
                        + [record("unknown", 5.0, 3)])
@@ -75,9 +77,11 @@ class ShadowFollowTests(unittest.TestCase):
         with closing(market_intel_db.connect(db)) as conn:
             learning.init_schema(conn)
             for criterion in ("control_team:miltos", "control_team:koulis"):
-                lesson_id, _ = learning.upsert_lesson_candidate(
+                lesson_id, created = learning.upsert_lesson_candidate(
                     conn, target_agent=criterion.split(":")[1], task_id="paper_trading", rubric_version="r",
                     criterion_id=criterion, support_count=1, proposal={"proposed_change": criterion}, evidence={})
+                if created:  # the owner's decision (2026-11-18: never automatic)
+                    learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner")
                 evidence = json.loads(conn.execute("SELECT evidence_json FROM agent_lesson_candidates WHERE "
                                                    "lesson_id=?", (lesson_id,)).fetchone()[0])
                 evidence["decisions"][-1]["at"] = entered + "T21:10:00+00:00"

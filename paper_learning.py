@@ -509,7 +509,7 @@ def swing_hold_review(records: list[dict[str, Any]], swing: set[str] | None = No
     The shadow holds exist for 1, 5, 20 and 60 sessions, so a planned hold is judged on the class that contains it
     (2-5 sessions: the week).
 
-    A "change" verdict also becomes a lesson (straight to shadow); the owner decides, nothing changes by itself."""
+    A "change" verdict also becomes a lesson (waiting, owner 2026-11-18); the owner decides, nothing changes by itself."""
     swing = holding_horizon.swing_long_playbooks() if swing is None else swing
     curve = holding_horizon.load_curve() if curve is None else curve
     estimates = holding_horizon.load_estimates() if estimates is None else estimates

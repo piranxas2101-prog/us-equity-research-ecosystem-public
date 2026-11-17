@@ -104,6 +104,22 @@
         "the exit helped"
       ],
       "change": "Αν βγει καθαρή διαφορά: συζήτηση για τον κανόνα market_shock των long"
+    },
+    {
+      "id": "period_experiments_p1",
+      "title": "Τα 5 πειράματα της περιόδου μέτρησης P1",
+      "rules_review": "section 14",
+      "due": {
+        "kind": "every_pass"
+      },
+      "producer": "period_experiments",
+      "output": "output/paper_learning/period_experiments_latest.json",
+      "timeout_seconds": 120,
+      "verdict_path": "verdict",
+      "ready_values": [
+        "judged"
+      ],
+      "change": "Στο τέλος της περιόδου: ό,τι πέρασε γίνεται πρόταση (με tests, μαζί με το Claude), ό,τι δεν πέρασε αποσύρεται, ό,τι έχει λίγο δείγμα παίρνει το πολύ μία παράταση (απόφαση του ιδιοκτήτη)"
     }
   ]
 }

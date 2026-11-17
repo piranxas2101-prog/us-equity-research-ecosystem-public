@@ -1,0 +1,72 @@
+{
+  "schema": "ecosystem.period_experiments.v1",
+  "note": "Owner 2026-11-18 (ADR-002, docs/RULES_REVIEW.md section 14): the five lessons kept in shadow for the first measurement period, pre-registered before the period starts. Changing a field after 2026-11-23 breaks the pre-registration: it needs the owner's decision and a new period.",
+  "period": {
+    "id": "P1",
+    "start": "2026-11-23",
+    "end": "2026-12-18",
+    "judge_date": "2026-12-29"
+  },
+  "yardstick": {
+    "holding_class": "week",
+    "rule": "fixed",
+    "description": "excess over SPY of a fixed 5-session hold from paper_holding_shadows, the same measure for every candidate (traded or not)"
+  },
+  "min_sessions": 15,
+  "alpha": 0.05,
+  "correction": "holm",
+  "experiments": [
+    {
+      "id": "E1a",
+      "title": "Ένα slot τη μέρα: Yankos support_bounce_swing long",
+      "lesson_ids": ["lesson_bec10131f6286beb02fe5c28"],
+      "kind": "cell_vs_book",
+      "agent": "yankos", "playbook": "support_bounce_swing", "direction": "long",
+      "lean": "worse"
+    },
+    {
+      "id": "E1b",
+      "title": "Ένα slot τη μέρα: Periklis momentum_12_1 long",
+      "lesson_ids": ["lesson_6848d767151663163d23ba2e"],
+      "kind": "cell_vs_book",
+      "agent": "periklis", "playbook": "momentum_12_1", "direction": "long",
+      "lean": "worse"
+    },
+    {
+      "id": "E2",
+      "title": "Yankos support_bounce_swing long: απόφυγε τις mega cap",
+      "lesson_ids": ["lesson_8a087f705481653a50a0b715"],
+      "kind": "tag_in_cell",
+      "agent": "yankos", "playbook": "support_bounce_swing", "direction": "long",
+      "tag": "market_cap", "value": "mega",
+      "lean": "worse"
+    },
+    {
+      "id": "E3",
+      "title": "Yankos support_bounce_swing long: απόφυγε το μεγάλο αντίθετο premarket gap",
+      "lesson_ids": ["lesson_6394be93e79699f8c05c9e82"],
+      "kind": "tag_in_cell",
+      "agent": "yankos", "playbook": "support_bounce_swing", "direction": "long",
+      "tag": "premarket_gap", "value": "against_large",
+      "lean": "worse"
+    },
+    {
+      "id": "E4",
+      "title": "Periklis momentum_12_1 short: απόφυγε την κανονική μεταβλητότητα",
+      "lesson_ids": ["lesson_f4019a11aca913eba87adc8a"],
+      "kind": "tag_in_cell",
+      "agent": "periklis", "playbook": "momentum_12_1", "direction": "short",
+      "tag": "volatility", "value": "normal",
+      "lean": "worse"
+    },
+    {
+      "id": "E5",
+      "title": "Periklis momentum_12_1 long: απόφυγε ανάπτυξη 0-10%",
+      "lesson_ids": ["lesson_054bef3d6c47b82763af18de"],
+      "kind": "tag_in_cell",
+      "agent": "periklis", "playbook": "momentum_12_1", "direction": "long",
+      "tag": "results_growth_bucket", "value": "0..10%",
+      "lean": "worse"
+    }
+  ]
+}

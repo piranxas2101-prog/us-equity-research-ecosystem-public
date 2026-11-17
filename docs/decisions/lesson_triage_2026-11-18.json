@@ -1,0 +1,1220 @@
+{
+ "schema": "ecosystem.lesson_decisions.v1",
+ "decided_by": "owner",
+ "decided_on": "2026-11-18",
+ "source": "docs/adr/ADR-002-operating-model.md; docs/RULES_REVIEW.md section 14",
+ "kept_in_shadow": [
+  "lesson_054bef3d6c47b82763af18de",
+  "lesson_6394be93e79699f8c05c9e82",
+  "lesson_6848d767151663163d23ba2e",
+  "lesson_8a087f705481653a50a0b715",
+  "lesson_bec10131f6286beb02fe5c28",
+  "lesson_f4019a11aca913eba87adc8a"
+ ],
+ "decisions": [
+  {
+   "lesson_id": "lesson_24fc5008efe2a9f7ebb89c61",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:periklis:early_accumulation_swing:long:market_cap=mega",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_35a81ad5c930d2e0a3167cd9",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:periklis:pre_run_breakout_confirmation:long:results_revenue_trend=steady",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_f2fb4c62e55622b965052130",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:yankos:rsi2_mean_reversion:short:results_revenue_trend=steady",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_a9f1ab1811d451c9266e8bce",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:catalyst=earnings_guidance",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_7109068394285d451ae94078",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:market_cap=mid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_b3dbe2bc5a24233e0d903a19",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:results_growth_bucket=0..10%",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_6512edf13e656fc17a218963",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:momentum_12_1:long:market_rewards=both",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_a4a58dde02ab1facaa6c8495",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:controlled_breakout_swing:long:market_cap=mid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_10fc558815dd846ba497cd33",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:rsi2_mean_reversion:short:premarket_gap=with",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_bc78c44ecf6d23797316db02",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:rsi2_mean_reversion:short:results_revenue_trend=accelerating",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_60f8c6465d0a0d8aeb819835",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:support_bounce_swing:long:market_rewards=both",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_93e6d912cbb68752901f7be9",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:support_bounce_swing:long:returned_after_demotion=no",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): waiting list: not one of the five experiments of measurement period P1"
+  },
+  {
+   "lesson_id": "lesson_e73e40d19458a77f71e95041",
+   "target_agent": "koulis",
+   "criterion_id": "control_team:koulis",
+   "status": "rejected",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): on one yardstick (same-day simulation for traded and left-out alike, one observation per session) the left-out candidates did not do better (-0.42 points/day, t=-1.4); the lesson compared real multi-day fills with simulations"
+  },
+  {
+   "lesson_id": "lesson_3b723816d324a0080c3d1ebf",
+   "target_agent": "miltos",
+   "criterion_id": "control_team:miltos",
+   "status": "rejected",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): on one yardstick (same-day simulation, one observation per session) the approvals Miltos did not enter did worse than those he entered (-0.82 points/day, t=-3.3, traded better on 21 of 24 days); the lesson compared real multi-day fills with simulations"
+  },
+  {
+   "lesson_id": "lesson_8636c10f0d8fd6926870b61e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:catalyst=earnings_guidance:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_28daaea672be097d8f6580db",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:catalyst=earnings_guidance:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_bc92d09a9318b774fe48ebd5",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:catalyst=governance_management:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0eb29e188d551bf337b1322f",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:catalyst=governance_management:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_fd608059522918ba49d4c9be",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:catalyst=investor_events:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_766a2881043b999061a6b646",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:catalyst=investor_events:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_1e79548c499d40fb0b4b380a",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:catalyst=m_and_a_strategic:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_1784874de0706edd6a195813",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:catalyst=m_and_a_strategic:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_1251f189af84c74251c3e4a2",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:catalyst=technical_market_structure:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_55bb32c4e15166ff53c62434",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:catalyst=technical_market_structure:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_30f35c4b7303215968ec1cce",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:giannis_tier=Core Watchlist:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3d610f58114572cf346c4095",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:giannis_tier=Core Watchlist:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_2eb0762b7624d8bc613bd82e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:giannis_tier=Selective Watchlist:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a044d196a9d4e33405d68057",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:giannis_tier=Selective Watchlist:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a8b56cd24fbc1e9af01549aa",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:market_cap=large:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_56ba1b9951b426b96531141d",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:market_cap=large:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_4f3c6285edc9042ce743feb9",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:market_cap=mega:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_f415b01540f2d54130c5bcce",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:market_cap=mega:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5b9be0d592fd246ded3d8465",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:market_cap=mid:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_cb37b997a374b2e928749273",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:market_cap=mid:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_2de0a7d37cce822205ee424d",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:open_recheck=none:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0b4d9cdf2a827868701c4546",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:open_recheck=none:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3c9f709ebea6d0b65bdcf29d",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:open_recheck=restored:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_df7bc3dd91e4dd23ae889efb",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:open_recheck=restored:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_678e8f4bbb51e7fed4329146",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:open_recheck=stays_watch:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_fd4a9664e76a375dc1b69472",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:open_recheck=stays_watch:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_b8f4308a443fb34d74fc9acd",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:petros_verdict=candidate:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_df255623c7794e3024b173c9",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:petros_verdict=candidate:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_29fe4f2f1b02e185445e0097",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:petros_verdict=manual_review:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_c2bcbc45f31ce8cb353155ae",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:petros_verdict=manual_review:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a358d86682b5383bf73d4e0e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:piotroski=strong:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0374e3e6cc65bf61a2c03e25",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:piotroski=strong:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_dd995a93541477a62ff70619",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:pr_revenue_growth=>=25%:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3058a9a79a425100fb74fc9a",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:pr_revenue_growth=>=25%:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5a1ac66495cafac99fcdc6d8",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:premarket_gap=against:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_7444fffcb90b11892c570d0b",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:premarket_gap=against:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_39d2cfca3c7a0d724b17bd22",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:premarket_gap=against_large:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5ac6e2eb7444515be4e74330",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:premarket_gap=against_large:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_73aa61f115587c9686012338",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:premarket_gap=with:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_2dc6d4cd6c6679450717d77b",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:premarket_gap=with:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0bcecc3589f22be40d249fad",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_dilution=False:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_754e2629a9fa0cc16e6d2d8b",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_dilution=False:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_d07493fa7a1c64b630cf54bd",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_dilution=True:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_ef6087eb976e0e18ab5d3a0e",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_dilution=True:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_ab460e8f150572484b105737",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_gross_margin=improving:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_2af1dcd7a53df4b1a4bfade2",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_gross_margin=improving:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_652c36630f103cb5305abacf",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_gross_margin=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_564c4bcae7335f8c0f4bc398",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_gross_margin=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_d83c15f81badcc0682d93880",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=-10..0%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5e8a48973f744b303fc3b736",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=-10..0%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_8e3df135017e2d16214f9041",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=0..10%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_93112a65e0e9e1e8c2a5acee",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=0..10%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_2395073ef120b1c4c444b5cd",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=10..25%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_8d1d0de33022fb2b83e07b89",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=10..25%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_7a6f806ce82b0eb9029ef300",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=<-10%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e3e605ca0c1a2d7af3aacdb1",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=<-10%:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a1a11baba5d722a9afeea549",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=>=25%:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_87f39a7dacb70b58796dfc77",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_growth_bucket=>=25%:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_723c28b5c1eaa09d5dcfd138",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_losses=narrowing:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_7a90a09db5d79fa793bc9428",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_losses=narrowing:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e9a3e6f47ee4f2e941feb9bd",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_losses=widening:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e19f3a2c1412ec080843fcfe",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_losses=widening:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_31032e4fe168dd9fb094c2f3",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_operating_margin=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a224dc851595411fdcb9375d",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_operating_margin=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3203f84dc748691799a8b2c1",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=accelerating:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3dd31d8a4cc542d4bcfcffd5",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=accelerating:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_33ccb52e8d6c38234d9ab19f",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=decelerating:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0e0f3e44d1ab182705ff472b",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=decelerating:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_019efc3e50ea9dab9bf3d753",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_f767dc450f2f5b4b0c18b63c",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_revenue_trend=steady:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e80225b764e345bef17e310c",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:results_this_week=yes:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_cd4fcb1e3298c7c838081434",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:results_this_week=yes:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e52a6a255f33f89887817f5e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:returned_after_demotion=no:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_69b97f9cbfb2f543b592bb08",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:returned_after_demotion=no:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_d04e6dc59e2fc9b19ae6f7fd",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:score=8:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_562891d2515ac9aedf04ec12",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:score=8:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_cfb5eb1941ef50ae27572102",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:score=9:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e90bcf2f6cd6854d45b4b0f8",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:score=9:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_4962c5222e2cb24e378fb303",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Communication Services:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_b5949dca2981554cfa653779",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Communication Services:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_ae00be323c77f5266b8a2f81",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Consumer Staples:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_302a070146d29cccad583296",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Consumer Staples:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_cb5567bef328486ec9b99ee1",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Energy:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_9e2a4a5adc0317d04a1ac0f9",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Energy:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_066e440ce58fcd8ae5ccb0d4",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Financials:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5fc5a6f6fdc48ee68f9274f2",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Financials:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_9e975daa1fa1dac07de8e505",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Healthcare:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_73c6d8de8ee59cf3f04830a7",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Healthcare:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_05151575ca28f9a2b535367a",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Industrials:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_f837c4a9f20558cc64c7f0f4",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Industrials:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a9de86008eb18d1dda7fe06e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Materials:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a5f53bb44fce32d27fcec583",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Materials:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3b22f0112aeaa88b875d8b58",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Real Estate:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_1e4e01eebfbeb7d6d1bf7720",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Real Estate:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3c27f1b200595d07a5307b3c",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:sector=Technology:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0b0474a14e900cd3ee7ae7cb",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:sector=Technology:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_01ddba6346e7133e2fa9322a",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:standing=top_10pct:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_881311f2cd1b27aba31df980",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:standing=top_10pct:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5ee775c7e31ae0243b2aca4f",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:standing=top_25pct:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_ea85e03d7e37da3c45215619",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:standing=top_25pct:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_db39a9fd1ea793dec75b4f1e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=already_extended:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_ee9f69521d078ffb64f87ba6",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=already_extended:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_fef275a76d2a06ae0e1ebe53",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=early_accumulation:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_5be689465b5c249157ec99db",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=early_accumulation:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_6c96bbae8789f7d961838059",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=near_highs_reversal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e5b08ee3fc36dab520e53b6a",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=near_highs_reversal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a90dfe37c23bc0578ac44f30",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=near_lows_reversal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_b9ac2a357a18b969553fba92",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=near_lows_reversal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_0a94316e77bfd9f2c37577ff",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=neutral:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_12e8a0c6ca61847e64e778e2",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=neutral:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_f0a1a5d997af2a8095438c41",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=pre_run_watch:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_e020e73766a1403f1c6dc37d",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=pre_run_watch:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3cc88aa72bb926d06366535e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:timing=pullback_watch:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_c8337f80b89a32e6fe41af2f",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:timing=pullback_watch:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_15a4f28164c3f147e0e55814",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:volatility=calm:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_7d866b09d787d4bf2a9c489e",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:volatility=calm:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_d696f7238607d8f5275b991d",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:volatility=high:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_45d22ee0800efba66241340a",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:volatility=high:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_a64d7d667eea14794b9be6b6",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:volatility=normal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_39d38c3752c22571ee778477",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:volatility=normal:prefer",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_3e53fa185d82dbf1d7d2bba5",
+   "target_agent": "periklis",
+   "criterion_id": "holding_by_category:week:volatility=very_high:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_863316c7cf5c052833f43fe5",
+   "target_agent": "yankos",
+   "criterion_id": "holding_by_category:week:volatility=very_high:avoid",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): filed once per trader (61 criteria twice), p-values counted on thousands of non-independent records, and the 'avoid' text says the opposite of its numbers (paper_learning.py proposal text)"
+  },
+  {
+   "lesson_id": "lesson_992e03751f1707ed2b533a55",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:early_accumulation_swing:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_4fbdc04e330090ef61788299",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:early_accumulation_swing:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_9d4927c65eb90ac01d0a8653",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:early_accumulation_swing:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_26bdb57f55939a228be448ee",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:early_accumulation_swing:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_697121c8f73fd1beccdf75c0",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:high_52w_breakout:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_e33adc06a428a0a6391c02ee",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:high_52w_breakout:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_38dc99e89750c2d8cbd2aee6",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:pre_run_breakout_confirmation:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_ef994bcdd4b30719f4a1b7f1",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:pre_run_breakout_confirmation:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_343c83ac3bba69bfcc509747",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:pre_run_breakout_confirmation:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_7141c5a62aa82f2bc1fec02f",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:volatility_compression_breakout:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_4117ef42a3daca1beb561f5e",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:volatility_compression_breakout:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_07184bcdee7d3c0341117ac4",
+   "target_agent": "periklis",
+   "criterion_id": "holding_class:periklis:volatility_compression_breakout:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_c491f2fa4118bb29519482c5",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:controlled_breakout_swing:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_36f08146ad1e73bc3feed0ae",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:controlled_breakout_swing:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_ef840f02d96f5f6f80d04d98",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:controlled_breakout_swing:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_59da552d1ee83905eb8b23f9",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:gap_fade:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_e144090ba45adab605c85d89",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:gap_fade:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_eeca1318c1a5785cee1a8b5b",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:mean_reversion_overextension:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_448568897747d19854aa901d",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:mean_reversion_overextension:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_61929bce1fefc151cc5226ed",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:mean_reversion_overextension:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_cce23f5c5e806b889062a9ce",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:mean_reversion_overextension:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_c62a3dfee4d97d03bcf59cb6",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:rsi2_mean_reversion:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_236537c1e20a435ddefc7143",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:rsi2_mean_reversion:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_370115fa422467da7be7ae52",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:support_bounce_swing:long:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_d0926207e29a25aaaf7511d9",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:support_bounce_swing:long:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_384639f228539dd1d9f7580d",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:support_bounce_swing:short:week:fixed",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_b384784b006767dd94aeb384",
+   "target_agent": "yankos",
+   "criterion_id": "holding_class:yankos:support_bounce_swing:short:week:thesis",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): superseded by holding_horizon.py (exit lab horizon curve on five years, FDR); this lesson rests on 19 sessions of one market"
+  },
+  {
+   "lesson_id": "lesson_cb7a5264e00b93f2e5117f1c",
+   "target_agent": "yankos",
+   "criterion_id": "swing_hold_review:yankos:failed_breakdown_reclaim:long:close_same_day",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): conflicts with the owner's decision of 2026-11-05: a swing long never closes the same day"
+  },
+  {
+   "lesson_id": "lesson_86a09073d185eeae45382f4b",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:periklis:early_accumulation_swing:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_c62c67760eb4bd9d8b19c948",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:periklis:high_52w_breakout:long:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_dbc762beac53aefbe3c77a06",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:periklis:pre_run_breakout_confirmation:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_bf756179babe39b748fcb8ad",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:yankos:controlled_breakout_swing:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_69f3b7de3443d9383cbf1151",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:yankos:gap_continuation:long:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_793122966c2632442eea43ab",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:yankos:gap_continuation:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_8eae8e14f0b6ed484b7c634a",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:yankos:rsi2_mean_reversion:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  },
+  {
+   "lesson_id": "lesson_78c80431fece49023ff83670",
+   "target_agent": "position_monitor",
+   "criterion_id": "thesis_exit:yankos:support_bounce_swing:short:week",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (ADR-002 triage, RULES_REVIEW section 14): already live: alpaca_multi_day_monitor.py closes multi-day positions on a broken thesis"
+  }
+ ]
+}

@@ -22,6 +22,8 @@ PRODUCERS: dict[str, list[str]] = {
     "debate_shadow_evaluate": ["debate_shadow.py", "evaluate"],
     # owner 2026-11-17: the positions a market shock closed, measured 1-10 sessions later (RULES_REVIEW section 7)
     "shock_exits_lab": ["shock_exits_lab.py"],
+    # owner 2026-11-18 (ADR-002, RULES_REVIEW section 14): the period's five pre-registered experiments, read-only
+    "period_experiments": ["period_experiments.py"],
 }
 DEFAULT_WAITING = ("insufficient_sample", "collecting")
 MIN_PRODUCER_SECONDS = 30

@@ -197,6 +197,69 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         with self.assertRaises(ValueError):  # shadow -> champion-like acceptance is never skipped back
             learning.set_lesson_status(conn, "lesson_old", "candidate", reason="back")
 
+    def _shadow(self, conn: sqlite3.Connection, *ids: str) -> None:
+        for lesson_id in ids:
+            conn.execute("INSERT INTO agent_lesson_candidates VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                         (lesson_id, "koulis", "paper_trading", "r", lesson_id, "shadow", 3, "{}", "{}", "h", "t", "t"))
+        conn.commit()
+
+    def status(self, conn: sqlite3.Connection, lesson_id: str) -> str:
+        return conn.execute("SELECT status FROM agent_lesson_candidates WHERE lesson_id=?", (lesson_id,)).fetchone()[0]
+
+    def test_lesson_decisions_apply_all_with_reasons(self) -> None:
+        conn = self.connection()
+        self._shadow(conn, "a", "b", "keep")
+        counts = learning.apply_lesson_decisions(conn, [
+            {"lesson_id": "a", "status": "archived", "reason": "owner: waiting list"},
+            {"lesson_id": "b", "status": "rejected", "reason": "owner: one yardstick says no"}])
+        self.assertEqual(counts, {"archived": 1, "rejected": 1})
+        self.assertEqual([self.status(conn, x) for x in ("a", "b", "keep")], ["archived", "rejected", "shadow"])
+        decisions = json.loads(conn.execute("SELECT evidence_json FROM agent_lesson_candidates WHERE lesson_id='a'"
+                                            ).fetchone()[0])["decisions"]
+        self.assertEqual((decisions[-1]["from"], decisions[-1]["to"], decisions[-1]["reason"]),
+                         ("shadow", "archived", "owner: waiting list"))
+
+    def test_lesson_decisions_write_nothing_when_one_is_invalid(self) -> None:
+        conn = self.connection()
+        self._shadow(conn, "a", "b")
+        bad_batches = [
+            [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "b", "status": "candidate",
+                                                                       "reason": "back to candidate"}],
+            [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "b", "status": "archived",
+                                                                       "reason": " "}],
+            [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "a", "status": "archived",
+                                                                       "reason": "twice"}],
+        ]
+        for batch in bad_batches:
+            with self.assertRaises(ValueError):
+                learning.apply_lesson_decisions(conn, batch)
+        with self.assertRaises(KeyError):
+            learning.apply_lesson_decisions(conn, [{"lesson_id": "missing", "status": "archived", "reason": "x"}])
+        self.assertEqual([self.status(conn, x) for x in ("a", "b")], ["shadow", "shadow"])
+
+    def test_an_archived_lesson_is_not_revived_by_new_evidence(self) -> None:
+        conn = self.connection()
+        proposal = {"proposed_change": "x"}
+        kwargs = dict(target_agent="koulis", task_id="paper_trading", rubric_version="r", criterion_id="c",
+                      support_count=3, proposal=proposal, evidence={"n": 1})
+        lesson_id, _ = learning.upsert_lesson_candidate(conn, **kwargs)
+        learning.apply_lesson_decisions(conn, [{"lesson_id": lesson_id, "status": "archived", "reason": "owner"}])
+        learning.upsert_lesson_candidate(conn, **{**kwargs, "evidence": {"n": 2}})
+        self.assertEqual(self.status(conn, lesson_id), "archived")
+
+    def test_triage_of_2026_11_18_is_well_formed(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        triage = json.loads((root / "docs" / "decisions" / "lesson_triage_2026-11-18.json").read_text(encoding="utf-8"))
+        kept = {i for e in json.loads((root / "period_experiments.json").read_text(encoding="utf-8"))["experiments"]
+                for i in e["lesson_ids"]}
+        decided = [d["lesson_id"] for d in triage["decisions"]]
+        self.assertEqual(set(triage["kept_in_shadow"]), kept)
+        self.assertEqual(len(decided), len(set(decided)))
+        self.assertFalse(kept & set(decided))
+        self.assertEqual(len(decided) + len(kept), 178)
+        self.assertTrue(all(d["status"] in {"archived", "rejected"} and d["reason"].startswith("owner 2026-11-18")
+                            for d in triage["decisions"]))
+
 
 if __name__ == "__main__":
     unittest.main()

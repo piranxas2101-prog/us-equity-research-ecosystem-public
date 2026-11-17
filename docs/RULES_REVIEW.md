@@ -383,3 +383,53 @@ outcome the ledger keeps for a judged idea, one per idea and the most real first
 koulis_left_out, preopen_demoted, shadow_candidate. Because opinions now exist before Koulis decides, a veto through
 Koulis is possible again if the section 8 test passes; turning it on stays the owner's call.
 
+
+## 14. Owner's decision, 2026-11-18: five lessons for the first measurement period, the rest archived
+
+ADR-002 (`docs/adr/ADR-002-operating-model.md`, proposed) found 178 paper-trading lessons in shadow with no verdict.
+The owner chose five experiments and archived the rest (`docs/decisions/lesson_triage_2026-11-18.json`, applied with
+`agent_learning_control_plane.py apply-lesson-decisions`; nothing is deleted, every decision keeps its reason).
+
+**What the triage found.** Simulated and real results do not agree: on the same day trades the real result was -0.27%
+against SPY and the simulation +0.67%; across 268 pairs the mean gap is 1.44% and the sign agrees in 68%. Lessons that
+compared real multi-day fills with simulated candidates were measuring that gap. On one yardstick (same-day
+simulation for every group, one observation per session): the candidates Koulis left out did not do better than his
+picks (-0.42 points a day, t = -1.4), and the approvals Miltos did not enter did worse than those he entered (-0.82
+points a day, t = -3.3, traded better on 21 of 24 days). Both lessons are rejected. The losses sit in the quarter
+holds of `support_bounce_swing` long (closed early -2.7%, still open -3.0%), not in the selection.
+
+**Kept in shadow (period P1, `period_experiments.json`):**
+
+| | Lesson | Measured |
+|---|---|---|
+| E1a | One slot a day for Yankos `support_bounce_swing` long | the cell against every other candidate of the day |
+| E1b | One slot a day for Periklis `momentum_12_1` long | the cell against every other candidate of the day |
+| E2 | Yankos `support_bounce_swing` long: avoid `market_cap = mega` | inside the cell, the value against the other known values |
+| E3 | Yankos `support_bounce_swing` long: avoid `premarket_gap = against_large` | same |
+| E4 | Periklis `momentum_12_1` short: avoid `volatility = normal` | same |
+| E5 | Periklis `momentum_12_1` long: avoid `results_growth_bucket = 0..10%` | same |
+
+The three cells carry 82% of the trades of the last eight sessions. E1a and E1b are one rule on two cells.
+
+**Pre-registration (fixed before the period starts; a change needs the owner and a new period).** Period P1 runs
+2026-11-23 to 2026-12-18 and is judged on 2026-12-29, when the last week holds have matured. Yardstick: the excess
+over SPY of a fixed 5-session hold (`paper_holding_shadows`, class `week`, rule `fixed`) for every candidate, traded
+or not; the quarter hold cannot mature inside a period. One observation per session (each group's mean that day, then
+the difference); an unknown or missing category is in neither group. One-sided t-test in the lesson's direction,
+Holm correction over the six tests, alpha 0.05, at least 15 sessions with both groups. Verdicts: `passed`, `failed`,
+or `insufficient_sample` (at most one extension, the owner's call). `period_experiments.py` judges them read-only;
+Jarvis runs it on every pass (check `period_experiments_p1`) and raises a proposal only once the period is judged.
+A passed lesson is a proposal; making it live stays the owner's decision, with tests.
+
+**In-sample baseline (sessions before P1, the same test; it decides nothing):** E1b -0.63 points a day (13 of 19
+days in the lesson's direction, Holm p 0.13), E2 -2.10 (14 of 19, Holm p 0.19), E4 -1.24 (12 of 19, Holm p 0.35),
+E3 -0.25 (Holm p 1.0), E5 +0.52 (Holm p 1.0) and E1a **+0.69**: on this yardstick the `support_bounce_swing` long
+candidates did better than the rest over a week, so their losses come from the quarter hold rather than the entry.
+None passes in sample. Report: `python period_experiments.py --baseline`.
+
+**Archived (172):** Koulis and Miltos rejected (above); `thesis_exit` (8) already live in
+`alpaca_multi_day_monitor.py`; `holding_class` (27) superseded by `holding_horizon.py` (five years, FDR);
+`holding_by_category` (122) filed once per trader, p-values counted on non-independent records, and the 'avoid'
+proposal text says the opposite of its numbers; `swing_hold_review` (1) conflicts with the 2026-11-05 decision that a
+swing long never closes the same day; the other 12 `category` lessons wait for a later period. An archived lesson is
+not revived by new evidence (`upsert_lesson_candidate` keeps its status).

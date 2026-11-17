@@ -638,6 +638,32 @@ def write_dashboard(conn: sqlite3.Connection, output: Path) -> None:
     output.write_text(page, encoding="utf-8")
 
 
+def apply_lesson_decisions(conn: sqlite3.Connection, decisions: list[dict[str, Any]]) -> dict[str, int]:
+    """The owner's decisions on many lessons at once (a triage, e.g. 2026-11-18 / ADR-002): every decision is checked
+    first - the lesson exists, the transition is allowed, a reason is given - and nothing is written unless all pass.
+    Returns how many lessons went to each status."""
+    if not decisions:
+        return {}
+    seen: set[str] = set()
+    for item in decisions:
+        lesson_id, status, reason = item.get("lesson_id"), item.get("status"), str(item.get("reason") or "").strip()
+        if not lesson_id or lesson_id in seen:
+            raise ValueError(f"lesson id missing or repeated: {lesson_id!r}")
+        seen.add(lesson_id)
+        if not reason:
+            raise ValueError(f"lesson {lesson_id}: a decision needs a reason")
+        row = conn.execute("SELECT status FROM agent_lesson_candidates WHERE lesson_id=?", (lesson_id,)).fetchone()
+        if row is None:
+            raise KeyError(lesson_id)
+        if status not in LESSON_TRANSITIONS.get(str(row[0]), set()):
+            raise ValueError(f"lesson {lesson_id}: {row[0]} -> {status} is not allowed")
+    counts: dict[str, int] = {}
+    for item in decisions:
+        set_lesson_status(conn, item["lesson_id"], item["status"], reason=str(item["reason"]).strip())
+        counts[item["status"]] = counts.get(item["status"], 0) + 1
+    return counts
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=market_intel_db.DEFAULT_DB_PATH)
@@ -658,6 +684,9 @@ def build_parser() -> argparse.ArgumentParser:
     transition.add_argument("--reason", required=True)
     commands.add_parser("shadow-candidates", help="move the lessons still waiting as candidates to shadow "
                                                   "(owner's standing decision 2026-11-05)")
+    decide = commands.add_parser("apply-lesson-decisions", help="apply the owner's decisions on lessons from a JSON "
+                                                                "file (all checked before any is written)")
+    decide.add_argument("--file", type=Path, required=True)
     return parser
 
 
@@ -678,6 +707,9 @@ def main() -> int:
             print(f"{args.model_id}: {args.state}")
         elif args.command == "shadow-candidates":
             print(json.dumps({"moved_to_shadow": shadow_all_candidates(conn)}))
+        elif args.command == "apply-lesson-decisions":
+            payload = json.loads(args.file.read_text(encoding="utf-8-sig"))
+            print(json.dumps(apply_lesson_decisions(conn, list(payload.get("decisions") or []))))
     return 0
 
 

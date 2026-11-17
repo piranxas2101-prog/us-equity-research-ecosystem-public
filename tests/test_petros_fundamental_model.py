@@ -95,3 +95,22 @@ class ReviewShadowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LegacyTrainingStoppedTests(unittest.TestCase):
+    """Owner 2026-11-17: the legacy mixed model's nightly training is stopped; only the fundamental-only one trains."""
+
+    def test_runners_train_only_the_fundamental_model(self):
+        root = Path(__file__).resolve().parents[1]
+        ps1 = (root / "run_daily_dual_watchlist.ps1").read_text(encoding="utf-8-sig")
+        calls = [line for line in ps1.splitlines() if "petros_trainer.py" in line and not line.strip().startswith("#")]
+        self.assertTrue(calls)
+        joined = "\n".join(ps1.splitlines())
+        self.assertNotIn('"petros_trainer.py",\n    "--horizon-days", "20",\n    "train"\n)', joined)
+        self.assertEqual(joined.count("petros_trainer.py"), 1)
+        self.assertIn('"--feature-set", "fundamental_only"', joined)
+        pipeline = (root / "daily_pipeline.py").read_text(encoding="utf-8")
+        trainer_calls = [line for line in pipeline.splitlines() if '"petros_trainer.py"' in line]
+        self.assertEqual(len(trainer_calls), 1)
+        self.assertIn("fundamental_only", pipeline[pipeline.index('"petros_trainer.py"'):][:200])
+        self.assertNotIn("output/petros_training_latest.md", ps1 + pipeline)

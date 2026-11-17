@@ -723,12 +723,16 @@ if ($sokratisExitCode -ne 0) {
 }
 
 Mark-PipelineStep -Key "petros_training" -Agent "petros"
-Write-Host "Training Petros safe JSON model when enough labels exist..."
+# Petros's model is fundamental-only and in shadow (owner 2026-11-17): no price, technical or trader inputs; Petros only
+# records its probability beside each decision, no score changes. The legacy mixed model's training was stopped the same
+# day (Petros never loaded it in fundamental_only mode, and it used trader signals and prices).
+Write-Host "Training Petros fundamental-only model (shadow)..."
 $petrosTrainLog = Join-Path $logDir "dual_watchlist_petros_train_$timestamp.log"
 $petrosTrainArgs = @(
     "petros_trainer.py",
     "--horizon-days", "20",
-    "train"
+    "train",
+    "--feature-set", "fundamental_only"
 )
 
 $previousErrorAction = $ErrorActionPreference
@@ -738,19 +742,6 @@ $petrosTrainExitCode = $LASTEXITCODE
 $ErrorActionPreference = $previousErrorAction
 if ($petrosTrainExitCode -ne 0) {
     Add-PipelineWarning "Petros training failed with exit code $petrosTrainExitCode. Log: $petrosTrainLog"
-}
-
-# Petros's fundamental-only model, in shadow (owner 2026-11-17): no price, technical or trader inputs; Petros only records
-# its probability beside each decision, no score changes.
-Write-Host "Training Petros fundamental-only model (shadow)..."
-$petrosFundLog = Join-Path $logDir "dual_watchlist_petros_train_fundamental_$timestamp.log"
-$previousErrorAction = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-& $pythonPath "petros_trainer.py" "--horizon-days" "20" "train" "--feature-set" "fundamental_only" 2>&1 | Tee-Object -FilePath $petrosFundLog
-$petrosFundExitCode = $LASTEXITCODE
-$ErrorActionPreference = $previousErrorAction
-if ($petrosFundExitCode -ne 0) {
-    Add-PipelineWarning "Petros fundamental-only training failed with exit code $petrosFundExitCode. Log: $petrosFundLog"
 }
 
 $compareLog = Join-Path $logDir "dual_watchlist_compare_$timestamp.log"
@@ -967,7 +958,7 @@ $summaryLines = @(
     "- Fundamental Research Packet: output/fundamental_research_packet_latest.md",
     "- Canonical control-plane batch: output/fundamental_control_plane_batch_latest.json",
     "- Team decision latest: output/team_decision_latest.md",
-    "- Petros training report: output/petros_training_latest.md",
+    "- Petros training report: output/petros_training_fundamental_only_latest.md",
     "- Petros model: models/petros_model_latest.json",
     "- Trader handoff status: $traderHandoffStatus",
     "- Trader handoff report: $traderHandoffReport",
@@ -1020,7 +1011,7 @@ $finishedLines = @(
     "Fundamental Research Packet: output/fundamental_research_packet_latest.md",
     "Canonical control-plane batch: output/fundamental_control_plane_batch_latest.json",
     "Team decision latest: output/team_decision_latest.md",
-    "Petros training: output/petros_training_latest.md",
+    "Petros training: output/petros_training_fundamental_only_latest.md",
     "Petros model: models/petros_model_latest.json",
     "Trader handoff status: $traderHandoffStatus",
     "Trader handoff report: $traderHandoffReport",
@@ -1104,7 +1095,7 @@ $manifestArgs = @(
     "--artifact", "output/paper_learning/evaluation_latest.json",
     "--artifact", "output/sokratis_strategy_teacher_latest.json",
     "--artifact", "output/petros_review_latest.json",
-    "--artifact", "output/petros_training_latest.md",
+    "--artifact", "output/petros_training_fundamental_only_latest.md",
     "--artifact", "output/team_decision_latest.json",
     "--artifact", "output/today_action_report.md",
     "--artifact", $summaryPath,

@@ -357,3 +357,7 @@ Petros records `ml_shadow_probability` beside each decision and changes no score
 2026-11-17: 26,875 rows, 73 features, walk-forward ROC AUC 0.61 (legacy mixed 0.615). Jarvis raises it for promotion
 only after 20 nights of shadow, and never the legacy model. Using it in the score is the owner's decision.
 
+Same day (owner, "yes, stop it"): the legacy mixed model's nightly training is stopped in both runners; only the
+fundamental-only model trains (report `output/petros_training_fundamental_only_latest.md`). The legacy model file and
+its registry rows stay as they are (history).
+

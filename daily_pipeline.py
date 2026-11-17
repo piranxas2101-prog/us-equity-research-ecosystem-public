@@ -238,7 +238,7 @@ def _manifest(ctx: Context) -> list[str]:
                  "output/all_listed_instrument_observations_latest.json", GIANNIS, DEEP,
                  "output/information_ledger_latest.json", PACKET, "output/fundamental_control_plane_batch_latest.json",
                  YANKOS, PERIKLIS, "output/experiment_registry_latest.json", BACKTEST,
-                 "output/macro_environment_latest.json", "output/market_state_latest.json", "output/periodic_results_latest.json", "output/earnings_journal_latest.json", "output/results_calendar_latest.json", "output/paper_learning/evaluation_latest.json", "output/sokratis_strategy_teacher_latest.json", PETROS, "output/petros_training_latest.md",
+                 "output/macro_environment_latest.json", "output/market_state_latest.json", "output/periodic_results_latest.json", "output/earnings_journal_latest.json", "output/results_calendar_latest.json", "output/paper_learning/evaluation_latest.json", "output/sokratis_strategy_teacher_latest.json", PETROS, "output/petros_training_fundamental_only_latest.md",
                  "output/team_decision_latest.json", "output/today_action_report.md", ctx.summary_path, ctx.handoff_log]
     audit = ROOT / "output/research_only_audit_latest.json"
     if ctx.options.full_market and audit.exists() and load_json(audit).get("run_id") == ctx.options.run_id:
@@ -330,10 +330,10 @@ def build_stages() -> list[Stage]:
                                                "--yankos", YANKOS, "--periklis", PERIKLIS,
                                                "--out-prefix", "output/sokratis_strategy_teacher"),
               outputs=("output/sokratis_strategy_teacher_latest.json",)),
-        Stage("petros_train", False, lambda c: _py(c, "petros_trainer.py", "--horizon-days", "20", "train")),
-        # owner 2026-11-17: Petros's fundamental-only model, in shadow (recorded beside decisions, no score change)
-        Stage("petros_train_fundamental", False, lambda c: _py(c, "petros_trainer.py", "--horizon-days", "20", "train",
-                                                               "--feature-set", "fundamental_only")),
+        # owner 2026-11-17: Petros's model is fundamental-only, in shadow (recorded beside decisions, no score change);
+        # the legacy mixed model's training is stopped (Petros never used it, and it used trader signals and prices)
+        Stage("petros_train", False, lambda c: _py(c, "petros_trainer.py", "--horizon-days", "20", "train",
+                                                   "--feature-set", "fundamental_only")),
         Stage("compare", False, _compare, skip_reason=_no_baseline),
         Stage("meeting", False, _meeting),
         Stage("action_report", False, lambda c: _py(

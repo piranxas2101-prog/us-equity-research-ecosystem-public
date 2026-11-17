@@ -368,3 +368,9 @@ against SPY; after 10/30 +2.64% against SPY; one to three sessions later holding
 Verdict on 54 cases from 2 shock days: no clear difference (mean -1.10% against SPY, 95% [-3.30, +2.64]). The
 market_shock rule stays as it is; Jarvis raises it if a verdict appears.
 
+**Owner's decision 2026-11-18: the debate runs after the session, not during it.** Worry that it weighs on the live
+session and delays it. The line that started it in `start_trader_paper_trading_today.ps1` is removed; Jarvis's
+after-session pass runs `debate_shadow.py run --after-close` on the day's approvals in Koulis's order, within 50
+minutes (done before the 00:30 nightly run), with the inputs as they stood at the approval. It is now a measurement
+only; a veto would need the agents to ask for an opinion when they need one, which is not built.
+

@@ -16,24 +16,23 @@ class WiringTests(unittest.TestCase):
     def lines(self):
         return (ROOT / LAUNCHER).read_text(encoding="utf-8-sig").splitlines()
 
-    def test_one_background_start_after_koulis(self):
-        lines = self.lines()
-        starts = [n for n, line in enumerate(lines) if "debate_shadow.py" in line]
-        self.assertEqual(len(starts), 1)
-        line = lines[starts[0]]
-        self.assertIn("Start-Process", line)
-        self.assertNotIn("-Wait", line)
-        self.assertIn("-WindowStyle Hidden", line)
-        self.assertIn("try {", line)
-        koulis_exit = next(n for n, l in enumerate(lines) if "exit $koulisExit" in l)
-        miltos = next(n for n, l in enumerate(lines) if "start_miltos_entry_stalker_today.ps1" in l)
-        self.assertLess(koulis_exit, starts[0])
-        self.assertLess(starts[0], miltos)
+    def test_the_session_launcher_no_longer_starts_the_debate(self):
+        # owner 2026-11-18: not during the session (it must not weigh on it); Jarvis runs it after the close
+        self.assertFalse([line for line in self.lines() if "debate_shadow" in line])
 
-    def test_launcher_line_is_ascii(self):
-        for line in self.lines():
-            if "debate" in line.lower():
-                line.encode("ascii")
+    def test_jarvis_runs_the_debate_after_the_session(self):
+        from unittest import mock
+        import tempfile
+        import jarvis
+        calls = []
+        with tempfile.TemporaryDirectory() as tmp,                 mock.patch("jarvis.run_pass", return_value={"open_proposals": 0, "problems": 0}),                 mock.patch("jarvis.keep_awake"),                 mock.patch("jarvis.run_debate_after_close", side_effect=lambda root, day: calls.append(day)):
+            jarvis.main(["after-session", "--root", tmp, "--today", "2026-11-18"])
+            jarvis.main(["after-nightly", "--root", tmp, "--today", "2026-11-18"])
+        self.assertEqual([d.isoformat() for d in calls], ["2026-11-18"])
+
+    def test_after_close_the_debate_has_a_budget_and_no_session_guard(self):
+        import debate_shadow
+        self.assertEqual(debate_shadow.AFTER_CLOSE_MINUTES, 50)
 
     def test_jarvis_runs_the_measure_and_raises_only_a_pass(self):
         self.assertEqual(jarvis_checks.PRODUCERS["debate_shadow_evaluate"], ["debate_shadow.py", "evaluate"])

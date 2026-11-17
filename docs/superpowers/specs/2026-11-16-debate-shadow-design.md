@@ -109,3 +109,9 @@ Anti-goals: it fails, even if it works, if
 - Trial on 8 real approvals of 11/16: scores 3.46-5.08, 3 oppose, 5 neutral, 8-15 s each. The bear text can mention
   things not in the evidence; the measurement judges the rating, not the prose.
 
+## 10. Moved after the close (owner 2026-11-18)
+The owner moved the debate out of the session (it must not weigh on it). Jarvis's after-session pass runs it with a
+50-minute budget and no session guard; the launcher line is gone. Opinions are written after the entries, so the
+"before entry" share is no longer a measure of a possible veto; a veto would need agents asking for an opinion on
+demand (not built).
+

@@ -136,7 +136,7 @@ class PassTests(unittest.TestCase):
     def test_main_holds_the_computer_awake(self):
         calls = []
         with mock.patch("jarvis.keep_awake", side_effect=lambda on: calls.append(on)), \
-             mock.patch("jarvis.run_pass", return_value={"open_proposals": 0, "problems": 0}):
+             mock.patch("jarvis.run_pass", return_value={"open_proposals": 0, "problems": 0}),              mock.patch("jarvis.run_debate_after_close"):  # never a live Ollama in tests
             jarvis.main(["after-session", "--root", str(self.root), "--today", "2026-11-16"])
         self.assertEqual(calls, [True, False])
 

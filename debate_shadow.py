@@ -50,6 +50,7 @@ NUM_THREAD = 4
 NUM_PREDICT = 220
 CALL_TIMEOUT = 300
 STOP_AT = clock_time(16, 0)  # New York
+AFTER_CLOSE_MINUTES = 50     # owner 2026-11-18: run by Jarvis after the session, done before the 00:30 nightly run
 MILTOS_POLL_SECONDS = 300
 LATE_TOLERANCE_SECONDS = 60
 LATE_STRIKES = 2
@@ -534,6 +535,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("run", "evaluate"))
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--session-date", default=None, help="New York date (default: today)")
+    parser.add_argument("--after-close", action="store_true",
+                        help="owner 2026-11-18: run after the session (Jarvis), within AFTER_CLOSE_MINUTES, no session guard")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     today = datetime.now(NEW_YORK).date()
@@ -548,9 +551,13 @@ def main(argv: list[str] | None = None) -> int:
         print("DEBATE Ollama is not available; nothing judged")
         return 0
     lower_ollama_priority()
-    guard = SessionGuard(root)
-    result = run(root, client=client, session_date=args.session_date or today.isoformat(),
-                 deadline=lambda: past_stop(datetime.now(timezone.utc)), guard=guard)
+    if args.after_close:  # the session is over: nothing to guard, a time budget so it ends before the nightly run
+        end = time.monotonic() + AFTER_CLOSE_MINUTES * 60
+        guard, deadline = None, (lambda: time.monotonic() >= end)
+    else:
+        guard, deadline = SessionGuard(root), (lambda: past_stop(datetime.now(timezone.utc)))
+    result = run(root, client=client, session_date=args.session_date or today.isoformat(), deadline=deadline,
+                 guard=guard)
     print(f"DEBATE {result['status']} judged={result['judged']} stopped={result['stopped']}")
     return 0
 

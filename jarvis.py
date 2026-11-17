@@ -228,6 +228,17 @@ def refresh_search_index(root: Path, embedder: Any = None) -> dict[str, Any]:
     return jarvis_search.build(root, embedder, budget_seconds=300)
 
 
+def run_debate_after_close(root: Path, day: date) -> None:
+    """The debate shadow on the day's approvals, after the session (owner 2026-11-18: not during it, so it never
+    weighs on the live session; agents can ask for an opinion when they need one). Its own failure stays its own."""
+    import debate_shadow
+
+    try:
+        debate_shadow.main(["run", "--root", str(root), "--session-date", day.isoformat(), "--after-close"])
+    except Exception as exc:  # noqa: BLE001 - the Jarvis pass is already written
+        print(f"DEBATE failed: {type(exc).__name__}")
+
+
 def _chat_budget() -> int:
     try:
         return int(json.loads((ROOT / "jarvis_config.json").read_text(encoding="utf-8-sig"))["max_total_chars"])
@@ -343,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
     keep_awake(True)
     try:
         record = run_pass(args.kind, root=root, today=day, python=sys.executable, refresh=refresh_search_index)
+        if args.kind == "after-session":
+            run_debate_after_close(root, day)
     except Exception as exc:  # noqa: BLE001 - never stop the launcher's rest step
         print(f"JARVIS failed: {type(exc).__name__}")
         return 0

@@ -124,8 +124,6 @@ if ($koulisExit -ne 0) {
     Write-Host "[KOULIS/THYMIOS] Blocked trader run. See $koulisOut and $koulisErr"
     exit $koulisExit
 }
-# Debate shadow (owner 2026-11-16, RULES_REVIEW section 12): opinions on the approved trades, in shadow, in the background; never waited for, changes no order
-try { Start-Process -FilePath $PythonExe -ArgumentList @(".\debate_shadow.py", "run") -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsDir "debate_shadow_$timestamp.out.log") -RedirectStandardError (Join-Path $logsDir "debate_shadow_$timestamp.err.log") | Out-Null } catch { Write-Host "[DEBATE] not started: $($_.Exception.Message)" }
 $approvedIntentCount = 0
 $approvedRunId = $env:ECOSYSTEM_RUN_ID
 if (Test-Path $approvedIntents) {

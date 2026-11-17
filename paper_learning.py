@@ -195,16 +195,28 @@ def maturity(record: dict[str, Any], as_of: date) -> str:
     return "mature" if trading_clock.sessions_after(entry, as_of) >= horizon else "immature"
 
 
+MARK_LOOKBACK_DAYS = 7
+
+
 def attach_open_marks(records: list[dict[str, Any]], prices: Prices, as_of: date) -> None:
-    """A trade still open (no result yet) marked at the close of ``as_of`` in its direction: an estimate shown
-    beside the immature trades, never a result and never mixed into the judged figures. Unknown without a price."""
+    """A trade still open (no result yet) marked at the latest stored close up to ``as_of`` in its direction: an
+    estimate shown beside the immature trades, never a result and never mixed into the judged figures. The evening
+    evaluation runs before the nightly stores that day's bar, so the mark may come from an earlier session, which is
+    kept in ``open_mark_session``. Unknown without a price in the last ``MARK_LOOKBACK_DAYS`` days."""
     for record in records:
         if record.get("kind") != "trade" or record.get("result_pct") is not None:
             continue
-        entry = record.get("entry_price")
-        _, close = prices(record.get("ticker") or "", as_of)
-        record["open_mark_pct"] = (None if not entry or close is None else
-                                   round((1.0 if record.get("direction") == "long" else -1.0) * (close / entry - 1) * 100, 3))
+        entry, close, marked = record.get("entry_price"), None, None
+        for back in range(MARK_LOOKBACK_DAYS + 1):
+            day = as_of - timedelta(days=back)
+            _, close = prices(record.get("ticker") or "", day)
+            if close is not None:
+                marked = day
+                break
+        known = bool(entry) and close is not None
+        record["open_mark_pct"] = (round((1.0 if record.get("direction") == "long" else -1.0) * (close / entry - 1) * 100, 3)
+                                   if known else None)
+        record["open_mark_session"] = marked.isoformat() if known and marked else None
 
 
 def maturity_summary(trades: list[dict[str, Any]], as_of: date) -> dict[str, Any]:
@@ -221,6 +233,8 @@ def maturity_summary(trades: list[dict[str, Any]], as_of: date) -> dict[str, Any
                         "closed_early_mean_pct": round(statistics.fmean([r["outcome_pct"] for r in closed]), 3)
                         if closed else None,
                         "open": len(still_open), "open_marked": len(marks),
+                        "open_mark_sessions": sorted({r["open_mark_session"] for r in still_open
+                                                      if r.get("open_mark_session")}),
                         "open_mark_mean_pct": round(statistics.fmean(marks), 3) if marks else None}
     return {"as_of": as_of.isoformat(), "mature": len(trades) - len(immature), "immature": len(immature),
             "classes": classes}
@@ -802,8 +816,15 @@ def _maturity_lines(summary: dict[str, Any]) -> list[str]:
              "|---|---|---|---|---|---|"]
     for cls, cell in (summary.get("classes") or {}).items():
         lines.append(f"| {cls} | {cell['records']} | {cell['closed_early']} | {_v(cell['closed_early_mean_pct'])} | "
-                     f"{cell['open']} | {_v(cell['open_mark_mean_pct'])} ({cell['open_marked']} με τιμή) |")
+                     f"{cell['open']} | {_v(cell['open_mark_mean_pct'])} ({cell['open_marked']} με τιμή"
+                     f"{_mark_days(cell.get('open_mark_sessions'))}) |")
     return lines + [""]
+
+
+def _mark_days(sessions: list[str] | None) -> str:
+    if not sessions:
+        return ""
+    return f", κλείσιμο {sessions[0]}" if len(sessions) == 1 else f", κλείσιμο {sessions[0]} έως {sessions[-1]}"
 
 
 def render_report(period: str, label: str, start: date, end: date, evaluation: dict[str, Any],

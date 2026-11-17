@@ -271,6 +271,18 @@ class MaturityTests(unittest.TestCase):
         summary = pl.maturity_summary([long, short, missing], date(2026, 11, 13))["classes"]["quarter"]
         self.assertEqual((summary["open"], summary["open_marked"], summary["open_mark_mean_pct"]), (3, 2, 0.0))
 
+    def test_an_open_trade_takes_the_latest_stored_close_when_the_day_is_not_stored_yet(self):
+        # owner 2026-11-17: the evening evaluation runs before the nightly stores the day's bar
+        record = held(26, None)
+        prices = lambda t, d: (101.0, 95.0) if d == date(2026, 11, 13) else (None, None)  # noqa: E731
+        pl.attach_open_marks([record], prices, date(2026, 11, 16))
+        self.assertEqual((record["open_mark_pct"], record["open_mark_session"]), (-5.0, "2026-11-13"))
+        summary = pl.maturity_summary([record], date(2026, 11, 16))["classes"]["quarter"]
+        self.assertEqual(summary["open_mark_sessions"], ["2026-11-13"])
+        stale = held(26, None)
+        pl.attach_open_marks([stale], lambda t, d: (None, None), date(2026, 11, 16))
+        self.assertEqual((stale["open_mark_pct"], stale["open_mark_session"]), (None, None))
+
     def test_the_report_shows_the_immature_trades_apart(self):
         evaluation = pl.evaluate([trade(1, 2.0), held(26, -6.0)], as_of=date(2026, 11, 13))
         text = pl.render_report("week", "2026-W46", date(2026, 11, 9), date(2026, 11, 13), evaluation,

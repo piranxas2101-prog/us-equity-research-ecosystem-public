@@ -198,6 +198,13 @@ class OwnerDecisionTests(unittest.TestCase):
         self.decide(node=None, note="Checked the 10-K")
         self.assertEqual(self.effective(), ("industrials.business_services.commercial", "approved_provisional"))
 
+    def test_choosing_the_current_node_is_a_confirmation(self):
+        # 2026-11-17: "Accept the suggestion" chose the node the symbol already had and the batch refused it as a
+        # non-change; choosing the current node means confirming it
+        result = self.decide(node="industrials.business_services.commercial", note="Πρόταση Jarvis")
+        self.assertTrue(result["confirmed_current"])
+        self.assertEqual(self.effective(), ("industrials.business_services.commercial", "approved_provisional"))
+
     def test_owner_decision_needs_a_reason_and_a_real_node(self):
         with self.assertRaisesRegex(ValueError, "reason"):
             self.decide(node="technology", note=" ")

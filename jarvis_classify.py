@@ -51,6 +51,9 @@ def suggest(item: dict[str, Any]) -> dict[str, Any]:
         return {"decision": None, "node": None, "confidence": None,
                 "reason": "δεν μπορώ να προτείνω: οι πηγές διαφωνούν χωρίς καθαρή πλειοψηφία"}
     agreeing = ", ".join(sorted(str(s) for s in top["sources"]))
+    if top["best"]["node"] == item.get("current_node"):  # the node it already has: a confirmation, not a change
+        return {"decision": "confirm", "node": item["current_node"], "confidence": "strong" if two_sources else "weak",
+                "reason": f"ο τωρινός κόμβος στηρίζεται: {agreeing} (βάρος {top['weight']} έναντι {runner})"}
     confidence = "strong" if two_sources and top["weight"] >= 2 * max(runner, 1) else "weak"
     return {"decision": "choose", "node": top["best"]["node"], "confidence": confidence,
             "reason": f"τομέας {top_sector}: {agreeing} (βάρος {top['weight']} έναντι {runner})"}

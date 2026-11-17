@@ -74,6 +74,13 @@ class ClassificationSuggestionTests(unittest.TestCase):
         self.assertEqual((s["decision"], s["node"]), ("choose", "industrials.business_services.commercial"))
         self.assertIn("industrials", s["reason"])
 
+    def test_suggesting_the_current_node_is_a_confirmation(self):
+        s = jc.suggest(item("no_two_sources_agree",
+                            [("directory", "explicit_internal_industry_crosswalk", "industrials.business_services.commercial"),
+                             ("profile", "explicit_provider_alias", "industrials.business_services.commercial")],
+                            current="industrials.business_services.commercial"))
+        self.assertEqual((s["decision"], s["node"]), ("confirm", "industrials.business_services.commercial"))
+
     def test_a_tie_gets_no_suggestion(self):
         s = jc.suggest(item("no_two_sources_agree", [("profile", "explicit_provider_alias", "materials.x"),
                                                      ("directory", "explicit_internal_industry_crosswalk", "energy.y")]))

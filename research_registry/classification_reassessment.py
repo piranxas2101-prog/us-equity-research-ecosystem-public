@@ -502,6 +502,8 @@ def owner_decision(db: sqlite3.Connection, venue_code: str, ticker: str, *, node
     if listing["instrument_type"] not in CORPORATE:
         raise ValueError("Only company classifications are decided here")
     tax, nodes = taxonomy()
+    if node is not None and node == listing["node_id"]:
+        node = None  # choosing the node it already has is confirming it (a batch refuses a non-change, 2026-11-17)
     confirm = node is None
     if confirm and not listing["node_id"]:
         raise ValueError("There is no current node to confirm; choose a node")

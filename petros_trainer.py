@@ -24,6 +24,16 @@ import agent_learning_control_plane
 DEFAULT_MODEL_PATH = Path("models/petros_model_latest.json")
 DEFAULT_REPORT_PATH = Path("output/petros_training_latest.md")
 DEFAULT_DATASET_PATH = Path("output/petros_training_dataset_latest.csv")
+# owner 2026-11-17: the legacy model mixes trader signals and price data, which Petros may not see; the fundamental-only
+# model is trained beside it, registered as its own task and only recorded in shadow by Petros.
+FEATURE_SETS = {
+    "legacy": {"task_id": "fundamental_synthesis", "model": DEFAULT_MODEL_PATH, "report": DEFAULT_REPORT_PATH,
+               "dataset": DEFAULT_DATASET_PATH},
+    "fundamental_only": {"task_id": "fundamental_only_synthesis",
+                         "model": Path("models/petros_model_fundamental_only.json"),
+                         "report": Path("output/petros_training_fundamental_only_latest.md"),
+                         "dataset": Path("output/petros_training_fundamental_only_dataset_latest.csv")},
+}
 POSITIVE_FEEDBACK = {"agree", "interested", "watch"}
 NEGATIVE_FEEDBACK = {"disagree", "reject"}
 
@@ -157,11 +167,12 @@ def build_training_examples(
     return examples
 
 
-def matrix_from_examples(examples: list[dict[str, Any]]) -> tuple[list[list[float]], list[int], list[str]]:
+def matrix_from_examples(examples: list[dict[str, Any]],
+                         feature_set: str = "legacy") -> tuple[list[list[float]], list[int], list[str]]:
     payloads = [example["payload"] for example in examples]
-    feature_names = petros_features.feature_names_from_rows(payloads)
+    feature_names = petros_features.feature_names_from_rows(payloads, feature_set)
     x_rows = [
-        petros_features.vectorize(petros_features.build_features(example["payload"]), feature_names)
+        petros_features.vectorize(petros_features.build_features(example["payload"], feature_set), feature_names)
         for example in examples
     ]
     y_rows = [int(example["label"]) for example in examples]
@@ -220,6 +231,7 @@ def train_model(
     horizon_days: int,
     target_return_pct: float,
     min_rows: int,
+    feature_set: str = "legacy",
 ) -> tuple[dict[str, Any] | None, str]:
     if len(examples) < min_rows:
         return None, f"insufficient_rows: need {min_rows}, have {len(examples)}"
@@ -228,7 +240,7 @@ def train_model(
     if len(label_counts) < 2:
         return None, f"insufficient_classes: labels={dict(label_counts)}"
 
-    x_rows, y_rows, feature_names = matrix_from_examples(examples)
+    x_rows, y_rows, feature_names = matrix_from_examples(examples, feature_set)
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(x_rows)
     model = LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)
@@ -241,6 +253,7 @@ def train_model(
     scale = [float(value) if float(value) != 0.0 else 1.0 for value in scaler.scale_.tolist()]
 
     model_json = {
+        "feature_set": feature_set,
         "model_type": "petros_logistic_regression_json_v1",
         "label_objective": (
             "market_outcome"
@@ -329,9 +342,11 @@ def write_dataset(path: Path, examples: list[dict[str, Any]]) -> None:
 
 def command_train(args: argparse.Namespace) -> None:
     db_path = Path(args.db)
-    model_path = Path(args.model)
-    report_path = Path(args.report)
-    dataset_path = Path(args.dataset)
+    feature_set = getattr(args, "feature_set", "legacy") or "legacy"
+    paths = FEATURE_SETS[feature_set]
+    model_path = Path(args.model) if feature_set == "legacy" else paths["model"]
+    report_path = Path(args.report) if feature_set == "legacy" else paths["report"]
+    dataset_path = Path(args.dataset) if feature_set == "legacy" else paths["dataset"]
 
     examples = build_training_examples(
         db_path=db_path,
@@ -345,6 +360,7 @@ def command_train(args: argparse.Namespace) -> None:
         horizon_days=args.horizon_days,
         target_return_pct=args.target_return_pct,
         min_rows=args.min_rows,
+        feature_set=feature_set,
     )
 
     if model_json:
@@ -359,7 +375,7 @@ def command_train(args: argparse.Namespace) -> None:
         with market_intel_db.connect(db_path) as conn:
             agent_learning_control_plane.init_schema(conn)
             model_id = agent_learning_control_plane.register_model(
-                conn, agent_id="petros", task_id="fundamental_synthesis",
+                conn, agent_id="petros", task_id=paths["task_id"],
                 model_version=str(model_json["trained_at"]),
                 model_type=str(model_json["model_type"]), model_path=model_path,
                 dataset_sha256=dataset_hash, feature_schema_sha256=feature_hash,
@@ -412,6 +428,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     train = subparsers.add_parser("train", help="Train Petros model when enough labels exist.")
     train.add_argument("--min-rows", type=int, default=20)
+    train.add_argument("--feature-set", choices=tuple(FEATURE_SETS), default="legacy",
+                       help="fundamental_only: no price, technical or trader inputs (owner 2026-11-17, shadow)")
     train.add_argument("--report", default=str(DEFAULT_REPORT_PATH))
     train.add_argument("--dataset", default=str(DEFAULT_DATASET_PATH))
     train.set_defaults(func=command_train)

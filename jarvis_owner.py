@@ -75,6 +75,7 @@ def _models(root: Path) -> dict[str, Any]:
     if result is None:
         return {**group, "count": None, "items": [], "superseded": None}
     return {**group, "count": len(result["worth"]), "superseded": result["superseded"],
+            "unused": result["unused"], "in_shadow": result["in_shadow"],
             "items": [f"{m['agent_id']}: {m['reason']}" for m in result["worth"]]}
 
 

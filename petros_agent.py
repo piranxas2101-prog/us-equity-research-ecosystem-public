@@ -110,6 +110,34 @@ def model_probability(model: dict[str, Any], row: dict[str, Any]) -> float | Non
     return safe_sigmoid(score)
 
 
+FUNDAMENTAL_MODEL_PATH = Path("models/petros_model_fundamental_only.json")
+
+
+def shadow_probability(model: dict[str, Any] | None, row: dict[str, Any]) -> float | None:
+    """The fundamental-only model's probability for a decision, recorded in shadow (owner 2026-11-17): it changes no
+    score, verdict or tier. None for a model that is not fundamental-only or cannot be read."""
+    if not model or model.get("feature_set") != "fundamental_only":
+        return None
+    try:
+        names = [str(name) for name in model["feature_names"]]
+        mean = [float(v) for v in model["scaler_mean"]]
+        scale = [float(v) if float(v) != 0.0 else 1.0 for v in model["scaler_scale"]]
+        coefficients = [float(v) for v in model["coefficients"]]
+        intercept = float(model["intercept"])
+    except (TypeError, ValueError, KeyError):
+        return None
+    if not (len(names) == len(mean) == len(scale) == len(coefficients)):
+        return None
+    values = petros_features.vectorize(petros_features.build_features(row, "fundamental_only"), names)
+    score = intercept + sum(c * (v - m) / s for c, v, m, s in zip(coefficients, values, mean, scale))
+    return round(safe_sigmoid(score), 4)
+
+
+def attach_shadow(decision: dict[str, Any], model: dict[str, Any] | None) -> None:
+    """Record the fundamental-only model's probability beside the decision; unknown (None) without a model."""
+    decision["ml_shadow_probability"] = shadow_probability(model, decision)
+
+
 def score_petros(
     giannis_row: dict[str, Any],
     babis_row: dict[str, Any] | None,
@@ -964,6 +992,7 @@ def command_review(args: argparse.Namespace) -> None:
         if legacy_mixed and not args.no_model
         else None
     )
+    shadow_model = None if legacy_mixed or args.no_model else load_safe_model(FUNDAMENTAL_MODEL_PATH)
     rows = []
     giannis_result_rows = as_list(giannis.get("results"))
     for row in giannis_result_rows:
@@ -1007,6 +1036,8 @@ def command_review(args: argparse.Namespace) -> None:
                 run_id=run_id,
                 run_timestamp=run_ts,
             )
+        if not legacy_mixed:  # shadow only (owner 2026-11-17): recorded, never added to the score
+            attach_shadow(decision, shadow_model)
         readiness = research_readiness.assess(decision, source_row=merged_row)
         decision["research_readiness"] = readiness
         if readiness["security_thesis_readiness"] != "ready" and decision.get("confidence") == "High":

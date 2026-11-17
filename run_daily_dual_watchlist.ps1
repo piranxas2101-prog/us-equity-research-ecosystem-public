@@ -740,6 +740,19 @@ if ($petrosTrainExitCode -ne 0) {
     Add-PipelineWarning "Petros training failed with exit code $petrosTrainExitCode. Log: $petrosTrainLog"
 }
 
+# Petros's fundamental-only model, in shadow (owner 2026-11-17): no price, technical or trader inputs; Petros only records
+# its probability beside each decision, no score changes.
+Write-Host "Training Petros fundamental-only model (shadow)..."
+$petrosFundLog = Join-Path $logDir "dual_watchlist_petros_train_fundamental_$timestamp.log"
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $pythonPath "petros_trainer.py" "--horizon-days" "20" "train" "--feature-set" "fundamental_only" 2>&1 | Tee-Object -FilePath $petrosFundLog
+$petrosFundExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorAction
+if ($petrosFundExitCode -ne 0) {
+    Add-PipelineWarning "Petros fundamental-only training failed with exit code $petrosFundExitCode. Log: $petrosFundLog"
+}
+
 $compareLog = Join-Path $logDir "dual_watchlist_compare_$timestamp.log"
 if ($hasComparisonBaseline -and $petrosReviewOk) {
     Write-Host "Comparing fresh scan against previous baseline..."

@@ -59,7 +59,7 @@ class OwnerTests(unittest.TestCase):
         groups = {g["kind"]: g for g in jarvis_owner.pending(self.root)["groups"]}
         self.assertEqual(groups["proposals"]["count"], 1)
         self.assertEqual(groups["classification"]["count"], 3)
-        self.assertEqual(groups["models"]["count"], 1)  # only the latest is worth a look; 1 superseded
+        self.assertEqual((groups["models"]["count"], groups["models"]["unused"]), (0, 2))  # not usable by Petros
         self.assertEqual(groups["classification"]["suggested"], 1)
         self.assertEqual(groups["labs"]["count"], 1)
         self.assertIn("T3: βάση του όγκου", groups["labs"]["items"])
@@ -72,9 +72,9 @@ class OwnerTests(unittest.TestCase):
     def test_the_story_is_in_sentences(self):
         text = jarvis_owner.story(jarvis_owner.pending(self.root))
         self.assertTrue(text.startswith("Περιμένουν εσένα"), text)
+        self.assertNotIn("μοντέλο", text)  # models Petros cannot use are not a decision
         for part in ("1 πρόταση του Jarvis", "Το run r1 σταμάτησε", "3 σύμβολα στον έλεγχο κατηγοριοποίησης",
-                     "2 όπου διαφωνούν οι πηγές", "για 1 έχω έτοιμη πρόταση", "1 εκπαιδευμένο μοντέλο αξίζει",
-                     "1 παλαιότερο", "1 εργαστήριο"):
+                     "2 όπου διαφωνούν οι πηγές", "για 1 έχω έτοιμη πρόταση", "1 εργαστήριο"):
             self.assertIn(part, text)
 
     def test_chat_answers_without_the_model(self):

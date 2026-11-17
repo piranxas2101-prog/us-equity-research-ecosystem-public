@@ -23,8 +23,9 @@ def registry(root: Path, rows: list[tuple]) -> None:
         conn.commit()
 
 
-def model(i: int, auc: float, state: str = "candidate", status: str = "walk_forward_validated") -> tuple:
-    return (f"m{i}", "petros", "fundamental_synthesis", f"2026-11-{i:02d}", state, 25000 + i,
+def model(i: int, auc: float, state: str = "candidate", status: str = "walk_forward_validated",
+          task: str = "fundamental_only_synthesis") -> tuple:
+    return (f"m{i}", "petros", task, f"2026-11-{i:02d}", state, 25000 + i,
             json.dumps({"roc_auc": auc, "status": status}), f"2026-11-{i:02d}T03:00:00+00:00")
 
 
@@ -36,24 +37,35 @@ class ModelFilterTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_without_a_champion_only_the_latest_validated_is_worth_a_look(self):
+    def test_the_legacy_mixed_model_is_never_worth_a_look(self):
+        # owner 2026-11-17: it uses trader signals and prices, which Petros may not see, and Petros does not use it
+        registry(self.root, [model(i, 0.615, task="fundamental_synthesis") for i in range(1, 25)])
+        out = jmod.worth(self.root)
+        self.assertEqual((out["worth"], out["unused"]), ([], 24))
+
+    def test_a_shadow_model_waits_for_twenty_nights(self):
         registry(self.root, [model(i, 0.615) for i in range(1, 11)])
         out = jmod.worth(self.root)
-        self.assertEqual((out["candidates"], [m["model_id"] for m in out["worth"]], out["superseded"]), (10, ["m10"], 9))
+        self.assertEqual((out["worth"], out["in_shadow"]), ([], 10))
+
+    def test_without_a_champion_only_the_latest_validated_is_worth_a_look(self):
+        registry(self.root, [model(i, 0.615) for i in range(1, 25)])
+        out = jmod.worth(self.root)
+        self.assertEqual((out["candidates"], [m["model_id"] for m in out["worth"]], out["superseded"]), (24, ["m24"], 23))
         self.assertIn("δεν υπάρχει champion", out["worth"][0]["reason"])
 
     def test_with_a_champion_a_candidate_must_beat_it(self):
-        registry(self.root, [model(1, 0.62, "champion"), model(2, 0.625), model(3, 0.615)])
+        registry(self.root, [model(1, 0.62, "champion"), *[model(i, 0.615) for i in range(2, 22)], model(22, 0.625)])
         self.assertEqual(jmod.worth(self.root)["worth"], [])
         registry_root = Path(self.tmp.name) / "b"
-        registry(registry_root, [model(1, 0.60, "champion"), model(2, 0.615)])
+        registry(registry_root, [model(1, 0.60, "champion"), *[model(i, 0.60) for i in range(2, 22)], model(22, 0.615)])
         out = jmod.worth(registry_root)
-        self.assertEqual([m["model_id"] for m in out["worth"]], ["m2"])
+        self.assertEqual([m["model_id"] for m in out["worth"]], ["m22"])
         self.assertIn("+0.015", out["worth"][0]["reason"])
 
     def test_an_unvalidated_latest_is_not_proposed(self):
-        registry(self.root, [model(1, 0.615), model(2, 0.70, status="insufficient_rows")])
-        self.assertEqual([m["model_id"] for m in jmod.worth(self.root)["worth"]], ["m1"])
+        registry(self.root, [*[model(i, 0.615) for i in range(1, 22)], model(22, 0.70, status="insufficient_rows")])
+        self.assertEqual([m["model_id"] for m in jmod.worth(self.root)["worth"]], ["m21"])
 
     def test_no_registry_is_unknown(self):
         self.assertIsNone(jmod.worth(self.root))

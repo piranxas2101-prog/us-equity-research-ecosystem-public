@@ -345,3 +345,15 @@ risk, support/neutral/oppose), stops at 16:00 New York or when Miltos runs late 
 after the ledger (`debate_shadow_s12`, raised only on `veto_would_help`). Report:
 `output/paper_learning/debate_shadow_latest.md`. No order, approval, score or position changes.
 
+## 13. Owner's decision, 2026-11-17: Petros's model, fundamental-only, in shadow
+
+Asked to promote Petros's trained model, Claude found that Petros does not use it (it is loaded only in the legacy
+mixed mode; in fundamental_only every decision had `ml_adjustment` 0) and that it is built on trader signals and price
+data (Yankos/Periklis signals, RSI, 20/60-day returns, volume), which Petros - deciding before the traders - may not
+see. Not promoted. The owner chose a fundamental-only model in shadow: `petros_trainer.py train --feature-set
+fundamental_only` (no price, technical, trader or market-microstructure field; unknown numbers keep a `_known` flag)
+trains nightly beside the legacy one as task `fundamental_only_synthesis` (`models/petros_model_fundamental_only.json`);
+Petros records `ml_shadow_probability` beside each decision and changes no score, verdict or tier. First training on
+2026-11-17: 26,875 rows, 73 features, walk-forward ROC AUC 0.61 (legacy mixed 0.615). Jarvis raises it for promotion
+only after 20 nights of shadow, and never the legacy model. Using it in the score is the owner's decision.
+

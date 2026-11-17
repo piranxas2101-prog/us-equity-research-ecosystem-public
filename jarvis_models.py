@@ -15,6 +15,10 @@ from typing import Any
 
 MIN_GAIN = 0.01
 VALIDATED = "walk_forward_validated"
+# owner 2026-11-17: only the fundamental-only model can ever be used by Petros (the legacy one mixes trader signals and
+# prices, and Petros does not load it); it stays in shadow for MIN_SHADOW_NIGHTS trainings before it is worth a look.
+USABLE_TASKS = {("petros", "fundamental_only_synthesis")}
+MIN_SHADOW_NIGHTS = 20
 
 
 def _rows(root: Path) -> list[dict[str, Any]] | None:
@@ -43,11 +47,18 @@ def worth(root: Path) -> dict[str, Any] | None:
     rows = _rows(root)
     if rows is None:
         return None
-    result: dict[str, Any] = {"candidates": 0, "worth": [], "superseded": 0}
+    result: dict[str, Any] = {"candidates": 0, "worth": [], "superseded": 0, "unused": 0, "in_shadow": 0}
     for key in sorted({(r["agent_id"], r["task_id"]) for r in rows}):
         group = [r for r in rows if (r["agent_id"], r["task_id"]) == key]
         candidates = [r for r in group if r["state"] == "candidate"]
         result["candidates"] += len(candidates)
+        if key not in USABLE_TASKS:
+            result["unused"] += len(candidates)
+            continue
+        nights = len({str(r["created_at"])[:10] for r in group})
+        if nights < MIN_SHADOW_NIGHTS:
+            result["in_shadow"] += len(candidates)
+            continue
         champions = [r for r in group if r["state"] == "champion" and isinstance(r["roc_auc"], (int, float))]
         validated = [r for r in candidates if r["status"] == VALIDATED and isinstance(r["roc_auc"], (int, float))]
         pick = None

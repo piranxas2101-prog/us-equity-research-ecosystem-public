@@ -331,6 +331,9 @@ def build_stages() -> list[Stage]:
                                                "--out-prefix", "output/sokratis_strategy_teacher"),
               outputs=("output/sokratis_strategy_teacher_latest.json",)),
         Stage("petros_train", False, lambda c: _py(c, "petros_trainer.py", "--horizon-days", "20", "train")),
+        # owner 2026-11-17: Petros's fundamental-only model, in shadow (recorded beside decisions, no score change)
+        Stage("petros_train_fundamental", False, lambda c: _py(c, "petros_trainer.py", "--horizon-days", "20", "train",
+                                                               "--feature-set", "fundamental_only")),
         Stage("compare", False, _compare, skip_reason=_no_baseline),
         Stage("meeting", False, _meeting),
         Stage("action_report", False, lambda c: _py(

@@ -212,3 +212,10 @@ class TuningPassTests(PassTests):
             self.assertEqual(calls, [])
             jarvis.run_pass("after-nightly", root=self.root, today=D, python="py")
         self.assertEqual(len(calls), 1)
+
+
+class OwnerPassTests(PassTests):
+    def test_report_carries_what_waits_for_the_owner(self):
+        jarvis.run_pass("after-session", root=self.root, today=D, python="py")
+        md = self.report(D).read_text(encoding="utf-8")
+        self.assertIn("Τι περιμένει από σένα", md)

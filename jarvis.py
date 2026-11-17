@@ -292,6 +292,14 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
                     "open": jarvis_state.open_proposals(conn, session_date=day.isoformat(), sessions_since=since)}
 
     sections["proposals"] = _guard(store)
+
+    def owner() -> dict[str, Any]:  # what waits for the owner, after the proposals are stored (owner 2026-11-17)
+        import jarvis_owner
+
+        result = jarvis_owner.pending(root)
+        return {**result, "story": jarvis_owner.story(result)}
+
+    sections["owner"] = _guard(owner)
     record["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     record["seconds"] = round(clock() - start, 1)
     record["report_written"] = write_report

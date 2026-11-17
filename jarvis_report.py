@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-SECTIONS = ("Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Η εικόνα του οικοσυστήματος", "Τι έμαθα",
+SECTIONS = ("Τι περιμένει από σένα", "Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Η εικόνα του οικοσυστήματος", "Τι έμαθα",
             "Τι άλλαξα μόνος μου (AUTO)", "Προτάσεις που περιμένουν απόφαση")
 ACTION_GR = {"lowered": "μείωσα", "raised": "αύξησα", "undone": "αναίρεσα"}
 PROBLEM_STEP_STATES = {"failed", "missing"}
@@ -100,16 +100,18 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     proposals = (sections.get("proposals") or {}).get("open") or []
     out = [f"# Jarvis — αναφορά {record.get('day', 'άγνωστο')}", "",
            f"Πέρασμα: {record.get('kind', 'άγνωστο')}, {record.get('finished_at') or record.get('started_at') or ''}", ""]
-    out += [f"## {SECTIONS[0]}", *_steps_lines(sections.get("nightly"), "δεν διαβάστηκε η κατάσταση του nightly"), ""]
+    owner = sections.get("owner") or {}
+    out += [f"## {SECTIONS[0]}", f"- {owner.get('story') or 'άγνωστο: δεν διαβάστηκε τι περιμένει από σένα'}", ""]
+    out += [f"## {SECTIONS[1]}", *_steps_lines(sections.get("nightly"), "δεν διαβάστηκε η κατάσταση του nightly"), ""]
     session = sections.get("session")
-    out += [f"## {SECTIONS[1]}"]
+    out += [f"## {SECTIONS[2]}"]
     if session and session.get("weekend"):
         out += ["- Σαββατοκύριακο: δεν υπάρχει συνεδρία."]
     else:
         out += _steps_lines(session, "δεν διαβάστηκε η συνεδρία")
-    out += ["", f"## {SECTIONS[2]}", *([f"- {p}" for p in problems] or ["- Τίποτα."]), ""]
+    out += ["", f"## {SECTIONS[3]}", *([f"- {p}" for p in problems] or ["- Τίποτα."]), ""]
     checks = sections.get("checks")
-    out += [f"## {SECTIONS[3]}"]
+    out += [f"## {SECTIONS[4]}"]
     if not checks:
         out += ["- άγνωστο: δεν έτρεξαν οι έλεγχοι"]
     elif checks.get("error"):
@@ -119,16 +121,16 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         out += [f"- **{r.get('title') or r['id']}**: {STATE_GR.get(r['state'], r['state'])}"
                 + (f" — «{r['verdict']}»" if r.get("verdict") not in (None, "refreshed") else "")
                 + (f" ({r['detail']})" if r.get("detail") else "") for r in results] or ["- Κανένας έλεγχος δεν ήταν σε προθεσμία."]
-    out += ["", f"## {SECTIONS[4]}", *_ecosystem_lines(sections.get("ecosystem")), ""]
-    out += [f"## {SECTIONS[5]}", *_learning_lines(sections.get("learning")), ""]
+    out += ["", f"## {SECTIONS[5]}", *_ecosystem_lines(sections.get("ecosystem")), ""]
+    out += [f"## {SECTIONS[6]}", *_learning_lines(sections.get("learning")), ""]
     tuning = sections.get("tuning") or {}
     changes = tuning.get("changes") or []
-    out += [f"## {SECTIONS[6]}"]
+    out += [f"## {SECTIONS[7]}"]
     if tuning.get("error"):
         out += [f"- άγνωστο: η ρύθμιση απέτυχε ({tuning['error']})"]
     out += [f"- {ACTION_GR.get(c.get('action'), c.get('action'))} το {c.get('setting')}: {c.get('old')} → {c.get('new')} "
             f"({c.get('reason')})" for c in changes] or ["- Τίποτα (μόνο ρυθμίσεις της συζήτησης μπορούν να αλλάξουν μόνες τους)."]
-    out += ["", f"## {SECTIONS[7]}"]
+    out += ["", f"## {SECTIONS[8]}"]
     if not proposals:
         out += ["- Καμία."]
     for p in proposals:

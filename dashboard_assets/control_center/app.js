@@ -631,6 +631,8 @@ async function pageJarvis(day) {
     </div>`).join("") || `<p class="muted">Καμία πρόταση δεν περιμένει απόφαση.</p>`;
   app.innerHTML = `<h1>Jarvis</h1>
     <div class="sub">Ο Jarvis ελέγχει το nightly και τη συνεδρία, τρέχει τους ελέγχους που έφτασαν, μαθαίνει από τα λάθη (σε shadow) και σου φέρνει προτάσεις. Δεν αλλάζει τίποτα μόνος του: το «Ναι» καταγράφεται και η αλλαγή γίνεται μαζί με το Claude.</div>
+    <div class="card span"><h2>Τι περιμένει από σένα</h2><p>${esc(d.owner || "")}</p>
+      <p class="small"><a href="#/review">Έλεγχος κατηγοριοποίησης</a></p></div>
     <h2>Προτάσεις που περιμένουν απόφαση</h2><div class="grid wide">${proposals}</div>
     <h2>Συζήτηση</h2>
     <div class="card span"><div id="chat-log">${d.chat.map(jarvisTurn).join("") || `<p class="muted small">Ρώτα κάτι για τη μέρα, μια μετοχή ή έναν έλεγχο.</p>`}</div>

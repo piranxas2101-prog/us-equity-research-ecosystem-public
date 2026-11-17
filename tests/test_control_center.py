@@ -293,6 +293,10 @@ class JarvisPageTests(unittest.TestCase):
             conn.close()
         return pid
 
+    def test_jarvis_view_says_what_waits_for_the_owner(self):
+        self.assertIn("owner", self.get("/api/jarvis"))
+        self.assertTrue(self.get("/api/jarvis")["owner"])
+
     def test_jarvis_view_without_files(self):
         data = self.get("/api/jarvis")
         self.assertEqual((data["proposals"], data["report_md"], data["dates"], data["chat"]), ([], None, [], []))

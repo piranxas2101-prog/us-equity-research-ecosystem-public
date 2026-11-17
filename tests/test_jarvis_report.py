@@ -69,3 +69,11 @@ class AutoChangesSectionTests(unittest.TestCase):
     def test_no_tuning_section_says_nothing_changed(self):
         md, _ = render(RECORD)
         self.assertIn("Τι άλλαξα μόνος μου (AUTO)", md)
+
+
+class OwnerSectionTests(unittest.TestCase):
+    def test_owner_section_comes_first(self):
+        record = {**RECORD, "sections": {**RECORD["sections"], "owner": {"story": "Περιμένουν εσένα 2 είδη αποφάσεων: Χ."}}}
+        md, _ = render(record)
+        self.assertLess(md.index("Τι περιμένει από σένα"), md.index("Νυχτερινό run"))
+        self.assertIn("Περιμένουν εσένα 2 είδη αποφάσεων", md)

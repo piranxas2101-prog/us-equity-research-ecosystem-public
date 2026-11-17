@@ -648,8 +648,11 @@ class Views:
             finally:
                 conn.close()
         chat = jarvis_chat.history(JARVIS_CHAT_TURNS, path=self.root / "data" / "jarvis" / "chat.sqlite3")
+        import jarvis_owner
+
+        owner = jarvis_owner.story(jarvis_owner.pending(self.root))  # what waits for the owner (owner 2026-11-17)
         return {"report_md": report, "day": path.stem[len("report_"):], "dates": dates, "proposals": proposals,
-                "chat": chat}
+                "chat": chat, "owner": owner}
 
 
 # ---------------------------------------------------------------- actions

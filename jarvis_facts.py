@@ -30,6 +30,7 @@ LESSON_WORDS = ("μαθ", "διδαγ", "shadow", "lesson", "κανον")
 SESSION_WORDS = ("συνεδρι", "θεσει", "θεση", "κερδ", "ζημι", "στρατηγικ")
 MARKET_WORDS = ("αγορ", "spy", "κλιμα")
 NIGHTLY_WORDS = ("nightly", "νυχτεριν", "run")
+OWNER_WORDS = ("εγκρισ", "εγκρινω", "εκκρεμ", "αποφασ", "περιμενουν", "τι περιμενει")
 VERDICT_GR = {"collecting": "μαζεύει δείγμα", "confirmed": "επιβεβαιώθηκε", "not_confirmed": "δεν επιβεβαιώθηκε"}
 VERDICT_PLURAL_GR = {"collecting": "μαζεύουν δείγμα", "confirmed": "επιβεβαιώθηκαν", "not_confirmed": "δεν επιβεβαιώθηκαν"}
 
@@ -199,6 +200,12 @@ def answer_facts(question: str, root: Path) -> dict[str, Any] | None:
     """A fact answer, or None when the question is not about numbers the files hold (then the model answers)."""
     folded = fold(question)
     agent = next((name for name, words in AGENTS.items() if _has(folded, words)), None)
+    if _has(folded, OWNER_WORDS):  # what waits for the owner (owner 2026-11-17)
+        import jarvis_owner
+
+        return _result([jarvis_owner.story(jarvis_owner.pending(root))],
+                       ["data/jarvis/proposals.sqlite3", "data/research_registry.db", "data/market_intel.db",
+                        "output/jarvis/report_latest.json"])
     if _has(folded, LESSON_WORDS):
         return lessons(root, agent)
     import jarvis_memory  # past days (owner 2026-11-17): a question that names a period

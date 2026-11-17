@@ -114,7 +114,8 @@
       "title": "Κρατούμενες θέσεις και έξοδοι",
       "files": [
         "output/multi_day_monitor_latest.md",
-        "output/paper_learning/stop_shadow_latest.md"
+        "output/paper_learning/stop_shadow_latest.md",
+        "output/paper_learning/shock_exits_latest.md"
       ],
       "keywords": [
         "κρατουμεν",
@@ -123,7 +124,9 @@
         "εξοδ",
         "f4",
         "ωριμ",
-        "οριζοντ"
+        "οριζοντ",
+        "σοκ",
+        "shock"
       ]
     },
     {

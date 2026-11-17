@@ -361,3 +361,10 @@ Same day (owner, "yes, stop it"): the legacy mixed model's nightly training is s
 fundamental-only model trains (report `output/petros_training_fundamental_only_latest.md`). The legacy model file and
 its registry rows stay as they are (history).
 
+**Section 7 follow-up built 2026-11-17** (`shock_exits_lab.py`, Jarvis check `shock_longs_1105`): every position closed
+by `market_shock`, from its real exit price to the close 1/3/5/10 sessions later, against SPY. First read: 54 longs
+(20 on 10/30, 34 on 11/05 - not 40). Five sessions after 11/05 the closed longs moved -0.006% while SPY rose, -3.30%
+against SPY; after 10/30 +2.64% against SPY; one to three sessions later holding would have gained on both days.
+Verdict on 54 cases from 2 shock days: no clear difference (mean -1.10% against SPY, 95% [-3.30, +2.64]). The
+market_shock rule stays as it is; Jarvis raises it if a verdict appears.
+

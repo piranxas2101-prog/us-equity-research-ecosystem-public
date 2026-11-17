@@ -90,15 +90,20 @@
     },
     {
       "id": "shock_longs_1105",
-      "title": "Οι 40 long που έκλεισε το σοκ της 11/05, πέντε συνεδρίες μετά",
+      "title": "Οι θέσεις που έκλεισε το σοκ της αγοράς, 5 συνεδρίες μετά",
       "rules_review": "section 7",
       "due": {
-        "kind": "sessions_since",
-        "date": "2026-11-05",
-        "sessions": 5
+        "kind": "every_pass"
       },
-      "producer": null,
-      "output": null
+      "producer": "shock_exits_lab",
+      "output": "output/paper_learning/shock_exits_latest.json",
+      "timeout_seconds": 300,
+      "verdict_path": "verdict",
+      "ready_values": [
+        "holding would have helped",
+        "the exit helped"
+      ],
+      "change": "Αν βγει καθαρή διαφορά: συζήτηση για τον κανόνα market_shock των long"
     }
   ]
 }

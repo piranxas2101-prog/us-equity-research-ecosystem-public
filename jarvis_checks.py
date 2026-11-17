@@ -20,6 +20,8 @@ PRODUCERS: dict[str, list[str]] = {
     "exit_lab_horizon": ["exit_lab.py", "--horizon-curve"],
     # owner 2026-11-16: the debate shadow's nightly measure (reads the ledger and its own opinions, writes a report)
     "debate_shadow_evaluate": ["debate_shadow.py", "evaluate"],
+    # owner 2026-11-17: the positions a market shock closed, measured 1-10 sessions later (RULES_REVIEW section 7)
+    "shock_exits_lab": ["shock_exits_lab.py"],
 }
 DEFAULT_WAITING = ("insufficient_sample", "collecting")
 MIN_PRODUCER_SECONDS = 30

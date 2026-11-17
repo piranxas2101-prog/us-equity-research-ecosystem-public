@@ -148,6 +148,9 @@ proposes "resume run <id>"; the owner starts it (Control Center already has a go
   (all, or one agent's) or the nightly run is answered by `jarvis_facts.py` straight from the files' own sentences
   and numbers; a missing file is answered as unknown; only other questions go to the model. The page says which
   answered ("Από τα αρχεία, χωρίς μοντέλο" / "Από το τοπικό μοντέλο").
+- Memory of past days (owner 2026-11-17; OpenJarvis's monitor-agent idea): `jarvis_memory.py` reads the session
+  reports and the nightly run history as compact day records and answers questions about a period (this / last week,
+  this / last month, the last N sessions, from the start) in sentences, without the model.
 - What it may read is the knowledge map `jarvis_knowledge.json` (owner 2026-11-16: Jarvis is told about everything
   in its work): per topic (session, learning, market, news, held positions, traders, Sokratis, fundamentals, results,
   labs, RULES_REVIEW, ...) its files and keywords, matched without accents. Only files under `output/` or `docs/`;

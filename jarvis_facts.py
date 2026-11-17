@@ -201,6 +201,16 @@ def answer_facts(question: str, root: Path) -> dict[str, Any] | None:
     agent = next((name for name, words in AGENTS.items() if _has(folded, words)), None)
     if _has(folded, LESSON_WORDS):
         return lessons(root, agent)
+    import jarvis_memory  # past days (owner 2026-11-17): a question that names a period
+
+    if _has(folded, NIGHTLY_WORDS):
+        story = jarvis_memory.nightly_story(root, folded)
+        if story is not None:
+            return _result([story], [jarvis_memory.RUNS_FILE.as_posix()])
+    else:
+        story = jarvis_memory.period_story(root, folded)
+        if story is not None:
+            return _result([story], [jarvis_memory.SESSIONS_SOURCE])
     if _has(folded, SESSION_WORDS):
         return session(root)
     if _has(folded, MARKET_WORDS):

@@ -307,7 +307,8 @@ RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_WAITS = (2.0, 10.0, 30.0)  # the SEC answers 503 now and then under load; a short wait usually clears it
 
 
-def _get(fetch: StatusFetch, url: str, sleeper: Callable[[float], None]) -> tuple[int, bytes | None]:
+def _get(fetch: StatusFetch, url: str, sleeper: Callable[[float], None],
+         counts: dict[str, int] | None = None) -> tuple[int, bytes | None]:
     """One request, retried on a temporary refusal or a network error; the last answer is returned as it is."""
     for wait in (*RETRY_WAITS, None):
         try:
@@ -318,6 +319,8 @@ def _get(fetch: StatusFetch, url: str, sleeper: Callable[[float], None]) -> tupl
             return status, body
         if wait is None:
             return status, body
+        if counts is not None:
+            counts["retries"] = counts.get("retries", 0) + 1
         sleeper(wait)
     return 0, None
 
@@ -331,7 +334,8 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
                sleeper: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     """Read the days from ``start`` to yesterday in order, stopping at the first day that cannot be completed."""
     directory.mkdir(parents=True, exist_ok=True)
-    result: dict[str, Any] = {"read": [], "no_index": [], "filings": 0, "stopped": None}
+    result: dict[str, Any] = {"read": [], "no_index": [], "filings": 0, "removed": 0, "retries": 0,
+                              "stopped": None}
     day = start
     while day < today:
         path = directory / f"{day.isoformat()}.json"
@@ -339,7 +343,7 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
             day += timedelta(days=1)
             continue
         url = DAILY_INDEX.format(year=day.year, quarter=(day.month - 1) // 3 + 1, day=day.strftime("%Y%m%d"))
-        status, body = _get(fetch, url, sleeper)
+        status, body = _get(fetch, url, sleeper, result)
         sleeper(pause)
         if status in (403, 404) and (day.weekday() >= 5 or _business_days_after(day, today) >= 2):
             path.write_text(json.dumps({"day": day.isoformat(), "status": "no_index", "trades": []}), encoding="utf-8")
@@ -354,10 +358,16 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
             result["stopped"] = f"{day.isoformat()}: the night's budget of {max_filings} filings is used"
             break
         trades: list[list[Any]] = []
+        removed: list[str] = []
         failed = None
         for name in files:
-            status, body = _get(fetch, ARCHIVES + name, sleeper)
+            status, body = _get(fetch, ARCHIVES + name, sleeper, result)
             sleeper(pause)
+            if status == 404:
+                # listed in the day's index, then taken down by the SEC: nothing is left to read. Kept in the day's
+                # file so the hole is visible; the day itself is complete.
+                removed.append(name)
+                continue
             if status != 200 or body is None:
                 failed = f"{name}: http {status}"
                 break
@@ -367,11 +377,12 @@ def sync_daily(fetch: StatusFetch, *, start: date, today: date, listed: set[int]
             except (ValueError, ElementTree.ParseError):
                 continue  # a filing without a readable ownership document has no trade to read; the day goes on
         result["filings"] += len(files)
+        result["removed"] += len(removed)
         if failed:
             result["stopped"] = f"{day.isoformat()}: {failed}"
             break
-        path.write_text(json.dumps({"day": day.isoformat(), "status": "ok", "filings": len(files), "trades": trades}),
-                        encoding="utf-8")
+        path.write_text(json.dumps({"day": day.isoformat(), "status": "ok", "filings": len(files),
+                                    "removed_by_sec": removed, "trades": trades}), encoding="utf-8")
         result["read"].append(day.isoformat())
         day += timedelta(days=1)
     return result

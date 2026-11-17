@@ -181,7 +181,10 @@ class DailyTests(unittest.TestCase):
             self.assertEqual(day["trades"], [["2026-10-01", "1214156", "P", 2050.0, 320193]])
 
     def test_a_failed_filing_leaves_the_day_unwritten_and_stops(self):
-        fetch, _ = self.fetcher(missing=("0001-26-000001",))
+        base, _ = self.fetcher()
+
+        def fetch(url):
+            return (500, None) if url.endswith("0001-26-000001.txt") else base(url)
         with tempfile.TemporaryDirectory() as folder:
             result = it.sync_daily(fetch, start=date(2026, 10, 1), today=date(2026, 10, 6), listed={320193},
                                    directory=Path(folder), sleeper=lambda s: None)
@@ -206,6 +209,15 @@ class DailyTests(unittest.TestCase):
             self.assertEqual(result["read"], ["2026-10-01"])
             self.assertIn(2.0, waits)
             self.assertIn(10.0, waits)
+
+    def test_a_filing_the_sec_took_down_is_listed_and_the_day_completes(self):
+        fetch, _ = self.fetcher(missing=("0001-26-000001",))
+        with tempfile.TemporaryDirectory() as folder:
+            result = it.sync_daily(fetch, start=date(2026, 10, 1), today=date(2026, 10, 2), listed={320193},
+                                   directory=Path(folder), sleeper=lambda s: None)
+            self.assertEqual((result["read"], result["removed"]), (["2026-10-01"], 1))
+            day = json.loads((Path(folder) / "2026-10-01.json").read_text(encoding="utf-8"))
+            self.assertEqual((day["removed_by_sec"], day["trades"]), (["edgar/data/320193/0001-26-000001.txt"], []))
 
     def test_a_refusal_that_does_not_clear_stops_the_day(self):
         fetch, _ = self.fetcher()

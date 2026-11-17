@@ -123,6 +123,15 @@ class JarvisMorningTests(unittest.TestCase):
         self.assertEqual(calls, [date(2026, 11, 18)])
         self.assertFalse(hasattr(jarvis, "run_debate_after_close"))
 
+    def test_the_morning_prepares_todays_athens_session_even_before_new_york_midnight(self):
+        # the nightly ends around 06:30 Athens, when New York still has the day before
+        import jarvis
+        athens = ZoneInfo("Europe/Athens")
+        self.assertEqual(jarvis.morning_session_day(datetime(2026, 11, 18, 6, 30, tzinfo=athens)), date(2026, 11, 18))
+        self.assertEqual(jarvis.morning_session_day(datetime(2026, 11, 18, 11, 0, tzinfo=athens)), date(2026, 11, 18))
+        # Saturday morning after Friday's nightly: no session is coming
+        self.assertEqual(jarvis.morning_session_day(datetime(2026, 11, 21, 6, 30, tzinfo=athens)).weekday(), 5)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -228,9 +228,11 @@ def refresh_search_index(root: Path, embedder: Any = None) -> dict[str, Any]:
     return jarvis_search.build(root, embedder, budget_seconds=300)
 
 
-def morning_session_day() -> date:
-    """The New York date of the session the morning prepares (the nightly ends in New York's small hours)."""
-    return ny_today()
+def morning_session_day(now: datetime | None = None) -> date:
+    """The date of the session the morning prepares: today's in Athens, where it starts at 16:30. Not New York's
+    date - the nightly ends around 06:30 Athens, when New York still has the day before."""
+    athens = ZoneInfo("Europe/Athens")
+    return (now or datetime.now(athens)).astimezone(athens).date()
 
 
 def run_debate_morning(root: Path, day: date) -> None:

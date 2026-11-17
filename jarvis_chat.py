@@ -57,16 +57,31 @@ def load_config(path: Path = CONFIG) -> dict[str, Any]:
 class OllamaClient:
     """Talks to an Ollama that is already running on this machine; never starts it."""
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None,
+                 now: Callable[[], Any] | None = None) -> None:
         config = config or load_config()
         self.host = str(config["ollama_host"]).rstrip("/")
-        self.model = str(config["model"])
+        self.main_model = str(config["model"])
+        self.session_model = str(config.get("session_model") or config["model"])
+        self._now = now
         self.timeout = float(config.get("timeout_seconds") or 300)
         self.keep_alive = str(config.get("keep_alive") or "30m")  # stay loaded between questions
         self.options = {"temperature": 0, "seed": 0, "num_ctx": int(config.get("num_ctx") or 4096),
                         "num_predict": int(config.get("num_predict") or 250)}
         if config.get("num_thread"):
             self.options["num_thread"] = int(config["num_thread"])
+
+    @property
+    def model(self) -> str:
+        """The 7b outside the New York session (09:00-16:15, weekdays), the 3b during it, so the chat never competes
+        with the live session and the debate for memory (2026-11-18: 7b + bge-m3 left 1.8 of 15.6 GB free)."""
+        from datetime import datetime, time as clock
+        from zoneinfo import ZoneInfo
+
+        ny = (self._now() if self._now else datetime.now(ZoneInfo("America/New_York"))).astimezone(
+            ZoneInfo("America/New_York"))
+        in_session = ny.weekday() < 5 and clock(9, 0) <= ny.time() <= clock(16, 15)
+        return self.session_model if in_session else self.main_model
 
     def available(self) -> bool:
         try:

@@ -1,12 +1,13 @@
 {
   "schema": "ecosystem.jarvis_config.v1",
-  "note": "Sized for the owner's CPU (i7-1355U, no GPU): ~28 prompt tokens/s, ~8 written tokens/s, Greek ~0.8 tokens per character (measured 2026-11-16).",
+  "note": "7b outside the New York session, 3b during it (memory: 7b + bge-m3 left 1.8 of 15.6 GB free, 2026-11-18); 7b answers took 63-168 s. Sized for the owner's CPU (i7-1355U, no GPU): ~28 prompt tokens/s, ~8 written tokens/s, Greek ~0.8 tokens per character (measured 2026-11-16).",
   "ollama_host": "http://127.0.0.1:11434",
-  "model": "qwen2.5:3b",
+  "model": "qwen2.5:7b",
+  "session_model": "qwen2.5:3b",
   "num_ctx": 4096,
   "num_predict": 320,
   "num_thread": 8,
-  "keep_alive": "30m",
+  "keep_alive": "5m",
   "timeout_seconds": 300,
   "max_total_chars": 1800
 }

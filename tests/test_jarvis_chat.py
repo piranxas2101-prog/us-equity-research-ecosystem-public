@@ -222,7 +222,7 @@ class ExcerptTests(unittest.TestCase):
         config = json.loads((Path(__file__).resolve().parents[1] / "jarvis_config.json").read_text(encoding="utf-8"))
         self.assertLessEqual(config["max_total_chars"], 2000)
         self.assertGreaterEqual(config["timeout_seconds"], 300)
-        self.assertEqual(config["keep_alive"], "30m")
+        self.assertEqual(config["keep_alive"], "5m")  # 2026-11-18: the 7b leaves memory soon after the last question
 
 
 if __name__ == "__main__":
@@ -321,3 +321,27 @@ class PassagesTests(ChatTests):
         save_turn("q", {"answer": "a", "sources": [], "unverified_numbers": [], "ollama": "ok",
                         "passages": [{"path": "p", "heading": "h", "text": "t"}]}, path=db)
         self.assertEqual(history(path=db)[0]["passages"], [{"path": "p", "heading": "h", "text": "t"}])
+
+
+class ModelByHourTests(unittest.TestCase):
+    """2026-11-18: qwen2.5:7b answers better (says "I don't know" instead of inventing) but with bge-m3 it leaves
+    1.8 of 15.6 GB free; during the session the debate's 3b runs too. So the chat uses the 7b outside the session
+    hours and the 3b during them, and the 7b leaves memory five minutes after the last question."""
+
+    def config(self):
+        return {"ollama_host": "http://127.0.0.1:11434", "model": "qwen2.5:7b", "session_model": "qwen2.5:3b",
+                "keep_alive": "5m", "timeout_seconds": 300}
+
+    def test_session_hours_use_the_small_model(self):
+        import jarvis_chat
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        ny = ZoneInfo("America/New_York")
+        during = jarvis_chat.OllamaClient(self.config(), now=lambda: datetime(2026, 11, 18, 11, 0, tzinfo=ny))
+        evening = jarvis_chat.OllamaClient(self.config(), now=lambda: datetime(2026, 11, 18, 19, 0, tzinfo=ny))
+        saturday = jarvis_chat.OllamaClient(self.config(), now=lambda: datetime(2026, 11, 21, 11, 0, tzinfo=ny))
+        self.assertEqual((during.model, evening.model, saturday.model), ("qwen2.5:3b", "qwen2.5:7b", "qwen2.5:7b"))
+
+    def test_shipped_config_uses_the_7b_with_a_short_keep_alive(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / "jarvis_config.json").read_text(encoding="utf-8"))
+        self.assertEqual((config["model"], config["session_model"], config["keep_alive"]), ("qwen2.5:7b", "qwen2.5:3b", "5m"))

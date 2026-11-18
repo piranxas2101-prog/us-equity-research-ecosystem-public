@@ -557,8 +557,9 @@ def swing_hold_review(records: list[dict[str, Any]], swing: set[str] | None = No
 
 
 def proposals(evaluation: dict[str, Any]) -> list[dict[str, Any]]:
-    """Lesson candidates where the evidence is sufficient. The proposal text is fixed per criterion (the learning
-    control plane refuses a changed definition); the numbers go in the evidence."""
+    """Lesson candidates where the evidence is sufficient. The proposal text is fixed per criterion (an existing
+    lesson keeps its decided text; a newer wording is kept beside it as ``proposal_revision``); the numbers go in the
+    evidence."""
     out = []
     for name, cell in evaluation["strategies"].items():
         excess, beat = cell["mean_excess_pct"], cell["beat_spy_pct"]
@@ -581,8 +582,10 @@ def proposals(evaluation: dict[str, Any]) -> list[dict[str, Any]]:
         for agent in ledger.AGENTS:
             out.append({"target_agent": agent,
                         "criterion_id": f"holding_by_category:{f['class']}:{f['tag']}={f['value']}:{lean}",
+                        # 2026-11-18: "avoid" said "more often" although its numbers say less often
                         "proposed_change": f"For candidates with {f['tag']} = {f['value']}, {lean} the {f['class']} hold: "
-                                           "there a longer hold beat closing the same day more often than elsewhere.",
+                                           "there a longer hold beat closing the same day "
+                                           f"{'more' if lean == 'prefer' else 'less'} often than elsewhere.",
                         "support": f["records"], "evidence": f})
     for review in evaluation.get("swing_hold_review") or []:
         if review["verdict"] in ("close_same_day", "hold_longer"):

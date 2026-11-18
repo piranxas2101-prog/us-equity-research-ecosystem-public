@@ -338,5 +338,18 @@ class MarketReadingTests(unittest.TestCase):
             self.assertEqual(pl.load_market_timeline(Path(folder) / "missing.json"), {})
 
 
+class HoldingCategoryTextTests(unittest.TestCase):
+    def test_avoid_says_less_often_and_prefer_says_more_often(self):
+        # 2026-11-18: the "avoid" lessons said "more often" although their numbers said less often
+        findings = [{"class": "week", "tag": "sector", "value": "Materials", "effect_pct_points": -19.6, "records": 803},
+                    {"class": "week", "tag": "sector", "value": "Financials", "effect_pct_points": 11.8, "records": 1137}]
+        texts = {p["criterion_id"].rsplit(":", 1)[1]: p["proposed_change"] for p in
+                 pl.proposals({"strategies": {}, "control_team": {}, "holding_category_findings": {"findings": findings}})
+                 if p["criterion_id"].startswith("holding_by_category:")}
+        self.assertIn("avoid the week hold", texts["avoid"])
+        self.assertIn("less often than elsewhere", texts["avoid"])
+        self.assertIn("prefer the week hold", texts["prefer"])
+        self.assertIn("more often than elsewhere", texts["prefer"])
+
 if __name__ == "__main__":
     unittest.main()

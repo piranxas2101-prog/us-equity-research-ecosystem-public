@@ -19,6 +19,12 @@ VALIDATED = "walk_forward_validated"
 # prices, and Petros does not load it); it stays in shadow for MIN_SHADOW_NIGHTS trainings before it is worth a look.
 USABLE_TASKS = {("petros", "fundamental_only_synthesis")}
 MIN_SHADOW_NIGHTS = 20
+# Pre-registered (owner 2026-11-18, RULES_REVIEW section 14) for a model with no champion yet: after the 20 nights the
+# latest validated model is worth a look only if its walk-forward ROC AUC is at least MIN_AUC and no validated nightly
+# training of the shadow nights fell below FLOOR_AUC (a steady model, not one good night). The first trainings gave
+# 0.61. With a champion the rule is unchanged (beat it by MIN_GAIN). Promotion stays manual.
+MIN_AUC = 0.60
+FLOOR_AUC = 0.55
 
 
 def _rows(root: Path) -> list[dict[str, Any]] | None:
@@ -47,7 +53,8 @@ def worth(root: Path) -> dict[str, Any] | None:
     rows = _rows(root)
     if rows is None:
         return None
-    result: dict[str, Any] = {"candidates": 0, "worth": [], "superseded": 0, "unused": 0, "in_shadow": 0}
+    result: dict[str, Any] = {"candidates": 0, "worth": [], "superseded": 0, "unused": 0, "in_shadow": 0,
+                              "not_good_enough": []}
     for key in sorted({(r["agent_id"], r["task_id"]) for r in rows}):
         group = [r for r in rows if (r["agent_id"], r["task_id"]) == key]
         candidates = [r for r in group if r["state"] == "candidate"]
@@ -65,8 +72,15 @@ def worth(root: Path) -> dict[str, Any] | None:
         if validated:
             latest = validated[-1]
             if not champions:
-                pick = {**latest, "reason": f"δεν υπάρχει champion ακόμα· το πιο πρόσφατο ελεγμένο μοντέλο "
-                                            f"(ROC AUC {latest['roc_auc']}, {latest['training_rows']} γραμμές)"}
+                floor = min(r["roc_auc"] for r in validated)
+                if latest["roc_auc"] >= MIN_AUC and floor >= FLOOR_AUC:
+                    pick = {**latest, "reason": f"δεν υπάρχει champion ακόμα· το πιο πρόσφατο ελεγμένο μοντέλο "
+                                                f"(ROC AUC {latest['roc_auc']}, χαμηλότερο των νυχτών {floor}, "
+                                                f"{latest['training_rows']} γραμμές)"}
+                else:
+                    result["not_good_enough"].append({
+                        **latest, "reason": f"ROC AUC {latest['roc_auc']} (χρειάζεται ≥ {MIN_AUC}), χαμηλότερο των "
+                                            f"νυχτών {floor} (χρειάζεται ≥ {FLOOR_AUC})"})
             else:
                 champion = champions[-1]
                 gain = round(latest["roc_auc"] - champion["roc_auc"], 3)

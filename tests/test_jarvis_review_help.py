@@ -54,6 +54,15 @@ class ModelFilterTests(unittest.TestCase):
         self.assertEqual((out["candidates"], [m["model_id"] for m in out["worth"]], out["superseded"]), (24, ["m24"], 23))
         self.assertIn("δεν υπάρχει champion", out["worth"][0]["reason"])
 
+    def test_without_a_champion_the_registered_bar_applies(self):
+        # owner 2026-11-18: AUC >= 0.60 for the latest and no shadow night below 0.55, decided before the 20 nights
+        registry(self.root, [model(i, 0.615) for i in range(1, 24)] + [model(24, 0.59)])
+        out = jmod.worth(self.root)
+        self.assertEqual((out["worth"], [m["model_id"] for m in out["not_good_enough"]]), ([], ["m24"]))
+        unsteady = Path(self.tmp.name) / "u"
+        registry(unsteady, [model(1, 0.52), *[model(i, 0.62) for i in range(2, 25)]])
+        self.assertEqual(jmod.worth(unsteady)["worth"], [])
+
     def test_with_a_champion_a_candidate_must_beat_it(self):
         registry(self.root, [model(1, 0.62, "champion"), *[model(i, 0.615) for i in range(2, 22)], model(22, 0.625)])
         self.assertEqual(jmod.worth(self.root)["worth"], [])

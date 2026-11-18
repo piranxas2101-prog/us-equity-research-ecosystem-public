@@ -119,7 +119,8 @@ class ChecksTests(unittest.TestCase):
     def test_shipped_registry_loads(self):
         ids = {c["id"] for c in load_registry(ROOT / "jarvis_checks.json")}
         self.assertTrue({"flip_shadow_s8", "news_shadow", "exit_lab_horizon", "T3_volume_basis", "F4_held_positions",
-                         "shock_longs_1105"} <= ids)
+                         "period_experiments_p1"} <= ids)
+        self.assertNotIn("shock_longs_1105", ids)  # judged and closed (owner 2026-11-18)
 
 
 class ReadyValuesTests(ChecksTests):
@@ -134,8 +135,12 @@ class ReadyValuesTests(ChecksTests):
 
     def test_shipped_flip_and_news_have_ready_values(self):
         checks = {c["id"]: c for c in load_registry(ROOT / "jarvis_checks.json")}
-        self.assertEqual(checks["flip_shadow_s8"]["ready_values"], ["the opposite entry would have helped"])
-        self.assertEqual(checks["news_shadow"]["ready_values"], ["news-flagged did better"])
+        # owner 2026-11-18: every final verdict of a pre-registered test reaches the owner, not only a pass
+        self.assertEqual(checks["flip_shadow_s8"]["ready_values"],
+                         ["the opposite entry would have helped", "no clear gain", "deadline_insufficient"])
+        self.assertEqual(checks["news_shadow"]["ready_values"],
+                         ["news-flagged did better", "news-flagged did worse", "no clear difference",
+                          "deadline_insufficient"])
 
 
 if __name__ == "__main__":

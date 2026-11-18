@@ -31,7 +31,7 @@ owner alone decides, and the wider stop carries a larger loss per stopped positi
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 import json
 from pathlib import Path
 import statistics
@@ -47,7 +47,14 @@ EXIT_VERDICT_GR = {"insufficient_sample": "ανεπαρκές δείγμα", "ho
                    "the exit did better": "η έξοδος πήγε καλύτερα", "no clear difference": "καμία σαφής διαφορά"}
 MIN_TRADES = 30
 MIN_DAYS = 10
-VERDICT_GR = {"insufficient_sample": "ανεπαρκές δείγμα (περιμένει να ολοκληρωθούν τα παράθυρα)",
+# Pre-registered (owner 2026-11-18, RULES_REVIEW section 14): F4 is judged once - when 60 positions have completed
+# their window, or on the deadline, whichever comes first - not again on every pass from the 30th on (each look is
+# another chance to pass by luck). Before that the numbers are shown and the verdict is "collecting".
+JUDGE_AT = 60
+DEADLINE = date(2026, 12, 29)
+VERDICT_GR = {"collecting": f"μαζεύει δείγμα (κρίση στις {JUDGE_AT} ολοκληρωμένες θέσεις ή στις {DEADLINE.isoformat()})",
+              "deadline_insufficient": "έφτασε η προθεσμία χωρίς αρκετό δείγμα (απόφαση του ιδιοκτήτη)",
+              "insufficient_sample": "ανεπαρκές δείγμα (περιμένει να ολοκληρωθούν τα παράθυρα)",
               "class stop did better": "το φαρδύ stop πήγε καλύτερα",
               "live stop did better": "το σημερινό stop πήγε καλύτερα",
               "no clear difference": "καμία σαφής διαφορά"}
@@ -161,13 +168,18 @@ def _side(rows: list[dict[str, Any]], rule: str) -> dict[str, Any]:
             "mean_sessions_held": round(statistics.fmean(r[rule]["sessions_held"] for r in rows), 1) if rows else None}
 
 
-def evaluate(rows: list[dict[str, Any]], margin_pct: float) -> dict[str, Any]:
+def evaluate(rows: list[dict[str, Any]], margin_pct: float, today: date | None = None) -> dict[str, Any]:
     known = [r for r in rows if r["known"]]
     mature = [r for r in known if r["mature"]]
     running = [r for r in known if not r["mature"]]
     diffs = [r["class"]["result_pct"] - r["live"]["result_pct"] for r in mature]
     days = [r["session_date"] for r in mature]
     mean, ci, verdict = _paired_verdict(diffs, days, margin_pct, "class stop did better", "live stop did better")
+    deadline = today is not None and today >= DEADLINE
+    if len(mature) < JUDGE_AT and not deadline:
+        verdict = "collecting"
+    elif verdict == "insufficient_sample" and deadline:
+        verdict = "deadline_insufficient"
     parted = [r for r in running if r["live"]["exit"] in ("stop", "stop_gap")
               and r["class"]["exit"] not in ("stop", "stop_gap")]
     return {"schema": "ecosystem.stop_shadow.v1", "positions": len(rows), "unknown": len(rows) - len(known),
@@ -181,6 +193,7 @@ def evaluate(rows: list[dict[str, Any]], margin_pct: float) -> dict[str, Any]:
                              if parted else None,
                              "parted_class_now_mean_pct": round(statistics.fmean(r["class"]["result_pct"] for r in parted), 3)
                              if parted else None},
+            "judge_at": JUDGE_AT, "deadline": DEADLINE.isoformat(),
             "verdict": verdict, "rows": rows, "active_decisions_changed": False}
 
 
@@ -291,7 +304,10 @@ def render(result: dict[str, Any]) -> str:
 def run(root: Path, frames: Frames, margin_pct: float, *, fills: dict[str, float | None] | None = None,
         write: bool = True) -> dict[str, Any]:
     cases = positions(root / "data" / "paper_positions.json", root / "data" / "paper_positions_closed.jsonl")
-    result = evaluate(build(cases, frames, fills), margin_pct)
+    from zoneinfo import ZoneInfo
+
+    result = evaluate(build(cases, frames, fills), margin_pct,
+                      today=datetime.now(ZoneInfo("America/New_York")).date())
     if write:
         out = root / "output" / "paper_learning"
         out.mkdir(parents=True, exist_ok=True)

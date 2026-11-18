@@ -948,7 +948,8 @@ def render_report(period: str, label: str, start: date, end: date, evaluation: d
             lines += ["", f"## {title} (χωρίς εντολές)", "",
                       f"- Με την περίπτωση {cell['flagged'].get('known')} (μέσο {cell['flagged'].get('mean_pct')}%) · "
                       f"χωρίς {cell['rest'].get('known')} (μέσο {cell['rest'].get('mean_pct')}%) · συμπέρασμα: "
-                      f"{cell['verdict']}. Ανάλυση: `output/paper_learning/gap_conflict_shadow_latest.md`."]
+                      f"{cell['verdict']}" + (f" (η μέτρηση έκλεισε στις {cell['closed']})" if cell.get("closed") else "")
+                      + ". Ανάλυση: `output/paper_learning/gap_conflict_shadow_latest.md`."]
     stops = evaluation.get("stop_shadow") or {}
     if stops:
         judged, running = stops.get("judged") or {}, stops.get("running_view") or {}
@@ -1032,8 +1033,9 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
         fills = fs.exit_fills(conn)
     # owner 2026-11-09: candidates with a material headline before the open, against the rest (measured only)
     news = nw.run_shadow(root, records, metrics, MARGIN_PCT, write=write_lessons)
-    # owner 2026-11-09 (the NVDA short): a gap already in the trade's direction, and one trader on both sides of a stock
-    gaps = gc.run(root, records, frames, metrics, MARGIN_PCT, write=write_lessons)
+    # owner 2026-11-09 (the NVDA short): a gap already in the trade's direction, and one trader on both sides of a stock;
+    # closed 2026-11-18 (both judged "no clear difference", RULES_REVIEW section 14): its last result is kept, not rerun
+    gaps = gc.closed_result(root)
     # owner 2026-11-15: the held positions' stop, the live widening one against the class-wide one (measured only)
     stops = ss.run(root, frames, MARGIN_PCT, fills=fills, write=write_lessons)
     lab_dir = root / "output" / "strategy_lab"
@@ -1055,11 +1057,12 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
                                                       "miltos_entered", "gated", "passed_horizons", "verdict")}
     evaluation["news_shadow"] = {k: news[k] for k in ("flagged", "clear", "unknown", "flagged_minus_clear_pct", "verdict")}
     evaluation["gap_conflict_shadow"] = {
-        name: {k: gaps[name][k] for k in ("flagged", "rest", "flagged_minus_rest_pct", "verdict")}
-        for name in ("favourable_gap", "both_directions")}
+        name: {**{k: gaps[name].get(k) for k in ("flagged", "rest", "flagged_minus_rest_pct", "verdict")},
+               "closed": gaps.get("closed")}
+        for name in ("favourable_gap", "both_directions") if isinstance(gaps.get(name), dict)}
     evaluation["stop_shadow"] = {k: stops[k] for k in ("positions", "unknown", "mature", "mature_days", "running",
                                                        "judged", "running_view", "verdict", "exits")}
-    found = (proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news) + gc.proposal(gaps)
+    found = (proposals(evaluation) + pr.proposal(recheck) + fs.proposal(flip) + nw.proposal(news)
              + ss.proposal(stops))
     lessons = record_lessons(root / "data" / "market_intel.db", found) if write_lessons else []
     evaluation["lesson_candidates"] = lessons

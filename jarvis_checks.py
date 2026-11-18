@@ -20,8 +20,7 @@ PRODUCERS: dict[str, list[str]] = {
     "exit_lab_horizon": ["exit_lab.py", "--horizon-curve"],
     # owner 2026-11-16: the debate shadow's nightly measure (reads the ledger and its own opinions, writes a report)
     "debate_shadow_evaluate": ["debate_shadow.py", "evaluate"],
-    # owner 2026-11-17: the positions a market shock closed, measured 1-10 sessions later (RULES_REVIEW section 7)
-    "shock_exits_lab": ["shock_exits_lab.py"],
+    # shock_exits_lab (RULES_REVIEW section 7) was judged "no clear difference" and closed on 2026-11-18 (section 14)
     # owner 2026-11-18 (ADR-002, RULES_REVIEW section 14): the period's five pre-registered experiments, read-only
     "period_experiments": ["period_experiments.py"],
 }

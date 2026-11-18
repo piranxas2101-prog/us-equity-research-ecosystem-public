@@ -75,5 +75,21 @@ class EvaluateTests(unittest.TestCase):
             self.assertEqual(out["favourable_gap"]["flagged"]["known"], 1)
 
 
+class ClosedTests(unittest.TestCase):
+    def test_closed_keeps_the_last_result_and_marks_it(self):
+        # owner 2026-11-18 (RULES_REVIEW section 14): judged on both parts, the measurement no longer runs
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(gc.closed_result(root), {"closed": gc.CLOSED_ON})  # no file: nothing invented
+            out = root / "output" / "paper_learning"
+            out.mkdir(parents=True)
+            (out / "gap_conflict_shadow_latest.json").write_text(
+                json.dumps({"favourable_gap": {"verdict": "no clear difference"}}), encoding="utf-8")
+            got = gc.closed_result(root)
+            self.assertEqual((got["favourable_gap"]["verdict"], got["closed"]), ("no clear difference", "2026-11-18"))
+
+
 if __name__ == "__main__":
     unittest.main()

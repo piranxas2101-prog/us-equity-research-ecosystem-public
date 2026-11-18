@@ -498,11 +498,50 @@ def news_flag(conn: sqlite3.Connection, symbol: str, session: date) -> dict[str,
     return {"known": True, "flagged": bool(rows), "categories": sorted(r[0] for r in rows)}
 
 
+# Pre-registered (owner 2026-11-18, RULES_REVIEW section 14): one yardstick - the excess over SPY of a fixed 5-session
+# hold from the idea's day (``paper_holding_shadows`` week / fixed, the same for trades and candidates) - one
+# observation per session (flagged mean minus clear mean that day), a two-sided t-test, sessions 2026-11-19 ..
+# 2026-12-18, judged on 2026-12-29. The older all-time numbers stay in the report as description only.
+REGISTERED = ("week", "fixed")
+WINDOW = ("2026-11-19", "2026-12-18")
+JUDGE_DATE = date(2026, 12, 29)
+MIN_SESSIONS = 10
+ALPHA = 0.05
+
+
+def registered_test(pairs: list[tuple[str, bool, float]], margin_pct: float, *, final: bool) -> dict[str, Any]:
+    """``pairs``: (session, flagged, excess) inside the window. The verdict only once ``final``."""
+    import statistics
+
+    days: dict[str, tuple[list[float], list[float]]] = {}
+    for session, flagged, excess in pairs:
+        days.setdefault(session, ([], []))[0 if flagged else 1].append(excess)
+    diffs = [statistics.fmean(a) - statistics.fmean(b) for a, b in days.values() if a and b]
+    mean = round(statistics.fmean(diffs), 3) if diffs else None
+    p = None
+    if len(diffs) >= 3 and statistics.stdev(diffs) > 0:
+        from scipy import stats
+
+        p = round(float(stats.ttest_1samp(diffs, 0.0).pvalue), 6)
+    out = {"sessions": len(diffs), "mean_daily_difference_pct": mean, "p_two_sided": p,
+           "window": list(WINDOW), "judge_date": JUDGE_DATE.isoformat(), "measure": list(REGISTERED)}
+    if not final:
+        return {**out, "verdict": "collecting"}
+    if len(diffs) < MIN_SESSIONS:
+        return {**out, "verdict": "deadline_insufficient"}
+    if p is not None and p < ALPHA and mean is not None and abs(mean) >= margin_pct:
+        return {**out, "verdict": "news-flagged did worse" if mean < 0 else "news-flagged did better"}
+    return {**out, "verdict": "no clear difference"}
+
+
 def evaluate(conn: sqlite3.Connection, records: list[dict[str, Any]],
-             metrics: Callable[[list[dict[str, Any]]], dict[str, Any]], margin_pct: float) -> dict[str, Any]:
-    """Candidates and trades with a material headline before the open against those without one."""
+             metrics: Callable[[list[dict[str, Any]]], dict[str, Any]], margin_pct: float,
+             today: date | None = None) -> dict[str, Any]:
+    """Candidates and trades with a material headline before the open against those without one; the verdict is the
+    pre-registered test's (one yardstick, one observation per session, judged on ``JUDGE_DATE``)."""
     ensure_tables(conn)
     flagged, clear, unknown = [], [], 0
+    pairs: list[tuple[str, bool, float]] = []
     by_category: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         if record.get("kind") not in ("trade", "shadow_candidate"):
@@ -516,17 +555,18 @@ def evaluate(conn: sqlite3.Connection, records: list[dict[str, Any]],
             unknown += 1
             continue
         (flagged if flag["flagged"] else clear).append(record)
+        hold = ((record.get("holds") or {}).get(REGISTERED[0]) or {}).get(REGISTERED[1]) or {}
+        excess = hold.get("excess_pct")
+        if WINDOW[0] <= str(record["session_date"]) <= WINDOW[1] and isinstance(excess, (int, float)):
+            pairs.append((str(record["session_date"]), bool(flag["flagged"]), float(excess)))
         for category in flag["categories"]:
             by_category.setdefault(category, []).append(record)
     a, b = metrics(flagged), metrics(clear)
-    judged = a["status"] == "judged" and b["status"] == "judged"
     gap = None if a["mean_pct"] is None or b["mean_pct"] is None else round(a["mean_pct"] - b["mean_pct"], 3)
-    verdict = ("insufficient_sample" if not judged else
-               "news-flagged did worse" if gap is not None and gap <= -margin_pct else
-               "news-flagged did better" if gap is not None and gap >= margin_pct else "no clear difference")
+    test = registered_test(pairs, margin_pct, final=today is not None and today >= JUDGE_DATE)
     return {"schema": "ecosystem.news_shadow.v1", "flagged": a, "clear": b, "unknown": unknown,
             "flagged_minus_clear_pct": gap, "by_category": {k: metrics(v) for k, v in sorted(by_category.items())},
-            "verdict": verdict, "active_decisions_changed": False}
+            "registered": test, "verdict": test["verdict"], "active_decisions_changed": False}
 
 
 def proposal(result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -545,7 +585,10 @@ def render_shadow(result: dict[str, Any]) -> str:
     lines = ["# Ειδήσεις πριν το άνοιγμα (shadow, χωρίς εντολές)", "",
              "Υποψήφιοι και θέσεις με σημαντικό τίτλο ανάμεσα στο προηγούμενο κλείσιμο και το άνοιγμα, έναντι των "
              "υπολοίπων. Τίποτα δεν αλλάζει στις εντολές.", "",
-             f"Συμπέρασμα: **{result['verdict']}** · διαφορά μέσου {v(result['flagged_minus_clear_pct'])}% · "
+             f"Συμπέρασμα: **{result['verdict']}** (προεγγεγραμμένο τεστ: {v(result['registered']['sessions'])} "
+             f"συνεδρίες, μέση διαφορά ανά μέρα {v(result['registered']['mean_daily_difference_pct'])}% σε κράτηση 5 "
+             f"συνεδριών, p {v(result['registered']['p_two_sided'])}, κρίση {result['registered']['judge_date']}) · "
+             f"όλη η περίοδος, μόνο περιγραφή: διαφορά μέσου {v(result['flagged_minus_clear_pct'])}% · "
              f"χωρίς γνωστή ανάγνωση {result['unknown']}.", "",
              "| ομάδα | με αποτέλεσμα | μέρες | μέσο % | υπέρβαση SPY % | νίκησαν SPY % | κατάσταση |",
              "|---|---|---|---|---|---|---|"]
@@ -559,7 +602,7 @@ def render_shadow(result: dict[str, Any]) -> str:
 def run_shadow(root: Path, records: list[dict[str, Any]], metrics: Callable[[list[dict[str, Any]]], dict[str, Any]],
                margin_pct: float, *, write: bool = True) -> dict[str, Any]:
     with closing(connect(root / "data" / DB_NAME)) as conn:
-        result = evaluate(conn, records, metrics, margin_pct)
+        result = evaluate(conn, records, metrics, margin_pct, today=datetime.now(NEW_YORK).date())
     if write:
         out = root / "output" / "paper_learning"
         out.mkdir(parents=True, exist_ok=True)

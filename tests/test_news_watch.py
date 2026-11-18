@@ -141,11 +141,31 @@ class ShadowTests(unittest.TestCase):
                    {"kind": "koulis_left_out", "session_date": "2026-11-09", "ticker": "NVDA", "outcome_pct": 9.0}]
         out = nw.evaluate(self.conn, records, metrics, 0.5)
         self.assertEqual((out["flagged"]["known"], out["clear"]["known"], out["unknown"]), (2, 2, 1))
-        self.assertEqual((out["flagged_minus_clear_pct"], out["verdict"]), (-2.5, "news-flagged did worse"))
-        self.assertEqual(nw.proposal(out)[0]["target_agent"], "preopen_check")
+        # owner 2026-11-18: the all-time gap is description; the verdict is the pre-registered test's, after 12/29
+        self.assertEqual((out["flagged_minus_clear_pct"], out["verdict"]), (-2.5, "collecting"))
+        self.assertEqual(nw.proposal(out), [])
+        self.assertEqual(nw.proposal({**out, "verdict": "news-flagged did worse"})[0]["target_agent"], "preopen_check")
         self.assertFalse(out["active_decisions_changed"])
         self.assertEqual(nw.proposal({**out, "verdict": "insufficient_sample"}), [])
 
+
+    def test_the_registered_test_one_observation_per_session_judged_once(self):
+        def pairs(gap):
+            return [(f"2026-11-{d:02d}", flagged, (-gap if flagged else 0.0) + 0.1 * k)
+                    for d in range(19, 31) for flagged in (True, False) for k in range(3)]
+        early = nw.registered_test(pairs(2.0), 0.5, final=False)
+        self.assertEqual((early["verdict"], early["sessions"], early["mean_daily_difference_pct"]),
+                         ("collecting", 12, -2.0))
+        noisy = [(d, f, x + (0.3 if f and d.endswith(("1", "3", "5", "7", "9")) else 0.0)) for d, f, x in pairs(2.0)]
+        self.assertEqual(nw.registered_test(noisy, 0.5, final=True)["verdict"], "news-flagged did worse")
+        self.assertEqual(nw.registered_test(pairs(0.1)[:12], 0.5, final=True)["verdict"], "deadline_insufficient")
+
+    def test_only_the_window_and_the_five_session_hold_count(self):
+        base = {"kind": "shadow_candidate", "ticker": "NVDA"}
+        records = [{**base, "session_date": "2026-11-09", "holds": {"week": {"fixed": {"excess_pct": -9.0}}}},
+                   {**base, "session_date": "2026-11-19", "holds": {}}]
+        out = nw.evaluate(self.conn, records, metrics, 0.5, today=nw.JUDGE_DATE)
+        self.assertEqual((out["registered"]["sessions"], out["verdict"]), (0, "deadline_insufficient"))
 
 class RunTests(unittest.TestCase):
     def test_held_first_then_candidates_and_the_report(self):

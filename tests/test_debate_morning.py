@@ -86,16 +86,18 @@ class EveryOutcomeTests(unittest.TestCase):
             with closing(sqlite3.connect(db)) as conn:
                 conn.execute("CREATE TABLE paper_trade_ledger (record_id TEXT PRIMARY KEY, session_date TEXT, kind TEXT,"
                              " complete INTEGER, record_json TEXT, recorded_at TEXT)")
-                conn.execute("CREATE TABLE paper_counterfactuals (record_id TEXT PRIMARY KEY, open_close_pct REAL,"
-                             " spy_open_close_pct REAL, computed_at TEXT)")
+                conn.execute("CREATE TABLE paper_holding_shadows (record_id TEXT, holding_class TEXT, rule TEXT,"
+                             " excess_pct REAL)")
                 base = {"session_date": "2026-11-18", "agent": "yankos", "playbook": "pb", "direction": "long"}
                 for rid, kind, ticker, extra in (("s1", "shadow_candidate", "AAA", {}),
                                                  ("s2", "shadow_candidate", "BBB", {}),
                                                  ("t2", "trade", "BBB", {"result_pct": 4.0})):
                     conn.execute("INSERT INTO paper_trade_ledger VALUES (?,?,?,?,?,?)",
                                  (rid, "2026-11-18", kind, 1, json.dumps({**base, "ticker": ticker, **extra}), "x"))
-                conn.executemany("INSERT INTO paper_counterfactuals VALUES (?,?,?,?)",
-                                 [("s1", -2.0, 0.5, "x"), ("s2", 1.0, 0.5, "x")])
+                # owner 2026-11-18: one yardstick, the 5-session shadow hold, for trades and candidates alike
+                conn.executemany("INSERT INTO paper_holding_shadows VALUES (?,?,?,?)",
+                                 [("s1", "week", "fixed", -2.5), ("s2", "week", "fixed", 0.5),
+                                  ("t2", "week", "fixed", 3.5)])
                 conn.commit()
             with closing(ds.connect(root / ds.DB)) as conn:
                 for iid, ticker in (("i1", "AAA"), ("i2", "BBB")):

@@ -168,6 +168,24 @@ class CasesAndVerdictTests(unittest.TestCase):
         result = fs.evaluate(self.conn, self.insert(40, 12, -1.0), pl.metrics, pl.MARGIN_PCT)
         self.assertEqual(result["verdict"], "no clear gain")
 
+    def test_only_the_registered_horizon_decides(self):
+        # owner 2026-11-18: one horizon chosen before the result (5 sessions), not "any of the five"
+        cases = self.insert(40, 12, -1.0)
+        for i in range(40):  # a strong 3-session result no longer passes on its own
+            self.conn.execute("INSERT INTO paper_flip_shadows VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                              (f"f{i}", "miltos", "stop", 3, f"2026-11-{i % 12 + 1:02d}", 100.0, "2026-12-01", 3,
+                               3.0, 0.0, 3.0, "now"))
+        result = fs.evaluate(self.conn, cases, pl.metrics, pl.MARGIN_PCT)
+        self.assertEqual((result["verdict"], result["passed_horizons"], result["registered_horizon"]),
+                         ("no clear gain", [], 5))
+
+    def test_the_deadline_without_a_sample_is_said_not_hidden(self):
+        cases = self.insert(12, 6, 5.0)
+        before = fs.evaluate(self.conn, cases, pl.metrics, pl.MARGIN_PCT, today=date(2027, 1, 28))
+        after = fs.evaluate(self.conn, cases, pl.metrics, pl.MARGIN_PCT, today=date(2027, 1, 29))
+        self.assertEqual((before["verdict"], after["verdict"]), ("insufficient_sample", "deadline_insufficient"))
+        self.assertEqual(fs.proposal(after), [])
+
     def test_only_a_known_pass_reaches_the_gated_group(self):
         cases = self.insert(2, 2, 1.0)
         cases[1]["passes_koulis"] = None

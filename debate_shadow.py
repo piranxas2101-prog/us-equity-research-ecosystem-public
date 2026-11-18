@@ -446,6 +446,12 @@ def lower_ollama_priority(runner: Callable[..., Any] = subprocess.run) -> None:
 # ----------------------------------------------------------------------------------------------- evaluate
 
 KIND_ORDER = ("trade", "approved_not_entered", "koulis_left_out", "preopen_demoted", "shadow_candidate")
+# Pre-registered (owner 2026-11-18, RULES_REVIEW section 14): one yardstick for every idea - the excess over SPY of a
+# fixed 5-session hold (paper_holding_shadows, week / fixed, in the trade's direction, SPY over the same days) - for
+# the opinions of 2026-11-18 .. 2026-12-18, judged on 2026-12-29. Before that the numbers are shown, nothing decided.
+MEASURE = ("week", "fixed")
+WINDOW = ("2026-11-18", "2026-12-18")
+JUDGE_DATE = date(2026, 12, 29)
 MIN_OUTCOMES = 30
 MIN_SESSIONS = 10
 MARGIN_PCT = 0.5
@@ -453,10 +459,10 @@ BOOTSTRAP = 2000
 
 
 def outcomes(root: Path, *, as_of: date) -> list[dict[str, Any]]:
-    """Each opinion with its approval's outcome as excess over the session's SPY: a trade's result at the fill
-    (mature only, owner's rule 2026-11-15) or a never-entered approval's counterfactual open-to-close."""
-    import jarvis_learning
-
+    """Each opinion with its idea's outcome on one yardstick (owner 2026-11-18): the excess over SPY of a fixed
+    5-session hold from the idea's day, in its direction (``paper_holding_shadows``). A trade and a never-entered idea
+    are measured alike; a hold not matured yet is unknown. (Until 2026-11-18 a trade's multi-session result was set
+    against one day of SPY and a short's SPY was subtracted instead of added.)"""
     db = root / DB
     if not db.exists():
         return []
@@ -465,8 +471,7 @@ def outcomes(root: Path, *, as_of: date) -> list[dict[str, Any]]:
         names = [c[0] for c in cursor.description]
         opinions = [dict(zip(names, r)) for r in cursor.fetchall()]
     records: dict[tuple, dict[str, Any]] = {}
-    counter: dict[str, Any] = {}
-    spy: dict[str, float] = {}
+    holds: dict[str, float] = {}
     ledger_db = root / "data" / "paper_learning.db"
     if ledger_db.exists():
         with closing(sqlite3.connect(f"file:{ledger_db.as_posix()}?mode=ro", uri=True)) as conn:
@@ -481,30 +486,21 @@ def outcomes(root: Path, *, as_of: date) -> list[dict[str, Any]]:
                 if key not in records or KIND_ORDER.index(kind) < KIND_ORDER.index(records[key]["kind"]):
                     records[key] = {**r, "record_id": record_id, "kind": kind}
             try:
-                rows = conn.execute("SELECT c.record_id, c.open_close_pct, c.spy_open_close_pct, l.session_date"
-                                    " FROM paper_counterfactuals c JOIN paper_trade_ledger l USING(record_id)").fetchall()
-            except sqlite3.Error:
+                rows = conn.execute("SELECT record_id, excess_pct FROM paper_holding_shadows"
+                                    " WHERE holding_class=? AND rule=?", MEASURE).fetchall()
+            except sqlite3.Error:  # no shadow holds yet: every outcome stays unknown
                 rows = []
-            for record_id, oc, spy_pct, day in rows:
-                counter[record_id] = oc
-                if isinstance(spy_pct, (int, float)):
-                    spy.setdefault(day, spy_pct)
+            holds = {record_id: float(x) for record_id, x in rows if isinstance(x, (int, float))}
     out = []
     for o in opinions:
         key = (o["session_date"], o["agent"], str(o["ticker"]).upper(), o["playbook"], o["direction"])
         record = records.get(key)
-        outcome, entered_before = None, None
+        excess, entered_before = None, None
         if record and o["rating"] in RATINGS:
-            if record["kind"] == "trade":
-                if isinstance(record.get("result_pct"), (int, float)) and jarvis_learning.mature(record, as_of):
-                    outcome = record["result_pct"]
-                if record.get("entry_at") and o.get("written_at"):
-                    entered_before = parse_time(record["entry_at"]) < parse_time(o["written_at"])
-            else:
-                oc = counter.get(record["record_id"])
-                outcome = oc if isinstance(oc, (int, float)) else None
-        day_spy = spy.get(o["session_date"])
-        excess = None if outcome is None or day_spy is None else round(outcome - day_spy, 3)
+            value = holds.get(record["record_id"])
+            excess = None if value is None else round(value, 3)
+            if record["kind"] == "trade" and record.get("entry_at") and o.get("written_at"):
+                entered_before = parse_time(record["entry_at"]) < parse_time(o["written_at"])
         out.append({**o, "kind": (record or {}).get("kind"), "excess_pct": excess, "entered_before": entered_before})
     return out
 
@@ -513,9 +509,10 @@ def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 3) if values else None
 
 
-def judge(rows: list[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
+def judge(rows: list[dict[str, Any]], *, seed: int = 0, final: bool = True) -> dict[str, Any]:
     """Owner-approved test (RULES_REVIEW section 12): >= 30 outcomes on >= 10 sessions; oppose worse than support by
-    at least 0.5 points of excess, with the 95% day-bootstrap interval of (support - oppose) above zero."""
+    at least 0.5 points of excess, with the 95% day-bootstrap interval of (support - oppose) above zero. Before the
+    judge date (``final`` False) the numbers are computed and the verdict is ``collecting``."""
     known = [r for r in rows if r.get("excess_pct") is not None and r.get("rating") in ("support", "oppose")]
     days = sorted({r["session_date"] for r in known})
     support = [r["excess_pct"] for r in known if r["rating"] == "support"]
@@ -523,7 +520,7 @@ def judge(rows: list[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
     result = {"outcomes": len(known), "sessions": len(days), "support": {"n": len(support), "mean": _mean(support)},
               "oppose": {"n": len(oppose), "mean": _mean(oppose)}, "gap": None, "ci_95": None}
     if len(known) < MIN_OUTCOMES or len(days) < MIN_SESSIONS or not support or not oppose:
-        return {**result, "verdict": "insufficient_sample"}
+        return {**result, "verdict": "insufficient_sample" if final else "collecting"}
     gap = round(result["support"]["mean"] - result["oppose"]["mean"], 3)
     by_day: dict[str, list[dict[str, Any]]] = {}
     for r in known:
@@ -539,11 +536,13 @@ def judge(rows: list[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
     gaps.sort()
     ci = [round(gaps[int(0.025 * len(gaps))], 3), round(gaps[int(0.975 * len(gaps)) - 1], 3)] if gaps else None
     passed = gap >= MARGIN_PCT and ci is not None and ci[0] > 0
+    if not final:
+        return {**result, "gap": gap, "ci_95": ci, "verdict": "collecting"}
     return {**result, "gap": gap, "ci_95": ci, "verdict": "veto_would_help" if passed else "no_clear_difference"}
 
 
 VERDICT_GR = {"veto_would_help": "το βέτο θα βοηθούσε", "no_clear_difference": "καμία καθαρή διαφορά",
-              "insufficient_sample": "ανεπαρκές δείγμα"}
+              "insufficient_sample": "ανεπαρκές δείγμα", "collecting": "μαζεύει δείγμα (κρίση 29/12)"}
 
 
 def _num(value: Any) -> str:
@@ -554,7 +553,8 @@ def render(result: dict[str, Any]) -> str:
     j = result["judgement"]
     lines = ["# Συζήτηση shadow (στο στυλ του TradingAgents)", "",
              f"Ετυμηγορία: **{VERDICT_GR[j['verdict']]}** ({j['outcomes']} αποτελέσματα σε {j['sessions']} "
-             f"συνεδρίες, χρειάζονται {MIN_OUTCOMES} σε {MIN_SESSIONS}).",
+             f"συνεδρίες, χρειάζονται {MIN_OUTCOMES} σε {MIN_SESSIONS}). Μέτρο: κράτηση 5 συνεδριών έναντι SPY, "
+             f"γνώμες {WINDOW[0]} έως {WINDOW[1]}, κρίση {JUDGE_DATE.isoformat()}.",
              f"- υπέρ: {j['support']['n']} θέσεις, μέσο πάνω από το SPY {_num(j['support']['mean'])}%",
              f"- κατά: {j['oppose']['n']} θέσεις, μέσο πάνω από το SPY {_num(j['oppose']['mean'])}%",
              f"- διαφορά υπέρ μείον κατά: {_num(j['gap'])} (95%: {_num(j['ci_95'])})",
@@ -567,8 +567,8 @@ def render(result: dict[str, Any]) -> str:
 
 
 def evaluate(root: Path, *, as_of: date) -> dict[str, Any]:
-    rows = outcomes(root, as_of=as_of)
-    judgement = judge(rows)
+    rows = [r for r in outcomes(root, as_of=as_of) if WINDOW[0] <= str(r.get("session_date")) <= WINDOW[1]]
+    judgement = judge(rows, final=as_of >= JUDGE_DATE)
     guard_stops = 0
     if (root / DB).exists():
         with closing(sqlite3.connect(f"file:{(root / DB).as_posix()}?mode=ro", uri=True)) as conn:
@@ -576,6 +576,8 @@ def evaluate(root: Path, *, as_of: date) -> dict[str, Any]:
     entered = [r for r in rows if r.get("entered_before") is not None]
     result = {"schema": "ecosystem.debate_shadow.v1", "generated_at": _now(), "as_of": as_of.isoformat(),
               "verdict": judgement["verdict"], "judgement": judgement, "opinions": len(rows),
+              "measure": {"holding_class": MEASURE[0], "rule": MEASURE[1], "window": list(WINDOW),
+                          "judge_date": JUDGE_DATE.isoformat()},
               "unknown": sum(1 for r in rows if r.get("rating") == "unknown"),
               "before_entry": sum(1 for r in entered if not r["entered_before"]), "entered_known": len(entered),
               "guard_stops": guard_stops, "active_decisions_changed": False}

@@ -202,19 +202,19 @@ class OllamaTests(unittest.TestCase):
         self.assertTrue(ds.past_stop(ds.parse_time("2026-11-17T16:00:00-05:00")))
 
 
-def ledger(root, records, counterfactuals):
+def ledger(root, records, holds):
     path = root / "data" / "paper_learning.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(path)) as conn:
         conn.execute("CREATE TABLE paper_trade_ledger (record_id TEXT PRIMARY KEY, session_date TEXT NOT NULL,"
                      " kind TEXT NOT NULL, complete INTEGER NOT NULL, record_json TEXT NOT NULL, recorded_at TEXT NOT NULL)")
-        conn.execute("CREATE TABLE paper_counterfactuals (record_id TEXT PRIMARY KEY, open_close_pct REAL,"
-                     " spy_open_close_pct REAL, computed_at TEXT NOT NULL)")
+        conn.execute("CREATE TABLE paper_holding_shadows (record_id TEXT NOT NULL, holding_class TEXT NOT NULL,"
+                     " rule TEXT NOT NULL, excess_pct REAL NOT NULL)")
         for r in records:
             conn.execute("INSERT INTO paper_trade_ledger VALUES (?,?,?,?,?,?)",
                          (r["record_id"], r["session_date"], r["kind"], 1, json.dumps(r), "x"))
-        for rid, oc, spy in counterfactuals:
-            conn.execute("INSERT INTO paper_counterfactuals VALUES (?,?,?,?)", (rid, oc, spy, "x"))
+        for rid, cls, rule, excess in holds:
+            conn.execute("INSERT INTO paper_holding_shadows VALUES (?,?,?,?)", (rid, cls, rule, excess))
         conn.commit()
 
 
@@ -230,15 +230,17 @@ class EvaluateTests(unittest.TestCase):
         ds.store(conn, {"session_date": day, "intent_id": iid, "agent": "yankos", "ticker": ticker,
                         "playbook": "pb", "direction": "long", "rating": rating, "written_at": written})
 
-    def test_outcomes_join_trades_and_counterfactuals_as_excess_over_spy(self):
+    def test_outcomes_use_one_yardstick_for_trades_and_ideas(self):
+        # owner 2026-11-18: the 5-session shadow hold (already in the idea's direction, against SPY over the same
+        # days) for every idea; a trade's own multi-session result is no longer set against one day of SPY
         ledger(self.root, [
             {"record_id": "t1", "session_date": "2026-11-17", "kind": "trade", "agent": "yankos", "ticker": "AAA",
-             "playbook": "pb", "direction": "long", "result_pct": 2.0, "entry_at": "2026-11-17T14:40:00+00:00"},
+             "playbook": "pb", "direction": "long", "result_pct": 9.0, "entry_at": "2026-11-17T14:40:00+00:00"},
             {"record_id": "n1", "session_date": "2026-11-17", "kind": "approved_not_entered", "agent": "yankos",
              "ticker": "BBB", "playbook": "pb", "direction": "long"},
             {"record_id": "h1", "session_date": "2026-11-17", "kind": "trade", "agent": "yankos", "ticker": "CCC",
              "playbook": "pb", "direction": "long", "result_pct": -5.0, "holding_horizon_sessions": 60}],
-            [("n1", -1.0, 0.5)])
+            [("t1", "week", "fixed", 1.5), ("t1", "day", "fixed", 7.0), ("n1", "week", "fixed", -1.5)])
         with closing(ds.connect(self.root / ds.DB)) as conn:
             self.opinion(conn, "2026-11-17", "i1", "AAA", "support")
             self.opinion(conn, "2026-11-17", "i2", "BBB", "oppose")
@@ -248,7 +250,7 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(rows["AAA"]["excess_pct"], 1.5)
         self.assertIs(rows["AAA"]["entered_before"], True)  # entered 14:40, opinion only at 15:00
         self.assertEqual(rows["BBB"]["excess_pct"], -1.5)
-        self.assertIsNone(rows["CCC"]["excess_pct"])  # immature held trade
+        self.assertIsNone(rows["CCC"]["excess_pct"])  # its 5-session hold has not matured: unknown
         self.assertIsNone(rows["DDD"]["excess_pct"])
 
     def test_verdicts(self):
@@ -263,10 +265,28 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(ds.judge(rows(1.0))["verdict"], "veto_would_help")
         self.assertEqual(ds.judge(rows(0.2))["verdict"], "no_clear_difference")
         self.assertEqual(ds.judge(rows(1.0)[:20])["verdict"], "insufficient_sample")
+        # before the judge date nothing is decided, whatever the numbers say
+        early = ds.judge(rows(1.0), final=False)
+        self.assertEqual((early["verdict"], early["gap"]), ("collecting", 1.0))
+        self.assertEqual(ds.judge(rows(1.0)[:20], final=False)["verdict"], "collecting")
+
+    def test_only_the_registered_window_is_judged_and_only_after_the_judge_date(self):
+        ledger(self.root, [{"record_id": f"r{d}{k}", "session_date": f"2026-11-{d:02d}", "kind": "shadow_candidate",
+                            "agent": "yankos", "ticker": f"T{d}{k}", "playbook": "pb", "direction": "long"}
+                           for d in (17, 18) for k in range(2)],
+               [(f"r{d}{k}", "week", "fixed", 1.0) for d in (17, 18) for k in range(2)])
+        with closing(ds.connect(self.root / ds.DB)) as conn:
+            for d in (17, 18):
+                for k in range(2):
+                    self.opinion(conn, f"2026-11-{d:02d}", f"i{d}{k}", f"T{d}{k}", "support")
+        early = ds.evaluate(self.root, as_of=date(2026, 12, 28))
+        self.assertEqual((early["verdict"], early["opinions"]), ("collecting", 2))  # 11/17 is before the window
+        self.assertEqual(ds.evaluate(self.root, as_of=date(2026, 12, 29))["verdict"], "insufficient_sample")
 
     def test_evaluate_without_data_writes_insufficient(self):
         out = ds.evaluate(self.root, as_of=date(2026, 11, 18))
-        self.assertEqual(out["verdict"], "insufficient_sample")
+        self.assertEqual(out["verdict"], "collecting")  # before the judge date (2026-12-29)
+        self.assertEqual(ds.evaluate(self.root, as_of=date(2026, 12, 29))["verdict"], "insufficient_sample")
         self.assertTrue((self.root / "output" / "paper_learning" / "debate_shadow_latest.md").exists())
         data = json.loads((self.root / "output" / "paper_learning" / "debate_shadow_latest.json").read_text("utf-8"))
         self.assertFalse(data["active_decisions_changed"])

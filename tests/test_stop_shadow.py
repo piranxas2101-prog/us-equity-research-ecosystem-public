@@ -53,7 +53,8 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual([r["mature"] for r in rows], [True, False, False])
         result = ss.evaluate(rows, 0.5)
         self.assertEqual((result["unknown"], result["mature"], result["running"]), (1, 1, 1))
-        self.assertEqual(result["verdict"], "insufficient_sample")
+        self.assertEqual(result["verdict"], "collecting")  # owner 2026-11-18: judged once, at 60 or the deadline
+        self.assertEqual(ss.evaluate(rows, 0.5, today=ss.DEADLINE)["verdict"], "deadline_insufficient")
         self.assertEqual(ss.proposal(result), [])
         self.assertFalse(result["active_decisions_changed"])
 
@@ -64,13 +65,25 @@ class EvaluationTests(unittest.TestCase):
             symbol = f"S{k}"
             frames[symbol] = bars([100, 97, 99, 106], lows=[100, 96.5, 99, 106], start=str(day.date()))
             cases.append(position(day=str(day.date()), symbol=symbol))
-        result = ss.evaluate(ss.build(cases, frames.get), 0.5)
+        rows = ss.build(cases, frames.get)
+        self.assertEqual(ss.evaluate(rows, 0.5)["verdict"], "collecting")  # 36 windows: before 60, no verdict yet
+        result = ss.evaluate(rows, 0.5, today=ss.DEADLINE)  # the deadline judges what there is
         self.assertEqual(result["verdict"], "class stop did better")
         self.assertEqual(result["judged"]["class_minus_live_pct"], 9.111)
         found = ss.proposal(result)
         self.assertEqual(found[0]["target_agent"], "position_monitor")
         self.assertIn("stopped position loses", found[0]["proposed_change"])
         self.assertIn("φαρδύ", ss.render(result))
+
+    def test_sixty_whole_windows_are_judged_before_the_deadline(self):
+        cases, frames = [], {}
+        for k in range(60):
+            day = pd.bdate_range("2026-01-05", periods=70)[k]
+            symbol = f"S{k}"
+            frames[symbol] = bars([100, 97, 99, 106], lows=[100, 96.5, 99, 106], start=str(day.date()))
+            cases.append(position(day=str(day.date()), symbol=symbol))
+        result = ss.evaluate(ss.build(cases, frames.get), 0.5, today=date(2026, 12, 1))
+        self.assertEqual((result["mature"], result["verdict"]), (60, "class stop did better"))
 
     def test_positions_are_read_once_from_the_open_and_closed_files(self):
         with tempfile.TemporaryDirectory() as folder:

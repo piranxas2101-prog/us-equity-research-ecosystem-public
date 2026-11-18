@@ -77,10 +77,11 @@ if __name__ == "__main__":
 
 
 class JarvisCheckTests(unittest.TestCase):
-    def test_the_lab_is_a_jarvis_check_now(self):
+    def test_the_check_is_closed_after_its_verdict(self):
+        # owner 2026-11-18 (RULES_REVIEW section 14): judged "no clear difference" on 54 positions; Jarvis no longer
+        # runs it on every pass (the lab stays runnable by hand)
         import jarvis_checks
         root = Path(__file__).resolve().parents[1]
-        self.assertEqual(jarvis_checks.PRODUCERS["shock_exits_lab"], ["shock_exits_lab.py"])
-        check = {c["id"]: c for c in jarvis_checks.load_registry(root / "jarvis_checks.json")}["shock_longs_1105"]
-        self.assertEqual((check["producer"], check["output"]), ("shock_exits_lab", "output/paper_learning/shock_exits_latest.json"))
-        self.assertEqual(check["ready_values"], ["holding would have helped", "the exit helped"])
+        self.assertNotIn("shock_exits_lab", jarvis_checks.PRODUCERS)
+        ids = {c["id"] for c in jarvis_checks.load_registry(root / "jarvis_checks.json")}
+        self.assertNotIn("shock_longs_1105", ids)

@@ -48,6 +48,12 @@ EXIT_RULES = ("fixed", "stop")
 OWN_POSITION = "existing_account_exposure"
 # five horizons are looked at, so "beat SPY" must hold at the Wilson lower bound, not only on average
 PASSES_WILSON_PCT = 50.0
+# Pre-registered (owner 2026-11-18, RULES_REVIEW section 14): the verdict reads one horizon, chosen before the result -
+# 5 sessions, gated entries with the stop - instead of "any of the five" (five chances to pass by luck). It is judged
+# once that horizon has its sample (30 flips on 10 sessions); if it has not by the deadline, the verdict says so and
+# the owner decides. The other horizons are still shown, as description only.
+REGISTERED_HORIZON = 5
+DEADLINE = date(2027, 1, 29)
 ROOT = Path(__file__).resolve().parent
 
 Frames = Callable[[str], "pd.DataFrame | None"]
@@ -233,7 +239,8 @@ def fill(conn: Any, cases: list[dict[str, Any]], frames: Frames) -> int:
 
 
 def evaluate(conn: Any, cases: list[dict[str, Any]],
-             metrics: Callable[[list[dict[str, Any]]], dict[str, Any]], margin_pct: float) -> dict[str, Any]:
+             metrics: Callable[[list[dict[str, Any]]], dict[str, Any]], margin_pct: float,
+             today: date | None = None) -> dict[str, Any]:
     """``open``: all flips at the open. ``miltos``: confirmed, whatever Koulis said. ``gated``: confirmed and known to
     pass Koulis, the entry that would really happen; the verdict reads this one, with the stop."""
     ensure_tables(conn)
@@ -249,18 +256,22 @@ def evaluate(conn: Any, cases: list[dict[str, Any]],
         if entry_rule == "miltos" and case.get("passes_koulis") is True:
             groups.setdefault(f"gated · {exit_rule} · {horizon}", []).append(row)
     summary = {name: metrics(rows) for name, rows in sorted(groups.items())}
-    gated = {h: summary.get(f"gated · stop · {h}") for h in HORIZONS}
-    judged = {h: m for h, m in gated.items() if m and m["status"] == "judged"}
-    passed = sorted(h for h, m in judged.items()
-                    if m["mean_excess_pct"] is not None and m["mean_excess_pct"] >= margin_pct
-                    and (m["beat_spy_wilson_lower_pct"] or 0) > PASSES_WILSON_PCT)
-    verdict = "insufficient_sample" if not judged else "the opposite entry would have helped" if passed else "no clear gain"
+    registered = summary.get(f"gated · stop · {REGISTERED_HORIZON}")
+    judged = bool(registered and registered["status"] == "judged")
+    passed = [REGISTERED_HORIZON] if judged and registered["mean_excess_pct"] is not None \
+        and registered["mean_excess_pct"] >= margin_pct \
+        and (registered["beat_spy_wilson_lower_pct"] or 0) > PASSES_WILSON_PCT else []
+    if judged:
+        verdict = "the opposite entry would have helped" if passed else "no clear gain"
+    else:
+        verdict = "deadline_insufficient" if today is not None and today >= DEADLINE else "insufficient_sample"
     return {"schema": "ecosystem.flip_shadow.v1", "flips": len(cases), "candidates": sum(c["candidate"] for c in cases),
             "passes_koulis": sum(c["passes_koulis"] is True for c in cases),
             "koulis_unknown": sum(c["passes_koulis"] is None for c in cases),
             "miltos_entered": sum(c["miltos_entered"] is True for c in cases),
             "gated": sum(c["passes_koulis"] is True and c["miltos_entered"] is True for c in cases),
-            "summary": summary, "passed_horizons": passed, "verdict": verdict, "cases": cases,
+            "summary": summary, "passed_horizons": passed, "registered_horizon": REGISTERED_HORIZON,
+            "deadline": DEADLINE.isoformat(), "verdict": verdict, "cases": cases,
             "active_decisions_changed": False}
 
 
@@ -318,7 +329,7 @@ def run(root: Path, conn: Any, records: list[dict[str, Any]], frames: Frames,
     koulis = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
     cases = build_cases(conn, root / "data" / "paper_positions_closed.jsonl", records, koulis)
     fill(conn, cases, frames)
-    result = evaluate(conn, cases, metrics, margin_pct)
+    result = evaluate(conn, cases, metrics, margin_pct, today=datetime.now(NEW_YORK).date())
     if write:
         out = root / "output" / "paper_learning"
         out.mkdir(parents=True, exist_ok=True)

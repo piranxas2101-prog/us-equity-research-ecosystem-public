@@ -29,9 +29,11 @@
       "output": "output/paper_learning/flip_shadow_latest.json",
       "verdict_path": "verdict",
       "ready_values": [
-        "the opposite entry would have helped"
+        "the opposite entry would have helped",
+        "no clear gain",
+        "deadline_insufficient"
       ],
-      "change": "Αν περνά το τεστ του section 8: συζήτηση για να μπει στον κύριο κώδικα (απόφαση του ιδιοκτήτη)"
+      "change": "Ετυμηγορία στον ορίζοντα των 5 συνεδριών (section 14): αν πέρασε, συζήτηση για να μπει στον κύριο κώδικα· αλλιώς κλείνει η μέτρηση ή παίρνει μία παράταση (απόφαση του ιδιοκτήτη)"
     },
     {
       "id": "news_shadow",
@@ -44,7 +46,10 @@
       "output": "output/paper_learning/news_shadow_latest.json",
       "verdict_path": "verdict",
       "ready_values": [
-        "news-flagged did better"
+        "news-flagged did better",
+        "news-flagged did worse",
+        "no clear difference",
+        "deadline_insufficient"
       ],
       "change": "Αν οι ειδήσεις ξεχωρίζουν αποτελέσματα: συζήτηση για χρήση τους"
     },
@@ -83,27 +88,10 @@
       "output": "output/paper_learning/stop_shadow_latest.json",
       "verdict_path": "verdict",
       "waiting_values": [
-        "insufficient_sample",
-        "no clear difference"
+        "collecting",
+        "insufficient_sample"
       ],
-      "change": "Αν το stop της κλάσης βγαίνει καλύτερο: απόφαση για το stop των κρατούμενων θέσεων"
-    },
-    {
-      "id": "shock_longs_1105",
-      "title": "Οι θέσεις που έκλεισε το σοκ της αγοράς, 5 συνεδρίες μετά",
-      "rules_review": "section 7",
-      "due": {
-        "kind": "every_pass"
-      },
-      "producer": "shock_exits_lab",
-      "output": "output/paper_learning/shock_exits_latest.json",
-      "timeout_seconds": 300,
-      "verdict_path": "verdict",
-      "ready_values": [
-        "holding would have helped",
-        "the exit helped"
-      ],
-      "change": "Αν βγει καθαρή διαφορά: συζήτηση για τον κανόνα market_shock των long"
+      "change": "Ετυμηγορία (section 14: κρίση μία φορά, στις 60 θέσεις ή στις 29/12): αν το stop της κλάσης βγαίνει καλύτερο, απόφαση για το stop των κρατούμενων θέσεων· αλλιώς κλείνει η μέτρηση ή παίρνει μία παράταση"
     },
     {
       "id": "period_experiments_p1",

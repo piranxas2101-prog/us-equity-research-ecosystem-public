@@ -490,3 +490,20 @@ recording with an error: the decided text and its hash stay, the newer wording i
 (better/worse, prefer/avoid); Jarvis proposes archiving the older one (`lesson_conflict`, with a lesson action), and
 the owner's yes is carried out on the next pass. Nothing is archived without that yes. None is open today (the only
 one, reaction `gross_margin=steady`, was archived in the triage).
+
+**Owner's decision 2026-11-18 (evening): the owner's own shadows get one pre-registered test each.** They are the
+owner's tools, not lessons, so they stay outside the five-experiment budget; but each now has one test written before
+the result, one yardstick and one judge date. Nothing here sends or changes an order.
+
+| Shadow | Test now | Judged |
+|---|---|---|
+| Debate (s.12) | support vs oppose on the 5-session shadow hold (`paper_holding_shadows` week / fixed) for every idea, opinions 11/18-12/18; margin 0.5 and day-bootstrap 95% interval above 0. Fixed: a short's SPY was subtracted instead of added (51 of 484 opinions), and a trade's multi-session result was set against one day of SPY | 2026-12-29 (before: "collecting") |
+| Flip (s.8) | one horizon, 5 sessions, gated entries with the stop (was "any of five horizons") | at 30 flips on 10 sessions, at the latest 2027-01-29 (`deadline_insufficient`) |
+| F4 stop | unchanged test (class minus live, clustered 95% interval) | once: at 60 completed windows or 2026-12-29 (was: every pass from the 30th) |
+| News | flagged minus clear on the 5-session shadow hold, one observation per session, two-sided t, alpha 0.05, margin 0.5, sessions 11/19-12/18 (was: mixed real/simulated means) | 2026-12-29 |
+| Gap conflict (s.9) | **closed**: both parts judged "no clear difference"; no longer run, last result kept in the reports | - |
+| Petros model (s.13) | with no champion, after 20 nights: latest walk-forward ROC AUC >= 0.60 and no shadow night below 0.55, or it is reported "not good enough" (was: the latest, whatever its AUC) | at 20 nights |
+| Shock exits (s.7) | **closed**: judged "no clear difference" (54 positions, 2 shock days); Jarvis no longer runs it, the lab stays runnable by hand | - |
+
+Every final verdict now reaches the owner through Jarvis (flip and news `ready_values`, F4 waiting only while
+collecting), so a "no" or a missed deadline is decided too, not left running.

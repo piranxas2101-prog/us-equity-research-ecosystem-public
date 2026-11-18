@@ -159,6 +159,20 @@ def render(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+CLOSED_ON = "2026-11-18"
+
+
+def closed_result(root: Path) -> dict[str, Any]:
+    """Owner 2026-11-18 (RULES_REVIEW section 14): both parts were judged "no clear difference", so the measurement is
+    closed and no longer runs; the last saved result stays in the reports, marked closed. Missing file: unknown."""
+    path = root / "output" / "paper_learning" / "gap_conflict_shadow_latest.json"
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"closed": CLOSED_ON}
+    return {**result, "closed": CLOSED_ON}
+
+
 def run(root: Path, records: list[dict[str, Any]], frames: Frames, metrics: Metrics, margin_pct: float, *,
         write: bool = True) -> dict[str, Any]:
     result = evaluate(records, frames, metrics, margin_pct)

@@ -242,6 +242,7 @@
     }
   },
   "pipeline": {
+    "orchestrator": "powershell",
     "fundamental_first": true,
     "full_universe": true,
     "stage1_limit": 120,

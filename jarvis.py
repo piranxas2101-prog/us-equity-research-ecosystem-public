@@ -320,6 +320,7 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
     # owner 2026-11-18: the owner's approvals go through Jarvis - a "yes" on a lesson is carried out here, once
     sections["applied"] = _guard(lambda: {"items": jarvis_decisions.apply_approved(root)})
     sections["release"] = _guard(lambda: release_section(root, kind))
+    sections["handoff"] = _guard(lambda: __import__("run_handoff_check").check(root))  # owner 2026-11-18 (ADR-002)
     expected = expected_nightly_day(kind, day)
     sections["nightly"] = _guard(lambda: {"steps": [s.as_dict() for s in
                                                     jarvis_health.nightly_health(root, expected_day=expected)]})

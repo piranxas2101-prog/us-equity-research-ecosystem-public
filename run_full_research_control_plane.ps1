@@ -88,8 +88,19 @@ try {
         NoCompletionPopup = $true
         PythonPath = $pythonPath
     }
-    & ".\run_daily_dual_watchlist.ps1" @dailyArgs
-    if ($LASTEXITCODE -ne 0) { throw "Full research pipeline failed with exit code $LASTEXITCODE" }
+    # owner 2026-11-18 (ADR-002): one orchestrator. scanner_config.json pipeline.orchestrator = "python" runs the
+    # same research steps through daily_pipeline.py (per-step state, resume, run lock); "powershell" or missing keeps
+    # run_daily_dual_watchlist.ps1. tests/test_daily_pipeline.py keeps the two step lists equal.
+    $orchestrator = [string]((Get-Content "scanner_config.json" -Raw | ConvertFrom-Json).pipeline.orchestrator)
+    $state.orchestrator = if ($orchestrator -eq "python") { "python" } else { "powershell" }
+    if ($state.orchestrator -eq "python") {
+        $pipelineArgs = @("daily_pipeline.py", "run", "--full-market", "--full-market-limit", "$UniverseLimit",
+                          "--fundamental-control-plane-limit", "$FundamentalControlPlaneLimit", "--run-id", $runId)
+        & $pythonPath @pipelineArgs
+    } else {
+        & ".\run_daily_dual_watchlist.ps1" @dailyArgs
+    }
+    if ($LASTEXITCODE -ne 0) { throw "Full research pipeline ($($state.orchestrator)) failed with exit code $LASTEXITCODE" }
 
     $babis = Get-Content "output/babis_shortlist_latest.json" -Raw | ConvertFrom-Json
     $scannerConfig = Get-Content "scanner_config.json" -Raw | ConvertFrom-Json

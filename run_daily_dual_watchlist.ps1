@@ -143,12 +143,14 @@ if ($LASTEXITCODE -ne 0) {
     throw "Daily pipeline blocked: UNKNOWN reason taxonomy or agent field contract is invalid."
 }
 
+# owner 2026-11-18 (ADR-002): only the unknown-data contract above stops the night; the documentation gates below warn
+# (they never change a decision) and are enforced in CI on every push.
 Write-Host "Verifying versioned professional personalities for all nine agents..."
 & $pythonPath "agent_personality.py" "verify" `
     "--registry" "agent_personality_registry.json" `
     "--contract" "ecosystem_theory_contract.json"
 if ($LASTEXITCODE -ne 0) {
-    throw "Daily pipeline blocked: agent personality registry is invalid, stale, or disconnected from the theory contract."
+    Write-Warning "Documentation gate (warning only, enforced in CI): agent personality registry is invalid, stale, or disconnected from the theory contract."
 }
 
 Write-Host "Verifying versioned methodology registry for all nine agents..."
@@ -156,7 +158,7 @@ Write-Host "Verifying versioned methodology registry for all nine agents..."
     "--registry" "agent_methodology_registry.json" `
     "--contract" "ecosystem_theory_contract.json"
 if ($LASTEXITCODE -ne 0) {
-    throw "Daily pipeline blocked: agent methodology registry is invalid, stale, or disconnected from the theory contract."
+    Write-Warning "Documentation gate (warning only, enforced in CI): agent methodology registry is invalid, stale, or disconnected from the theory contract."
 }
 
 Write-Host "Verifying theoretical agent-assimilation gate..."
@@ -164,21 +166,21 @@ Write-Host "Verifying theoretical agent-assimilation gate..."
     "--contract" "ecosystem_theory_contract.json" `
     "--reports-dir" "docs/agent_reports"
 if ($LASTEXITCODE -ne 0) {
-    throw "Daily run blocked: theoretical agent-assimilation reports are missing, stale, or inconsistent."
+    Write-Warning "Documentation gate (warning only, enforced in CI): theoretical agent-assimilation reports are missing, stale, or inconsistent."
 }
 
 Write-Host "Running frozen practical personality-behavior rehearsal for all nine agents..."
 & $pythonPath "agent_personality_behavior.py" `
     "--output-dir" "output/personality_behavior_assimilation_gate"
 if ($LASTEXITCODE -ne 0) {
-    throw "Daily run blocked: one or more agents failed the practical personality behavior or authority-boundary rehearsal."
+    Write-Warning "Documentation gate (warning only, enforced in CI): one or more agents failed the practical personality behavior or authority-boundary rehearsal."
 }
 
 Write-Host "Verifying trader playbook assimilation gate against current code hashes..."
 & $pythonPath "trader_playbook_assimilation.py" `
     "--output-dir" "output/playbook_assimilation_gate"
 if ($LASTEXITCODE -ne 0) {
-    throw "Daily trader stages blocked: Yankos/Periklis playbook assimilation is stale or failed."
+    Write-Warning "Documentation gate (warning only, enforced in CI): Yankos/Periklis playbook assimilation is stale or failed."
 }
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"

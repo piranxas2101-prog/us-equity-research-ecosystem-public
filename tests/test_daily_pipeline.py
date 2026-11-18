@@ -171,5 +171,49 @@ class RunnerTests(unittest.TestCase):
         self.assertIsNotNone(stage.skip_reason(ctx))
 
 
+class GateTests(unittest.TestCase):
+    """Owner 2026-11-18 (ADR-002): only the data-contract gate stops the night; documentation gates warn and are
+    enforced in CI on every push."""
+
+    def test_only_the_unknown_data_gate_is_critical(self) -> None:
+        gates = {s.name: s.critical for s in dp.build_stages() if s.name.startswith("gate_")}
+        self.assertEqual(gates["gate_unknown_data"], True)
+        self.assertEqual({k for k, v in gates.items() if v}, {"gate_unknown_data"})
+
+    def test_the_powershell_runner_warns_on_the_same_gates(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "run_daily_dual_watchlist.ps1").read_text(encoding="utf-8")
+        self.assertIn('throw "Daily pipeline blocked: UNKNOWN reason taxonomy', text)
+        self.assertEqual(text.count("Documentation gate (warning only, enforced in CI)"), 5)
+        ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        for script in ("agent_assimilation.py verify", "agent_personality_practical_exam.py", "agent_personality.py verify",
+                       "agent_methodology.py verify", "agent_personality_behavior.py", "trader_playbook_assimilation.py"):
+            self.assertIn(script, ci)
+
+class OrchestratorSwitchTests(unittest.TestCase):
+    """Owner 2026-11-18 (ADR-002): one orchestrator, chosen by scanner_config.json pipeline.orchestrator."""
+
+    def test_the_nightly_launcher_switches_on_the_config_and_passes_the_same_options(self) -> None:
+        import json
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "run_full_research_control_plane.ps1").read_text(encoding="utf-8")
+        self.assertIn("pipeline.orchestrator", text)
+        for option in ('"daily_pipeline.py", "run", "--full-market"', '"--full-market-limit", "$UniverseLimit"',
+                       '"--fundamental-control-plane-limit", "$FundamentalControlPlaneLimit"', '"--run-id", $runId'):
+            self.assertIn(option, text)
+        self.assertIn(r'& ".\run_daily_dual_watchlist.ps1" @dailyArgs', text)  # the default path stays
+        config = json.loads((root / "scanner_config.json").read_text(encoding="utf-8"))
+        self.assertIn(config["pipeline"]["orchestrator"], ("powershell", "python"))
+
+    def test_the_python_runner_accepts_those_options(self) -> None:
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = dp.main(["plan", "--full-market", "--full-market-limit", "0", "--fundamental-control-plane-limit",
+                            "0", "--run-id", "full_research_test"])
+        self.assertEqual(code, 0)
+        self.assertIn("Plan for full_research_test", out.getvalue())
+
 if __name__ == "__main__":
     unittest.main()

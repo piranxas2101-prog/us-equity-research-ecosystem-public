@@ -261,17 +261,20 @@ def _check_audit(ctx: Context) -> None:
 
 def build_stages() -> list[Stage]:
     theory = "ecosystem_theory_contract.json"
+    # owner 2026-11-18 (ADR-002): only the gate that protects data and contracts stops the night; the documentation
+    # gates (personality, methodology, assimilation reports, the 45-case rehearsal, the playbook exam) never change a
+    # decision, so they warn here and are enforced in CI (.github/workflows/ci.yml) on every push
     return [
         Stage("gate_unknown_data", True, lambda c: _py(c, "unknown_data.py", "verify", "--contract", "unknown_data_contract.json")),
-        Stage("gate_personality", True, lambda c: _py(c, "agent_personality.py", "verify", "--registry",
+        Stage("gate_personality", False, lambda c: _py(c, "agent_personality.py", "verify", "--registry",
                                                       "agent_personality_registry.json", "--contract", theory)),
-        Stage("gate_methodology", True, lambda c: _py(c, "agent_methodology.py", "verify", "--registry",
+        Stage("gate_methodology", False, lambda c: _py(c, "agent_methodology.py", "verify", "--registry",
                                                       "agent_methodology_registry.json", "--contract", theory)),
-        Stage("gate_assimilation", True, lambda c: _py(c, "agent_assimilation.py", "verify", "--contract", theory,
+        Stage("gate_assimilation", False, lambda c: _py(c, "agent_assimilation.py", "verify", "--contract", theory,
                                                        "--reports-dir", "docs/agent_reports")),
-        Stage("gate_personality_behavior", True, lambda c: _py(c, "agent_personality_behavior.py", "--output-dir",
+        Stage("gate_personality_behavior", False, lambda c: _py(c, "agent_personality_behavior.py", "--output-dir",
                                                                "output/personality_behavior_assimilation_gate")),
-        Stage("gate_playbook_assimilation", True, lambda c: _py(c, "trader_playbook_assimilation.py", "--output-dir",
+        Stage("gate_playbook_assimilation", False, lambda c: _py(c, "trader_playbook_assimilation.py", "--output-dir",
                                                                 "output/playbook_assimilation_gate")),
         Stage("baseline_backup", False, action=_backup_baseline),
         # SEC companyfacts for every scanned company (owner decision 2026-10-12); never stops the run

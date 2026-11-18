@@ -526,3 +526,26 @@ before / after. `paper_trade_ledger.py` stamps every record with the release its
 on the day leaves it unknown. The invariants check warns when a commit inside the period touches these files.
 Allowed inside the period: a bug fix or a stricter risk limit; anything else is the owner's call. Nothing is
 blocked: no session, order or commit is stopped. Starting release: `3860a191c60509bc`.
+
+**Owner's decision 2026-11-18 (evening): the rest of ADR-002.**
+
+* **Documentation gates leave the nightly's critical path.** In both runners only the unknown-data contract stops the
+  night; the personality, methodology and assimilation-report checks, the 45-case rehearsal and the playbook exam
+  warn (they never change a decision) and are enforced in CI on every push (`.github/workflows/ci.yml` now runs all
+  six).
+* **One orchestrator, by switch.** `scanner_config.json` `pipeline.orchestrator`: `"python"` runs the nightly's
+  research steps through `daily_pipeline.py` (state per step, `--resume`, run lock), `"powershell"` (the setting
+  today) keeps `run_daily_dual_watchlist.ps1`; the test keeps both step lists equal. The fallback research already
+  uses `daily_pipeline.py`. The switch is the owner's; the PowerShell runner is retired once the Python one has
+  run the nightly cleanly.
+* **Hand-off between steps.** `run_handoff_check.py` reads the run id of the research files the session reads
+  (Babis, Giannis, Petros, deep research, the packet, Yankos, Periklis); Jarvis reports on every pass whether they come
+  from one run, and a mix (e.g. a fallback that rewrote part of them) is a problem line naming each file's run.
+  Moving every reader to `output/runs/<run_id>/` waits until after period P1, because it touches the traders and
+  Koulis, which the release freeze keeps unchanged.
+* **Disk retention, report first.** `retention.py` (default `report`) lists what each rule may remove:
+  `baseline_compare` (the copies of the previous night's files kept for that run's compare step; the newest 3
+  stay; about 8 GB on 2026-11-18), `test_reports` (each run's audit report, older than 60 days) and `logs` (older
+  than 60 days). `apply --rule <name> --yes` deletes one rule's candidates, logged in `data/retention_log.jsonl`;
+  nothing else deletes. The audit record (`output/runs`, 13 GB) and the databases are only reported; the largest,
+  `data/market_intel.db` (41 GB), needs its own plan with the owner.

@@ -46,6 +46,10 @@ def _problems(sections: dict[str, Any]) -> list[str]:
     for key, section in sections.items():
         if isinstance(section, dict) and section.get("error"):
             out.append(f"το κομμάτι «{key}» του Jarvis απέτυχε: {section['error']}")
+    handoff = sections.get("handoff") or {}
+    if handoff.get("state") == "mixed":
+        parts = "; ".join(f"{rid}: {', '.join(names)}" for rid, names in (handoff.get("runs") or {}).items())
+        out.append(f"τα αρχεία της έρευνας που διαβάζει η συνεδρία είναι από διαφορετικά runs ({parts})")
     for change in (sections.get("release") or {}).get("changes") or []:
         out.append(f"η έκδοση (ό,τι φτάνει στις εντολές) άλλαξε μέσα στην περίοδο {sections['release'].get('period')} "
                    f"στις {str(change['at'])[:10]}: {', '.join(change['files']) or 'άγνωστα αρχεία'} - οι μετρήσεις "
@@ -122,6 +126,20 @@ def _release_lines(section: dict[str, Any] | None) -> list[str]:
     return [f"- Έκδοση (ό,τι φτάνει στις εντολές): {section.get('release_id') or 'άγνωστο'}; {where}."]
 
 
+def _handoff_lines(section: dict[str, Any] | None) -> list[str]:
+    """Owner 2026-11-18 (ADR-002): the research files the session reads, from one run or not."""
+    if not section:
+        return []
+    if section.get("error"):
+        return [f"- Αρχεία έρευνας: άγνωστο ({section['error']})"]
+    state = section.get("state")
+    if state == "one_run":
+        return [f"- Αρχεία έρευνας για τη συνεδρία: όλα από το run {section.get('run_id')}."]
+    if state == "mixed":
+        return ["- Αρχεία έρευνας για τη συνεδρία: από διαφορετικά runs (δες «Τι πήγε στραβά»)."]
+    return [f"- Αρχεία έρευνας για τη συνεδρία: άγνωστο για {', '.join(section.get('unknown') or []) or 'όλα'}."]
+
+
 def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     sections = record.get("sections") or {}
     problems = _problems(sections)
@@ -150,6 +168,7 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
                 + (f" — «{r['verdict']}»" if r.get("verdict") not in (None, "refreshed") else "")
                 + (f" ({r['detail']})" if r.get("detail") else "") for r in results] or ["- Κανένας έλεγχος δεν ήταν σε προθεσμία."]
     out += ["", f"## {SECTIONS[5]}", *_ecosystem_lines(sections.get("ecosystem")), *_release_lines(sections.get("release")),
+            *_handoff_lines(sections.get("handoff")),
             ""]
     out += [f"## {SECTIONS[6]}", *_learning_lines(sections.get("learning")), ""]
     tuning = sections.get("tuning") or {}

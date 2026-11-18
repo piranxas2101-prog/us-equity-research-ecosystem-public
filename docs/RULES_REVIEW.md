@@ -507,3 +507,9 @@ the result, one yardstick and one judge date. Nothing here sends or changes an o
 
 Every final verdict now reaches the owner through Jarvis (flip and news `ready_values`, F4 waiting only while
 collecting), so a "no" or a missed deadline is decided too, not left running.
+
+**Lesson texts corrected the same evening (owner).** Holding-by-category "avoid" lessons say "less often" (they said
+"more often" against their numbers). The results journal makes lessons from drift findings only: the position
+monitor's act after the release ("keep it" / "reduce or close it"), and no agent gets a lesson from an announcement
+reaction (the move already made when the results can be read, not a forecast); reaction findings stay in the
+journal's report as description. Existing lessons keep their decided text; a newer wording is kept beside it.

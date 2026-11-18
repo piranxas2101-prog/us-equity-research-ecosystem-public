@@ -77,16 +77,13 @@ class FindingTests(unittest.TestCase):
         base = {"tag": "revenue_trend", "records": 100, "years": 6, "years_same_sign": 6}
         result = {"findings": [{**base, "outcome": "reaction", "value": "decelerating", "effect_pct_points": -7.4},
                                {**base, "outcome": "drift5", "value": "decelerating", "effect_pct_points": -2.0}]}
-        monitor = [i for i in ej.proposals(result) if i["target_agent"] == "position_monitor"]
+        items = ej.proposals(result)
+        monitor = [i for i in items if i["target_agent"] == "position_monitor"]
         self.assertEqual([i["criterion_id"] for i in monitor], ["results_hold:drift5:revenue_trend=decelerating:worse"])
         self.assertIn("reduce or close it after the release", monitor[0]["proposed_change"])
-        giannis = {i["criterion_id"]: i["proposed_change"] for i in ej.proposals(result) if i["target_agent"] == "giannis"}
-        # owner 2026-11-18: the reaction explains the move already made; only the drift is something to weigh
-        reaction = giannis["results:reaction:revenue_trend=decelerating:worse"]
-        self.assertIn("move already made", reaction)
-        self.assertIn("not a forecast", reaction)
-        self.assertFalse(reaction.startswith("Weigh"))
-        self.assertTrue(giannis["results:drift5:revenue_trend=decelerating:worse"].startswith("Weigh results with"))
+        # owner 2026-11-18: no agent gets a lesson from the announcement reaction (the move already made)
+        self.assertFalse([i for i in items if ":reaction:" in i["criterion_id"]])
+        self.assertEqual({i["target_agent"] for i in items}, {"giannis", "yankos", "periklis", "position_monitor"})
 
     def test_no_finding_without_enough_events(self):
         conn = sqlite3.connect(":memory:")

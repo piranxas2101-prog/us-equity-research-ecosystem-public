@@ -250,38 +250,31 @@ TRADERS = ("yankos", "periklis")
 
 
 def proposals(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """Each finding becomes a lesson candidate for every agent it concerns (owner 2026-10-22): Giannis weighs the
-    results; the traders choose entries in the sessions after results (the drift); the position monitors decide what
-    to do with a held position once its results are out (the drift only). Fixed text per criterion.
+    """Each drift finding becomes a lesson candidate for every agent it concerns (owner 2026-10-22): Giannis weighs the
+    results; the traders choose entries in the sessions after results; the position monitors decide what to do with a
+    held position once its results are out. Fixed text per criterion.
 
-    Owner 2026-11-18 (RULES_REVIEW section 14): a tag is what the results say, so it is not known before the release.
-    The monitors' lessons therefore act after the release ("keep" / "reduce or close"), never "before" it, and there
-    is none for the announcement reaction, which is over by the time the results can be read. Giannis's reaction lesson
-    says the same: it explains the move already made, it is not a forecast to weigh."""
-    names = {"reaction": "the announcement reaction", "drift5": "the 5-session drift", "drift20": "the 20-session drift"}
+    Owner 2026-11-18 (RULES_REVIEW section 14): a tag is what the results say, so it is not known before the release,
+    and the announcement reaction is over by the time the results can be read. The monitors' lessons act after the
+    release ("keep" / "reduce or close"), and no agent gets a lesson from a reaction finding: it explains the move
+    already made, it is no forecast. Reaction findings stay in the journal's report as description."""
+    names = {"drift5": "the 5-session drift", "drift20": "the 20-session drift"}
     out = []
     for f in result["findings"]:
+        if f["outcome"] not in names:  # the announcement reaction: described in the report, never a lesson
+            continue
         lean = "better" if f["effect_pct_points"] > 0 else "worse"
         key = f"{f['outcome']}:{f['tag']}={f['value']}:{lean}"
         what = f"{names[f['outcome']]} has been {lean} than for other results"
-        if f["outcome"] == "reaction":
-            # owner 2026-11-18: the reaction is mostly over when Giannis reads the filing (the press release comes
-            # about a day earlier), so it explains the move already made; it is not a forecast to weigh
-            giannis = (f"Results with {f['tag']} = {f['value']}: {what}. This is the move already made when the "
-                       "filing is read, not a forecast; do not weigh it as one (the drift lessons cover what follows).")
-        else:
-            giannis = f"Weigh results with {f['tag']} = {f['value']}: {what}."
         out.append({"target_agent": "giannis", "criterion_id": f"results:{key}",
-                    "proposed_change": giannis, "support": f["records"], "evidence": f})
-        if f["outcome"] != "reaction":
-            side = "prefer" if lean == "better" else "avoid"
-            for trader in TRADERS:
-                out.append({"target_agent": trader, "criterion_id": f"results_entry:{key}",
-                            "proposed_change": f"After results with {f['tag']} = {f['value']}, {side} long entries in "
-                                               f"the following sessions: {what}.",
-                            "support": f["records"], "evidence": f})
-        if f["outcome"] == "reaction":
-            continue
+                    "proposed_change": f"Weigh results with {f['tag']} = {f['value']}: {what}.",
+                    "support": f["records"], "evidence": f})
+        side = "prefer" if lean == "better" else "avoid"
+        for trader in TRADERS:
+            out.append({"target_agent": trader, "criterion_id": f"results_entry:{key}",
+                        "proposed_change": f"After results with {f['tag']} = {f['value']}, {side} long entries in "
+                                           f"the following sessions: {what}.",
+                        "support": f["records"], "evidence": f})
         action = "keep it" if lean == "better" else "reduce or close it"
         out.append({"target_agent": "position_monitor", "criterion_id": f"results_hold:{key}",
                     "proposed_change": f"For a long position whose company has just reported results with "

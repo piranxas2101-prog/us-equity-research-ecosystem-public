@@ -810,8 +810,9 @@ class Actions:
         self._ollama_starter = ollama_starter
 
     def jarvis_decision(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """The owner's yes / no / later on a Jarvis proposal: recorded in Jarvis's own store only. Nothing is applied
-        and the learning registry is never written (a "yes" is carried out with Claude through the existing paths)."""
+        """The owner's yes / no / later on a Jarvis proposal, recorded in Jarvis's own store. Nothing is applied here:
+        a "yes" on a proposal with a lesson action is carried out by Jarvis's next pass (owner 2026-11-18,
+        ``jarvis_decisions``); any other "yes" is done with Claude, with tests."""
         import jarvis
         import jarvis_state
 

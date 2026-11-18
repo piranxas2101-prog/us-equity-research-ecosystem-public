@@ -32,6 +32,7 @@ import jarvis_checks
 import jarvis_health
 import jarvis_learning
 import jarvis_report
+import jarvis_decisions
 import jarvis_state
 import jarvis_tiers
 
@@ -135,6 +136,14 @@ def _learning(root: Path, day: date) -> tuple[dict[str, Any], list[jarvis_state.
     return _guard(part), proposals
 
 
+def _guard_list(fn: Callable[[], list[Any]]) -> list[Any]:
+    """A part that only adds proposals: on failure it adds none (the pass and its report go on)."""
+    try:
+        return fn()
+    except Exception:  # noqa: BLE001 - one part never stops the pass
+        return []
+
+
 def resume_proposal(root: Path, nightly: dict[str, Any]) -> jarvis_state.Proposal | None:
     """A failed or interrupted run: the owner may resume it from the failed step (Jarvis never starts it)."""
     pointer = jarvis_health.read_json(root / jarvis_health.POINTER) or {}
@@ -153,17 +162,24 @@ def resume_proposal(root: Path, nightly: dict[str, Any]) -> jarvis_state.Proposa
 def paper_learning_proposals(root: Path) -> list[jarvis_state.Proposal]:
     """The paper-learning lessons whose out-of-sample follow reached a verdict (read from its JSON, not imported)."""
     evaluation = jarvis_health.read_json(root / "output" / "paper_learning" / "evaluation_latest.json") or {}
+    in_period = jarvis_decisions.period_lesson_ids(root)  # judged by the period's pre-registered test instead
     out = []
     for item in evaluation.get("shadow_follow") or []:
         if item.get("verdict") not in {"confirmed", "not_confirmed"} or not item.get("lesson_id"):
             continue
+        if str(item["lesson_id"]) in in_period:
+            continue
+        confirmed = item["verdict"] == "confirmed"
+        evidence = {"verdict": item["verdict"], "sessions_after": item.get("sessions_after"),
+                    "minimum_sessions": item.get("minimum_sessions"), "criterion_id": item.get("criterion_id"),
+                    "file": "output/paper_learning/evaluation_latest.json"}
+        if not confirmed:  # owner 2026-11-18: the yes is carried out by Jarvis
+            evidence["action"] = jarvis_decisions.lesson_action([str(item["lesson_id"])], "archived")
         out.append(jarvis_state.Proposal(
             source="paper_learning", source_key=str(item["lesson_id"]), title=str(item.get("proposed_change") or ""),
-            evidence={"verdict": item["verdict"], "sessions_after": item.get("sessions_after"),
-                      "minimum_sessions": item.get("minimum_sessions"), "criterion_id": item.get("criterion_id"),
-                      "file": "output/paper_learning/evaluation_latest.json"},
-            change=("Να γίνει ενεργό (με tests, μαζί με το Claude)" if item["verdict"] == "confirmed"
-                    else "Να αποσυρθεί από το shadow")))
+            evidence=evidence,
+            change=("Να γίνει ενεργό (με tests, μαζί με το Claude)" if confirmed
+                    else "Αν πεις ναι: ο Jarvis το αποσύρει από το shadow στο επόμενο πέρασμα")))
     return out
 
 
@@ -291,6 +307,8 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
     record: dict[str, Any] = {"schema": "ecosystem.jarvis_pass.v1", "kind": kind, "day": day.isoformat(),
                               "started_at": datetime.now().astimezone().isoformat(timespec="seconds"), "sections": {}}
     sections = record["sections"]
+    # owner 2026-11-18: the owner's approvals go through Jarvis - a "yes" on a lesson is carried out here, once
+    sections["applied"] = _guard(lambda: {"items": jarvis_decisions.apply_approved(root)})
     expected = expected_nightly_day(kind, day)
     sections["nightly"] = _guard(lambda: {"steps": [s.as_dict() for s in
                                                     jarvis_health.nightly_health(root, expected_day=expected)]})
@@ -312,6 +330,7 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
     if resume.get("proposal") is not None:
         proposals.append(resume["proposal"])
     proposals += paper_learning_proposals(root)
+    proposals += _guard_list(lambda: jarvis_decisions.period_proposals(root))
     withdrawals = _withdrawals(root, sections, proposals)
 
     def store() -> dict[str, Any]:

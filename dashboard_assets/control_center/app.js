@@ -931,7 +931,7 @@ async function pageJarvis(day) {
       <div class="actions">${Object.entries(DECISION_GR).map(([k, v]) => `<button data-decision="${k}" class="${k === "yes" ? "good" : ""}">${v}</button>`).join("")}</div>
     </div>`).join("") || `<p class="muted">Καμία πρόταση δεν περιμένει απόφαση.</p>`;
   app.innerHTML = `<h1>Jarvis</h1>
-    <div class="sub">Ο Jarvis ελέγχει το nightly και τη συνεδρία, τρέχει τους ελέγχους που έφτασαν, μαθαίνει από τα λάθη (σε shadow) και σου φέρνει προτάσεις. Δεν αλλάζει τίποτα μόνος του: το «Ναι» καταγράφεται και η αλλαγή γίνεται μαζί με το Claude.</div>
+    <div class="sub">Ο Jarvis ελέγχει το nightly και τη συνεδρία, τρέχει τους ελέγχους που έφτασαν, μαθαίνει από τα λάθη (σε shadow) και σου φέρνει προτάσεις. Δεν αλλάζει τίποτα μόνος του: όταν η πρόταση αφορά την κατάσταση ενός διδάγματος, το «Ναι» σου το εφαρμόζει ο ίδιος στο επόμενο πέρασμα· ό,τι αλλάζει κώδικα γίνεται μαζί με το Claude.</div>
     <div class="card span"><h2>Τι περιμένει από σένα</h2><p>${esc(d.owner || "")}</p>
       <p class="small"><a href="#/review">Έλεγχος κατηγοριοποίησης</a></p></div>
     <h2>Προτάσεις που περιμένουν απόφαση</h2><div class="grid wide">${proposals}</div>

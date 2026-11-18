@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 SECTIONS = ("Τι περιμένει από σένα", "Νυχτερινό run", "Συνεδρία", "Τι πήγε στραβά", "Έλεγχοι", "Η εικόνα του οικοσυστήματος", "Τι έμαθα",
-            "Τι άλλαξα μόνος μου (AUTO)", "Προτάσεις που περιμένουν απόφαση")
+            "Τι άλλαξα μόνος μου (AUTO)", "Αποφάσεις σου που εφάρμοσα", "Προτάσεις που περιμένουν απόφαση")
 ACTION_GR = {"lowered": "μείωσα", "raised": "αύξησα", "undone": "αναίρεσα"}
 PROBLEM_STEP_STATES = {"failed", "missing"}
 PROBLEM_CHECK_STATES = {"failed", "timeout"}
@@ -46,6 +46,9 @@ def _problems(sections: dict[str, Any]) -> list[str]:
     for key, section in sections.items():
         if isinstance(section, dict) and section.get("error"):
             out.append(f"το κομμάτι «{key}» του Jarvis απέτυχε: {section['error']}")
+    for item in (sections.get("applied") or {}).get("items") or []:
+        if item.get("result") != "applied":
+            out.append(f"η απόφασή σου «{item.get('title')}» δεν εφαρμόστηκε")
     return out
 
 
@@ -59,7 +62,7 @@ def _learning_lines(section: dict[str, Any] | None) -> list[str]:
         lines.append(f"- Λίγα δεδομένα ακόμα: {section.get('sessions')} συνεδρίες, χρειάζονται "
                      f"{section.get('minimum_sessions')}.")
     for rule in section.get("rules") or []:
-        lines.append(f"- Νέος κανόνας σε shadow: {rule['criterion_id']} — εκπαίδευση {rule['train']['losses']}/"
+        lines.append(f"- Νέος κανόνας σε αναμονή (τον διδάσκει ο Sokratis): {rule['criterion_id']} — εκπαίδευση {rule['train']['losses']}/"
                      f"{rule['train']['n']} χαμένες, έλεγχος {rule['test']['losses']}/{rule['test']['n']}")
     for item in section.get("follow") or []:
         lines.append(f"- Παρακολούθηση {item['criterion_id']}: {item['verdict']} "
@@ -139,7 +142,17 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         out += [f"- άγνωστο: η ρύθμιση απέτυχε ({tuning['error']})"]
     out += [f"- {ACTION_GR.get(c.get('action'), c.get('action'))} το {c.get('setting')}: {c.get('old')} → {c.get('new')} "
             f"({c.get('reason')})" for c in changes] or ["- Τίποτα (μόνο ρυθμίσεις της συζήτησης μπορούν να αλλάξουν μόνες τους)."]
+    applied = sections.get("applied") or {}
     out += ["", f"## {SECTIONS[8]}"]
+    if applied.get("error"):
+        out += [f"- άγνωστο: η εφαρμογή απέτυχε ({applied['error']})"]
+    for item in applied.get("items") or []:
+        lessons = ", ".join(f"{x['lesson_id']} → {x['to']}" + ("" if x["result"] == "applied" else f" (δεν έγινε: {x.get('why')})")
+                            for x in item.get("lessons") or [])
+        out += [f"- {'εφαρμόστηκε' if item['result'] == 'applied' else 'δεν εφαρμόστηκε'}: {item['title']} ({lessons})"]
+    if not applied.get("items") and not applied.get("error"):
+        out += ["- Τίποτα (εφαρμόζω μόνο ό,τι είπες «ναι» στο Κέντρο Ελέγχου)."]
+    out += ["", f"## {SECTIONS[9]}"]
     if not proposals:
         out += ["- Καμία."]
     for p in proposals:

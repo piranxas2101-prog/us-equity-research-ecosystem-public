@@ -35,7 +35,7 @@ It is not financial advice and does not promise returns.
 | `miltos` | Entry stalker | Whether a waiting setup now has `15Min` confirmation | New strategy selection |
 | `koulis` | Portfolio Risk Gate | Block/cap intents using exposure and portfolio limits | Trading direction or broker submission |
 | `thymios` | Intent Contract Validator | Accept/reject the structural validity of Koulis-approved intents | Market opinion, portfolio selection, or broker submission |
-| `jarvis` | Operator: health of the nightly and the session, due re-checks (`jarvis_checks.json`), loss rules from the paper ledger as shadow lessons, the daily report and the owner's proposals (Control Center page, local-Ollama chat) | What to report and which verdicts to put to the owner | Any score, policy, threshold, risk limit, lesson promotion, run start or order |
+| `jarvis` | Operator: health of the nightly and the session, due re-checks (`jarvis_checks.json`), loss rules from the paper ledger as shadow lessons, the daily report and the owner's proposals (Control Center page, local-Ollama chat) | What to report and which verdicts to put to the owner; carrying out the owner's "yes" on a lesson's status (owner 2026-11-18) | Any score, policy, threshold, risk limit, lesson promotion, run start or order |
 
 ## Team Architecture
 

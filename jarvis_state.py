@@ -2,8 +2,8 @@
 
 A proposal is something only the owner can decide: a lesson whose out-of-sample follow reached a verdict, or a due
 check that came out ready. Jarvis records it once per (source, source_key); the owner answers yes / no / later on the
-Control Center page. Nothing here applies a decision: a "yes" is recorded and the change is made with Claude through
-the existing paths; the learning registry is never written from here.
+Control Center page. Nothing here applies a decision: a "yes" is recorded here; a "yes" on a proposal with a lesson
+action is carried out by Jarvis's next pass (``jarvis_decisions``, owner 2026-11-18), any other with Claude.
 
 * no      - declined; Jarvis does not raise it again unless its evidence changes materially (fingerprint below).
 * later   - asked again after ``LATER_SESSIONS`` sessions.

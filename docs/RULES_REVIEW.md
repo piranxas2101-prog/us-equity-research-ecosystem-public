@@ -442,3 +442,27 @@ with a pre-registered test, through a recorded decision (`agent_learning_control
 the bulk `shadow-candidates` command is removed. This holds for every learning task (paper trading, earnings journal,
 Jarvis loss rules, fundamental learning). Lessons already in shadow keep their status. Jarvis's daily report counts
 the waiting lessons per task, so the owner can choose from them when a period ends.
+
+**Owner's decisions 2026-11-18 (evening): E1a changed, the agents learn every lesson, approvals through Jarvis.**
+
+* **E1a, before the period starts.** "One slot a day for `support_bounce_swing` long" is replaced (its lesson archived)
+  by a hold experiment: the same candidates of the cell held a week (`week`, `fixed`) against a month (`month`,
+  `fixed`), lean "the week is better" (`hold_in_cell`, new lesson `hold_compare:yankos:support_bounce_swing:long:
+  week_vs_month`). It is judged on its own date, 2027-01-25, once the month holds of the period's last entries have
+  matured. Holm always counts all six tests: a test not judged yet, or undefined, counts as p = 1 for the others.
+  In sample (four entry days, 10/15-10/20, the only ones with matured month holds): the week beat the month on all
+  four, +1.18 points a day.
+* **Waiting lessons are taught.** `paper_learning.py` lists the lessons waiting for a period (paper trading and
+  Jarvis's loss rules) in its evaluation; Sokratis teaches each to the trader it names (a Jarvis rule naming none to
+  both), marked "waiting lesson (not measured yet, changes nothing)". The 12 category lessons archived as "waiting
+  list" went back to waiting (`archived -> candidate`, now an allowed transition, only by a decision; new evidence
+  never revives a lesson). Decisions: `docs/decisions/lesson_decisions_2026-11-18b.json`. The other archived lessons
+  (rejected, duplicated, superseded, already live) are not taught.
+* **The owner's approvals go through Jarvis** (`jarvis_decisions.py`). A proposal may carry a lesson action; after
+  the owner's "yes" on the Control Center page, Jarvis's next pass carries it out along the allowed transitions,
+  once, and lists it in the report ("Αποφάσεις σου που εφάρμοσα"); a transition the store refuses is reported, never
+  forced. Actions today: a failed period experiment -> rejected; a shadow lesson not confirmed by the older follow ->
+  archived. No action (the "yes" is recorded and done with Claude, with tests): a passed experiment going live, one
+  extension, the next period's lessons (Jarvis proposes the waiting ones once a period is judged). Lessons in a
+  period are no longer proposed by the older follow (`shadow_follow`); the period's test judges them. Lessons stay
+  REVIEW in `jarvis_tiers`: nothing moves without the owner's yes.

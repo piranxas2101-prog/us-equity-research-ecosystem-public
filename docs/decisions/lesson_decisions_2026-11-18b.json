@@ -1,0 +1,111 @@
+{
+ "schema": "ecosystem.lesson_decisions.v1",
+ "decided_by": "owner",
+ "decided_on": "2026-11-18",
+ "source": "docs/RULES_REVIEW.md section 14 (E1a changed before the period; the agents learn the waiting lessons)",
+ "creates": [
+  {
+   "lesson_id": "lesson_774513640bd9689fd1299235",
+   "target_agent": "yankos",
+   "task_id": "paper_trading",
+   "criterion_id": "hold_compare:yankos:support_bounce_swing:long:week_vs_month",
+   "proposed_change": "Hold Yankos support_bounce_swing (long) for about a week instead of the long (quarter) horizon: the cell's candidates beat the book over a week, its long holds lost."
+  }
+ ],
+ "decisions": [
+  {
+   "lesson_id": "lesson_774513640bd9689fd1299235",
+   "status": "shadow",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): E1a of measurement period P1 (week vs month hold, judged 2027-01-25), replacing 'one slot a day'"
+  },
+  {
+   "lesson_id": "lesson_bec10131f6286beb02fe5c28",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): replaced in period P1 by E1a (the hold, not the entry: in sample the cell's candidates beat the book over a week, +0.69/day); the cell's live results stay in Sokratis's lessons"
+  },
+  {
+   "lesson_id": "lesson_24fc5008efe2a9f7ebb89c61",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:periklis:early_accumulation_swing:long:market_cap=mega",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_35a81ad5c930d2e0a3167cd9",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:periklis:pre_run_breakout_confirmation:long:results_revenue_trend=steady",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_f2fb4c62e55622b965052130",
+   "target_agent": "koulis",
+   "criterion_id": "category:avoid:yankos:rsi2_mean_reversion:short:results_revenue_trend=steady",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_a9f1ab1811d451c9266e8bce",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:catalyst=earnings_guidance",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_7109068394285d451ae94078",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:market_cap=mid",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_b3dbe2bc5a24233e0d903a19",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:results_growth_bucket=0..10%",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_6512edf13e656fc17a218963",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:periklis:momentum_12_1:long:market_rewards=both",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_a4a58dde02ab1facaa6c8495",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:controlled_breakout_swing:long:market_cap=mid",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_10fc558815dd846ba497cd33",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:rsi2_mean_reversion:short:premarket_gap=with",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_bc78c44ecf6d23797316db02",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:rsi2_mean_reversion:short:results_revenue_trend=accelerating",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_60f8c6465d0a0d8aeb819835",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:support_bounce_swing:long:market_rewards=both",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  },
+  {
+   "lesson_id": "lesson_93e6d912cbb68752901f7be9",
+   "target_agent": "koulis",
+   "criterion_id": "category:prefer:yankos:support_bounce_swing:long:returned_after_demotion=no",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (later the same day, RULES_REVIEW section 14): back to the waiting list so the agents learn it (Sokratis, as waiting); not measured until the owner puts it in a period"
+  }
+ ]
+}

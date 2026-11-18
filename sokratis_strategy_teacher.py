@@ -486,6 +486,19 @@ def build_paper_trade_lesson(evaluation: dict[str, Any], jarvis: dict[str, Any] 
                     "proposed_change": item.get("proposed_change"), "shadow_since": item.get("shadow_since"),
                     "sessions_after": None, "trades_after": item.get("n"), "losses_after": item.get("losses"),
                     "verdict": item.get("verdict")})
+    # the lessons waiting for a measurement period (owner 2026-11-18: the agents learn them too): taught as waiting -
+    # not yet measured, nothing switched on; one naming a trader goes to him, a Jarvis rule naming none to both
+    for item in evaluation.get("waiting_lessons") or []:
+        criterion = str(item.get("criterion_id") or "")
+        agent = item.get("target_agent")
+        names = [agent] if agent in TRADERS else [n for n in TRADERS if f":{n}:" in f":{criterion}:"
+                                                 or f"agent={n}" in criterion]
+        if not names and item.get("task_id") == "jarvis_learning":
+            names = list(TRADERS)
+        for name in names:
+            traders.setdefault(name, {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
+                "waiting_lessons", []).append({k: item.get(k) for k in (
+                    "lesson_id", "task_id", "target_agent", "proposed_change", "waiting_since")})
     # whether each swing long's hold should change (owner 2026-11-05), as the ecosystem judged it
     for review in evaluation.get("swing_hold_review") or []:
         traders.setdefault(review["agent"], {"live_trades": {}, "signals": {}, "findings": []}).setdefault(
@@ -784,6 +797,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
                     continue
                 lines.append(f"- {trader} | shadow lesson | {item.get('proposed_change')} | {item.get('verdict')} "
                              f"after {item.get('sessions_after')} sessions since {item.get('shadow_since')}")
+            for item in view.get("waiting_lessons", []):
+                lines.append(f"- {trader} | waiting lesson (not measured yet, changes nothing) | "
+                             f"{item.get('proposed_change')} | since {item.get('waiting_since')}")
     results = payload.get("results_lesson") or {}
     lines.extend(["", "## Results Lesson", ""])
     if results.get("status") != "ok":

@@ -516,6 +516,25 @@ WAITING_REASON = ("owner 2026-11-18: a new lesson waits as a candidate; only the
                   "measurement period")
 
 
+def waiting_lesson_items(db_path: Path, task_ids: tuple[str, ...]) -> list[dict[str, Any]]:
+    """The lessons waiting as candidates for these tasks, read-only, oldest first (owner 2026-11-18: the agents learn
+    them too - Sokratis teaches them as waiting, not yet measured; they change nothing)."""
+    if not Path(db_path).exists() or not task_ids:
+        return []
+    marks = ",".join("?" for _ in task_ids)
+    try:
+        with closing(sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)) as conn:
+            rows = conn.execute(
+                "SELECT lesson_id, task_id, target_agent, criterion_id, proposal_json, created_at FROM"
+                f" agent_lesson_candidates WHERE status='candidate' AND task_id IN ({marks})"
+                " ORDER BY created_at, lesson_id", task_ids).fetchall()
+    except sqlite3.Error:
+        return []
+    return [{"lesson_id": lesson_id, "task_id": task, "target_agent": agent, "criterion_id": criterion,
+             "proposed_change": json.loads(proposal or "{}").get("proposed_change"), "waiting_since": str(created)[:10]}
+            for lesson_id, task, agent, criterion, proposal, created in rows]
+
+
 def waiting_lessons(db_path: Path) -> dict[str, int] | None:
     """How many lessons wait as candidates, per task (read-only; None when the store cannot be read - unknown, not 0)."""
     if not Path(db_path).exists():
@@ -529,8 +548,10 @@ def waiting_lessons(db_path: Path) -> dict[str, int] | None:
     return {str(task): int(n) for task, n in rows}
 
 
+# archived -> candidate (owner 2026-11-18): an archived lesson can go back to the waiting list by the owner's decision,
+# so the agents learn it again; new evidence alone never revives it (upsert_lesson_candidate keeps the status).
 LESSON_TRANSITIONS = {"candidate": {"shadow", "rejected", "archived"}, "shadow": {"accepted", "rejected", "archived"},
-                      "rejected": {"archived"}, "accepted": {"archived"}, "archived": set()}
+                      "rejected": {"archived"}, "accepted": {"archived"}, "archived": {"candidate"}}
 
 
 def set_lesson_status(conn: sqlite3.Connection, lesson_id: str, status: str, *, reason: str) -> None:

@@ -232,11 +232,14 @@ def follow_proposal(item: dict[str, Any]) -> Proposal | None:
     if item.get("verdict") not in {"confirmed", "not_confirmed"}:
         return None
     confirmed = item["verdict"] == "confirmed"
+    evidence = {"verdict": item["verdict"], "n": item.get("n"), "losses": item.get("losses"),
+                "loss_rate_pct": item.get("loss_rate_pct"), "shadow_since": item.get("shadow_since"),
+                "criterion_id": item.get("criterion_id")}
+    if not confirmed:  # owner 2026-11-18: the yes is carried out by Jarvis on its next pass
+        evidence["action"] = {"kind": "lesson_status", "lesson_ids": [str(item["lesson_id"])], "to": "archived"}
     return Proposal(
         source="jarvis_learning", source_key=item["lesson_id"],
         title=("Επιβεβαιώθηκε: " if confirmed else "Δεν επιβεβαιώθηκε: ") + str(item.get("proposed_change") or ""),
-        evidence={"verdict": item["verdict"], "n": item.get("n"), "losses": item.get("losses"),
-                  "loss_rate_pct": item.get("loss_rate_pct"), "shadow_since": item.get("shadow_since"),
-                  "criterion_id": item.get("criterion_id")},
+        evidence=evidence,
         change=("Να γίνει ενεργός κανόνας (με tests, μαζί με το Claude)" if confirmed
-                else "Να αποσυρθεί το δίδαγμα από το shadow"))
+                else "Αν πεις ναι: ο Jarvis αποσύρει το δίδαγμα από το shadow στο επόμενο πέρασμα"))

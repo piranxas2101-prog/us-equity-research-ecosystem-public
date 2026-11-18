@@ -115,11 +115,8 @@
       "producer": "period_experiments",
       "output": "output/paper_learning/period_experiments_latest.json",
       "timeout_seconds": 120,
-      "verdict_path": "verdict",
-      "ready_values": [
-        "judged"
-      ],
-      "change": "Στο τέλος της περιόδου: ό,τι πέρασε γίνεται πρόταση (με tests, μαζί με το Claude), ό,τι δεν πέρασε αποσύρεται, ό,τι έχει λίγο δείγμα παίρνει το πολύ μία παράταση (απόφαση του ιδιοκτήτη)"
+      "report_only": true,
+      "change": "Οι προτάσεις έρχονται ανά πείραμα όταν κριθεί (jarvis_decisions.period_proposals)"
     }
   ]
 }

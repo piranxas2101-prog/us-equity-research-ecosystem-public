@@ -1,6 +1,6 @@
 {
   "schema": "ecosystem.period_experiments.v1",
-  "note": "Owner 2026-11-18 (ADR-002, docs/RULES_REVIEW.md section 14): the five lessons kept in shadow for the first measurement period, pre-registered before the period starts. Changing a field after 2026-11-23 breaks the pre-registration: it needs the owner's decision and a new period.",
+  "note": "Owner 2026-11-18 (ADR-002, docs/RULES_REVIEW.md section 14): the five lessons kept in shadow for the first measurement period, pre-registered before the period starts. Changing a field after 2026-11-23 breaks the pre-registration: it needs the owner's decision and a new period. E1a (a hold comparison) is judged on its own date, once its month holds have matured; Holm always counts all six tests.",
   "period": {
     "id": "P1",
     "start": "2026-11-23",
@@ -18,11 +18,15 @@
   "experiments": [
     {
       "id": "E1a",
-      "title": "Ένα slot τη μέρα: Yankos support_bounce_swing long",
-      "lesson_ids": ["lesson_bec10131f6286beb02fe5c28"],
-      "kind": "cell_vs_book",
+      "title": "Yankos support_bounce_swing long: κράτηση μιας εβδομάδας αντί για μεγάλη κράτηση",
+      "note": "owner 2026-11-18 (before the period): replaces 'one slot a day'; in sample the cell's candidates beat the book over a week (+0.69/day) while the quarter holds lost, so the question is the hold, not the entry",
+      "lesson_ids": ["lesson_774513640bd9689fd1299235"],
+      "kind": "hold_in_cell",
       "agent": "yankos", "playbook": "support_bounce_swing", "direction": "long",
-      "lean": "worse"
+      "short": {"holding_class": "week", "rule": "fixed"},
+      "long": {"holding_class": "month", "rule": "fixed"},
+      "judge_date": "2027-01-25",
+      "lean": "better"
     },
     {
       "id": "E1b",

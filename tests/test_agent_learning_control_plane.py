@@ -256,6 +256,12 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         learning.apply_lesson_decisions(conn, [{"lesson_id": lesson_id, "status": "archived", "reason": "owner"}])
         learning.upsert_lesson_candidate(conn, **{**kwargs, "evidence": {"n": 2}})
         self.assertEqual(self.status(conn, lesson_id), "archived")
+        # owner 2026-11-18: back to the waiting list only by a decision, and never straight to shadow
+        with self.assertRaises(ValueError):
+            learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner")
+        learning.apply_lesson_decisions(conn, [{"lesson_id": lesson_id, "status": "candidate",
+                                                "reason": "owner: back to the waiting list"}])
+        self.assertEqual(self.status(conn, lesson_id), "candidate")
 
     def test_triage_of_2026_11_18_is_well_formed(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -263,12 +269,22 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         kept = {i for e in json.loads((root / "period_experiments.json").read_text(encoding="utf-8"))["experiments"]
                 for i in e["lesson_ids"]}
         decided = [d["lesson_id"] for d in triage["decisions"]]
-        self.assertEqual(set(triage["kept_in_shadow"]), kept)
         self.assertEqual(len(decided), len(set(decided)))
-        self.assertFalse(kept & set(decided))
-        self.assertEqual(len(decided) + len(kept), 178)
+        self.assertFalse(set(triage["kept_in_shadow"]) & set(decided))
+        self.assertEqual(len(decided) + len(triage["kept_in_shadow"]), 178)
         self.assertTrue(all(d["status"] in {"archived", "rejected"} and d["reason"].startswith("owner 2026-11-18")
                             for d in triage["decisions"]))
+        # later the same day: E1a replaced (old lesson archived, new one in shadow), the 12 waiting-list lessons back
+        # to waiting so the agents learn them
+        follow = json.loads((root / "docs" / "decisions" / "lesson_decisions_2026-11-18b.json"
+                             ).read_text(encoding="utf-8"))
+        to = {d["lesson_id"]: d["status"] for d in follow["decisions"]}
+        now_shadow = (set(triage["kept_in_shadow"]) - {i for i, s in to.items() if s != "shadow"}) | {
+            i for i, s in to.items() if s == "shadow"}
+        self.assertEqual(now_shadow, kept)
+        self.assertEqual(sum(1 for s in to.values() if s == "candidate"), 12)
+        self.assertEqual({c["lesson_id"] for c in follow["creates"]} - set(decided), {c["lesson_id"]
+                                                                                      for c in follow["creates"]})
 
 
 if __name__ == "__main__":

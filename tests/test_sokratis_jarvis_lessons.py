@@ -47,3 +47,22 @@ class SokratisJarvisLessonsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WaitingLessonsTaughtTests(unittest.TestCase):
+    """Owner 2026-11-18: lessons waiting for a measurement period are taught too, marked as waiting."""
+
+    def test_each_waiting_lesson_goes_to_the_trader_it_names(self):
+        evaluation = {"sessions": 20, "waiting_lessons": [
+            {"lesson_id": "w1", "task_id": "paper_trading", "target_agent": "koulis",
+             "criterion_id": "category:prefer:periklis:early_accumulation_swing:long:market_cap=mid",
+             "proposed_change": "prefer mid caps", "waiting_since": "2026-11-18"},
+            {"lesson_id": "w2", "task_id": "jarvis_learning", "target_agent": "jarvis",
+             "criterion_id": "jarvis_loss_rule:market_state=down", "proposed_change": "careful in down markets",
+             "waiting_since": "2026-11-18"},
+            {"lesson_id": "w3", "task_id": "paper_trading", "target_agent": "miltos", "criterion_id": "control_team:miltos",
+             "proposed_change": "about Miltos only", "waiting_since": "2026-11-18"}]}
+        traders = build_paper_trade_lesson(evaluation)["traders"]
+        self.assertEqual([i["lesson_id"] for i in traders["periklis"]["waiting_lessons"]], ["w1", "w2"])
+        self.assertEqual([i["lesson_id"] for i in traders["yankos"]["waiting_lessons"]], ["w2"])
+        self.assertEqual(build_paper_trade_lesson(evaluation)["authority"].split(":")[0], "advisory_only")

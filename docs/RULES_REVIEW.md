@@ -555,3 +555,11 @@ blocked: no session, order or commit is stopped. Starting release: `3860a191c605
 the one that starts on 2026-11-20 and after uses `daily_pipeline.py`. Going back is setting `"powershell"`. The same
 day the retention rules were applied on the owner's yes (61 old baseline copies, 8 GB; 4 old audit reports; 35 old
 logs), logged in `data/retention_log.jsonl`.
+
+**Owner 2026-11-18 (later): "delete the duplicate".** The full-text search of the information registry kept its own
+copy of every object's text (~14 GB of the 41 GB `data/market_intel.db`). It now keeps only the index (FTS5
+contentless with delete, each row under its object's rowid; results join the object table). A new database is
+created that way; an older one is rebuilt by `information_registry.compact_search`, applied to the live file by
+`compact_market_intel.py`: `prepare` works on a snapshot (row counts of every table, `quick_check`, the same
+results for sample searches), `swap` replaces the live file only if it has not changed since the snapshot and keeps
+the old one in `data/backups/` until the owner says it can go.

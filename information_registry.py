@@ -382,7 +382,32 @@ def _seed_information_taxonomy(conn: sqlite3.Connection) -> None:
         )
 
 
+# Owner 2026-11-18: the full-text search keeps only its index ("index_only", FTS5 contentless with delete
+# support); each search row has the rowid of its information object, so results join the object table and no
+# second copy of the text is stored (it was ~14 GB of the 41 GB market_intel.db). An older database keeps its
+# "fts_copy" table until ``compact_search`` rebuilds it; "plain" is the fallback where FTS5 is missing.
+INDEX_ONLY_DDL = ("CREATE VIRTUAL TABLE {name} USING fts5(title, summary, search_text, "
+                  "content='', contentless_delete=1)")
+
+
+def _search_kind(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE name='ecosystem_information_search'").fetchone()
+    if not row:
+        return None
+    sql = str(row[0]).lower().replace(" ", "")
+    if "fts5" not in sql:
+        return "plain"
+    return "index_only" if "content=''" in sql else "fts_copy"
+
+
 def _init_search(conn: sqlite3.Connection) -> None:
+    if _search_kind(conn) is not None:
+        return  # an existing table is never rebuilt here (that is compact_search's job, run on purpose)
+    try:
+        conn.execute(INDEX_ONLY_DDL.format(name="ecosystem_information_search"))
+        return
+    except sqlite3.OperationalError:
+        pass
     try:
         conn.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS ecosystem_information_search "
@@ -393,6 +418,39 @@ def _init_search(conn: sqlite3.Connection) -> None:
             "CREATE TABLE IF NOT EXISTS ecosystem_information_search ("
             "information_urn TEXT PRIMARY KEY, title TEXT, summary TEXT, search_text TEXT)"
         )
+
+
+def compact_search(conn: sqlite3.Connection, *, progress: Any = None) -> dict[str, Any]:
+    """Rebuild an "fts_copy" search table as "index_only" (owner 2026-11-18): the same title, summary and text are
+    indexed under the rowid of their object, the latest search row per object; rows whose object is gone are
+    counted and left out. One transaction; the caller VACUUMs afterwards to give the space back."""
+    kind = _search_kind(conn)
+    if kind != "fts_copy":
+        return {"status": "nothing_to_do", "kind": kind}
+    latest: dict[str, int] = {}
+    for search_rowid, urn in conn.execute("SELECT rowid, information_urn FROM ecosystem_information_search"):
+        if search_rowid > latest.get(urn, -1):
+            latest[urn] = search_rowid
+    conn.execute("DROP TABLE IF EXISTS ecosystem_information_search_compact")
+    conn.execute(INDEX_ONLY_DDL.format(name="ecosystem_information_search_compact"))
+    written = orphans = 0
+    for urn, search_rowid in latest.items():
+        row = conn.execute("SELECT rowid FROM ecosystem_information_object WHERE information_urn=?", (urn,)).fetchone()
+        if row is None:
+            orphans += 1
+            continue
+        title, summary, text = conn.execute(
+            "SELECT title, summary, search_text FROM ecosystem_information_search WHERE rowid=?", (search_rowid,)
+        ).fetchone()
+        conn.execute("INSERT INTO ecosystem_information_search_compact(rowid,title,summary,search_text) "
+                     "VALUES(?,?,?,?)", (int(row[0]), title, summary, text))
+        written += 1
+        if progress and written % 50000 == 0:
+            progress(written, len(latest))
+    conn.execute("DROP TABLE ecosystem_information_search")
+    conn.execute("ALTER TABLE ecosystem_information_search_compact RENAME TO ecosystem_information_search")
+    conn.commit()
+    return {"status": "compacted", "indexed": written, "orphans": orphans, "kind": _search_kind(conn)}
 
 
 def _controlled(config_key: str, value: str) -> str:
@@ -408,10 +466,18 @@ def _search_upsert(
     summary: str | None, search_text: str,
 ) -> None:
     values = (information_urn, title or "", summary or "", search_text)
-    definition = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE name='ecosystem_information_search'"
-    ).fetchone()
-    if definition and "fts5" in str(definition[0]).lower():
+    kind = _search_kind(conn)
+    if kind == "index_only":
+        row = conn.execute(
+            "SELECT rowid FROM ecosystem_information_object WHERE information_urn=?", (information_urn,)
+        ).fetchone()
+        if row is None:  # the object is always registered first; without it there is nothing to point to
+            raise InformationRegistryError(f"search row without an information object: {information_urn}")
+        conn.execute("DELETE FROM ecosystem_information_search WHERE rowid=?", (int(row[0]),))
+        conn.execute("INSERT INTO ecosystem_information_search(rowid,title,summary,search_text) VALUES(?,?,?,?)",
+                     (int(row[0]), *values[1:]))
+        return
+    if kind == "fts_copy":
         # information_urn is UNINDEXED in the FTS5 table, so "DELETE ... WHERE information_urn=?"
         # scans the whole table (1.2 s at ~100k rows, growing with every run). The search row of an
         # object always carries the object's own rowid, so it is replaced by rowid, which is direct.
@@ -1307,12 +1373,10 @@ def search_information(
         )
         clauses.append("c.term_id=?"); values.append(category_id)
     if query:
-        joins.append("JOIN ecosystem_information_search s ON s.information_urn=o.information_urn")
-        search_definition = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE name='ecosystem_information_search'"
-        ).fetchone()
-        is_fts = bool(search_definition and "fts5" in str(search_definition[0]).lower())
-        if is_fts:
+        kind = _search_kind(conn)
+        joins.append("JOIN ecosystem_information_search s ON " + (
+            "s.rowid=o.rowid" if kind == "index_only" else "s.information_urn=o.information_urn"))
+        if kind in ("index_only", "fts_copy"):
             # Treat input as one quoted phrase. Escaping quotes avoids exposing FTS syntax to callers.
             clauses.append("ecosystem_information_search MATCH ?")
             values.append('"' + str(query).replace('"', '""') + '"')

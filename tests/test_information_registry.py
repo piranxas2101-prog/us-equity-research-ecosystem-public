@@ -36,7 +36,45 @@ class InformationRegistryTests(unittest.TestCase):
         return [tuple(r) for r in self.db.execute(
             "SELECT rowid, information_urn, title FROM ecosystem_information_search ORDER BY rowid")]
 
+    def _legacy(self) -> None:
+        """An older database: the FTS5 table that keeps its own copy of the text (before 2026-11-18)."""
+        self.db.close()
+        self.db = sqlite3.connect(":memory:")
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("CREATE VIRTUAL TABLE ecosystem_information_search "
+                        "USING fts5(information_urn UNINDEXED, title, summary, search_text)")
+        control.init_schema(self.db)
+        self.assertEqual(registry._search_kind(self.db), "fts_copy")
+
+    def test_a_new_database_keeps_only_the_index(self) -> None:
+        # owner 2026-11-18: no second copy of the text; each search row has its object's rowid
+        self.assertEqual(registry._search_kind(self.db), "index_only")
+        observation, packet = self._observation_and_packet()
+        urn, rowid = self.db.execute("SELECT information_urn, rowid FROM ecosystem_information_object "
+                                     "WHERE source_kind='packet'").fetchone()
+        found = [r["information_urn"] for r in registry.search_information(self.db, query="Industrial software")]
+        self.assertIn(urn, found)
+        registry._search_upsert(self.db, urn, "Renamed", "", "nothing about the old words")
+        self.assertNotIn(urn, [r["information_urn"] for r in registry.search_information(self.db, query="Industrial software")])
+        self.assertIn(urn, [r["information_urn"] for r in registry.search_information(self.db, query="Renamed")])
+        with self.assertRaises(registry.InformationRegistryError):
+            registry._search_upsert(self.db, "urn:not-registered", "x", "", "x")
+
+    def test_compact_search_keeps_the_same_results_without_the_copy(self) -> None:
+        self._legacy()
+        self._observation_and_packet()
+        self.db.execute("INSERT INTO ecosystem_information_search(information_urn,title,summary,search_text) "
+                        "VALUES('urn:gone','Industrial ghost','','Industrial software')")  # its object is gone
+        queries = ("Industrial software", "Example Corp", "nothing at all")
+        before = {q: [r["information_urn"] for r in registry.search_information(self.db, query=q)] for q in queries}
+        result = registry.compact_search(self.db)
+        self.assertEqual((result["status"], result["orphans"], result["kind"]), ("compacted", 1, "index_only"))
+        after = {q: [r["information_urn"] for r in registry.search_information(self.db, query=q)] for q in queries}
+        self.assertEqual(before, after)
+        self.assertEqual(registry.compact_search(self.db)["status"], "nothing_to_do")
+
     def test_search_index_is_updated_by_rowid_without_scanning_the_urn_column(self) -> None:
+        self._legacy()
         statements: list[str] = []
         self.db.set_trace_callback(statements.append)
         self._observation_and_packet()
@@ -49,6 +87,7 @@ class InformationRegistryTests(unittest.TestCase):
         self.assertEqual(objects, searched)  # one search row per object, carrying the object's rowid
 
     def test_search_upsert_replaces_the_row_of_the_same_object(self) -> None:
+        self._legacy()
         self._observation_and_packet()
         urn, rowid = self.db.execute("SELECT information_urn, rowid FROM ecosystem_information_object LIMIT 1").fetchone()
         before = len(self._search_rows())
@@ -58,6 +97,7 @@ class InformationRegistryTests(unittest.TestCase):
         self.assertIn((rowid, urn, "New title"), rows)
 
     def test_a_rowid_held_by_another_urn_falls_back_to_the_exact_path_without_losing_it(self) -> None:
+        self._legacy()
         self._observation_and_packet()
         urn, rowid = self.db.execute("SELECT information_urn, rowid FROM ecosystem_information_object LIMIT 1").fetchone()
         self.db.execute("DELETE FROM ecosystem_information_search WHERE rowid=?", (rowid,))

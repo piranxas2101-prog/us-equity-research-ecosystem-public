@@ -75,6 +75,17 @@ class CompactTests(unittest.TestCase):
         with closing(sqlite3.connect(live)) as conn:
             self.assertEqual(registry._search_kind(conn), "fts_copy")  # nothing was changed
 
+    def test_an_empty_wal_from_a_reader_is_not_a_change(self) -> None:
+        self.assertTrue(cm.prepare(self.root)["ready"])
+        wal = Path(str(self.root / cm.LIVE) + "-wal")
+        wal.write_bytes(b"")  # a reader opened the database; nothing was written
+        self.assertEqual(cm.swap(self.root)["status"], "swapped")
+
+    def test_a_wal_with_content_is_a_change(self) -> None:
+        self.assertTrue(cm.prepare(self.root)["ready"])
+        Path(str(self.root / cm.LIVE) + "-wal").write_bytes(b"x" * 64)
+        self.assertEqual(cm.swap(self.root)["status"], "refused")
+
     def test_swap_without_prepare_is_refused(self) -> None:
         self.assertEqual(cm.swap(self.root)["status"], "refused")
 

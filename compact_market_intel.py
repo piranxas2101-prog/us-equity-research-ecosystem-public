@@ -46,8 +46,11 @@ def _stat(path: Path) -> list[float] | None:
 
 
 def live_state(root: Path) -> dict[str, Any]:
+    """The live file and its WAL. An empty WAL is no change: a reader opening the database creates one (seen on
+    2026-11-18, the Control Center), only a write gives it content."""
     live = root / LIVE
-    return {"db": _stat(live), "wal": _stat(Path(str(live) + "-wal"))}
+    wal = _stat(Path(str(live) + "-wal"))
+    return {"db": _stat(live), "wal": None if wal is None or wal[0] == 0 else wal}
 
 
 def _log(message: str) -> None:

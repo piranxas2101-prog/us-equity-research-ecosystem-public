@@ -3,6 +3,10 @@
 Shows what the agents did (runs, symbols, sectors, agents, classification review) and,
 read-only from the files the afternoon session writes, the paper trading: the session,
 the positions held and closed, the headlines and the shadow measurements (owner 2026-11-11).
+Since 2026-11-18 (owner's new design) the home page "Σήμερα" answers three questions - what waits for the owner,
+how the paper sessions went, what runs now - and a strip on every page shows the nightly, the session and Ollama.
+The review desk groups the open symbols by Jarvis's suggestion; accepting a group still sends one governed,
+reversible decision per symbol.
 It allows exactly two actions: an owner decision on a classification review item
 (through Babis's governed, reversible batch) and starting a research-only full run.
 There is no endpoint that reaches Alpaca, a trader launcher or any shell command.
@@ -61,6 +65,23 @@ LAUNCH_FLAGS = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_W
 JARVIS_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 JARVIS_QUESTION_MAX = 500
 JARVIS_CHAT_TURNS = 50
+# the home page "Σήμερα" (owner 2026-11-18)
+TODAY_NEAR_STOP_ROWS = 5
+TODAY_EXPIRY_DAYS = 2  # positions whose horizon ends today or in the next two days
+TODAY_HISTORY_SESSIONS = 12
+LIVE_FRESH_SECONDS = 600  # same as the live page: a session file rewritten within 10 minutes
+OLLAMA_PROBE_URL = "http://127.0.0.1:11434/api/version"
+
+
+def ollama_running(url: str = OLLAMA_PROBE_URL, timeout: float = 0.8) -> bool:
+    """Whether the local Ollama server answers. Only asks; never starts it."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return response.status == 200
+    except (OSError, ValueError):
+        return False
 
 
 def _start_ollama() -> bool:
@@ -123,8 +144,9 @@ def process_alive(pid: Any) -> bool:
 class Views:
     """Read-only data for the page. Heavy run data is cached per manifest."""
 
-    def __init__(self, root: Path = ROOT):
+    def __init__(self, root: Path = ROOT, ollama_probe: Any = None):
         self.root = root
+        self._ollama_probe = ollama_probe or ollama_running
         self._lock = threading.Lock()
         self._run_cache: dict[str, Any] = {}
         self._live_cache: tuple[Any, dict[str, Any]] | None = None
@@ -659,6 +681,120 @@ class Views:
         return {"report_md": report, "day": path.stem[len("report_"):], "dates": dates, "proposals": proposals,
                 "chat": chat, "owner": owner}
 
+    def health(self, today: date | None = None) -> dict[str, Any]:
+        """The strip at the top of every page (owner 2026-11-18): the nightly run, today's session files, Ollama and
+        what waits for the owner. Light and read-only: file stamps, the run state and one local Ollama probe."""
+        today = today or date.today()
+        state = _json_file(self.root / "output" / "full_research_control_plane_background_latest.json") or {}
+        alive = process_alive(state.get("pid")) if state.get("status") not in TERMINAL_RUN_STATES else False
+        progress = self._progress(state) if state and alive else None
+        stamps = []
+        for key, _label, relative in LIVE_SOURCES:
+            try:
+                stamps.append((key, (self.root / "output" / relative).stat().st_mtime))
+            except OSError:
+                continue
+        written_today = [(key, moment) for key, moment in stamps if datetime.fromtimestamp(moment).date() == today]
+        last = max((moment for _key, moment in written_today), default=None)
+        return {"generated_at": now(),
+                "run": {"run_id": state.get("run_id"), "status": state.get("status"), "process_alive": alive,
+                        "finished_at": state.get("finished_at"),
+                        "stalled": bool(state) and state.get("status") not in TERMINAL_RUN_STATES and not alive},
+                "step": (self._steps(state) or {}).get("current_step") if alive else None,
+                "progress": {k: (progress or {}).get(k) for k in ("babis_scanned", "babis_to_scan", "babis_eta_minutes")}
+                if progress else None,
+                "session": {"files_today": len(written_today),
+                            "last_write": datetime.fromtimestamp(last).astimezone().isoformat() if last else None,
+                            "fresh": bool(last and time.time() - last <= LIVE_FRESH_SECONDS
+                                          and any(key not in ("preopen", "koulis") for key, _m in written_today))},
+                "ollama": self._ollama_probe(), "review_open": self._review_open_count()}
+
+    def today(self, today: date | None = None) -> dict[str, Any]:
+        """The home page (owner 2026-11-18): what waits for the owner, how the paper sessions went, what runs.
+        Everything comes from files the ecosystem already writes; positions without a result or a stop stay
+        unknown and are counted as such, never as zero."""
+        import jarvis_owner
+
+        today = today or date.today()
+        trading = self.trading(None)
+        report = trading.get("report") or {}
+        held = report.get("held_positions") or []
+        measurable = [h for h in held if h.get("result_pct") is not None and h.get("stop_pct")]
+        near = sorted(({"ticker": h.get("ticker"), "agent": h.get("agent"), "direction": h.get("direction"),
+                        "playbook": h.get("playbook"), "result_pct": h["result_pct"], "stop_pct": h["stop_pct"],
+                        "room_pct": round(h["stop_pct"] + h["result_pct"], 2),
+                        "used_pct": round(100 * -h["result_pct"] / h["stop_pct"])}
+                       for h in measurable if h["result_pct"] < 0), key=lambda row: row["room_pct"])[:TODAY_NEAR_STOP_ROWS]
+        horizon = today.toordinal() + TODAY_EXPIRY_DAYS
+        expiring = []
+        for h in held:
+            try:
+                expires = date.fromisoformat(str(h.get("expires")))
+            except ValueError:
+                continue
+            if expires.toordinal() <= horizon:
+                expiring.append({k: h.get(k) for k in ("ticker", "agent", "direction", "result_pct", "sessions_held",
+                                                       "horizon_sessions", "expires")})
+        expiring.sort(key=lambda row: str(row["expires"]))
+        groups: dict[tuple[str, str], dict[str, Any]] = {}
+        for h in held:
+            group = groups.setdefault((str(h.get("agent")), str(h.get("direction"))),
+                                      {"agent": h.get("agent"), "direction": h.get("direction"), "positions": 0,
+                                       "known": 0, "_sum": 0.0})
+            group["positions"] += 1
+            if h.get("result_pct") is not None:
+                group["known"] += 1
+                group["_sum"] += h["result_pct"]
+        held_groups = [{**{k: v for k, v in g.items() if k != "_sum"},
+                        "mean_pct": round(g["_sum"] / g["known"], 2) if g["known"] else None}
+                       for g in sorted(groups.values(), key=lambda g: -g["positions"])]
+        history = [{"session_date": h.get("session_date"), "average_result_pct": h.get("average_result_pct"),
+                    "spy_open_to_close_pct": h.get("spy_open_to_close_pct"),
+                    "excess_pct": (round(h["average_result_pct"] - h["spy_open_to_close_pct"], 2)
+                                   if h.get("average_result_pct") is not None and h.get("spy_open_to_close_pct") is not None
+                                   else None)}
+                   for h in (trading.get("history") or [])[:TODAY_HISTORY_SESSIONS]]
+        koulis = report.get("koulis") or {}
+        reasons = sorted((koulis.get("blocked_reasons") or {}).items(), key=lambda kv: -kv[1])
+        market = _json_file(self.root / "output" / "market_state_latest.json") or {}
+        jarvis_pass = _json_file(self.root / "output" / "jarvis" / "report_latest.json") or {}
+        sections = jarvis_pass.get("sections") or {}
+        checks = [{k: c.get(k) for k in ("title", "state", "verdict", "detail")}
+                  for c in (sections.get("checks") or {}).get("results") or [] if isinstance(c, dict)]
+        status = self.status()
+        status.pop("runs", None)
+        return {"generated_at": now(), "status": status,
+                "owner": jarvis_owner.pending(self.root), "review": self.review_lanes(),
+                "jarvis": {"day": jarvis_pass.get("day"), "kind": jarvis_pass.get("kind"),
+                           "finished_at": jarvis_pass.get("finished_at"), "problems": jarvis_pass.get("problems"),
+                           "problem_lines": jarvis_pass.get("problem_lines") or [], "checks": checks},
+                "session": {"session_date": report.get("session_date"), "spy_open_to_close_pct": report.get("spy_open_to_close_pct"),
+                            "day_result": report.get("day_result"), "entries": (report.get("entries") or {}).get("total"),
+                            "koulis": {"approved": koulis.get("approved_count"), "blocked": koulis.get("blocked_count"),
+                                       "top_reason": reasons[0] if reasons else None},
+                            "preopen_watch": ((report.get("preopen") or {}).get("counts") or {}).get("demoted_to_watch")},
+                "learning": (trading.get("learning") or {}).get("overall"),
+                "held": {"positions": len(held), "with_result": sum(1 for h in held if h.get("result_pct") is not None),
+                         "mean_pct": (round(sum(h["result_pct"] for h in held if h.get("result_pct") is not None)
+                                            / sum(1 for h in held if h.get("result_pct") is not None), 2)
+                                      if any(h.get("result_pct") is not None for h in held) else None),
+                         "near_stop": near, "expiring": expiring, "groups": held_groups},
+                "history": history,
+                "market": {k: market.get(k) for k in ("session", "trend", "mood", "participation", "appetite", "rewards",
+                                                      "changes", "agents_candidates")} if market else None}
+
+    def review_lanes(self) -> dict[str, Any]:
+        """The review desk in three lanes (owner 2026-11-18): a strong suggestion, a weak one, none."""
+        lanes = {"strong": 0, "weak": 0, "none": 0}
+        reasons: dict[str, int] = {}
+        items = self.review()["items"]
+        for item in items:
+            suggestion = item.get("suggestion") or {}
+            lane = "none" if not suggestion.get("decision") else "strong" if suggestion.get("confidence") == "strong" else "weak"
+            lanes[lane] += 1
+            reasons[item.get("reason") or "unknown"] = reasons.get(item.get("reason") or "unknown", 0) + 1
+        return {"open": len(items), "lanes": lanes, "reasons": reasons}
+
 
 # ---------------------------------------------------------------- actions
 
@@ -785,6 +921,8 @@ def make_handler(views: Views, actions: Actions, token: str, port: int, assets: 
     allowed_origins = {f"http://{host}" for host in allowed_hosts}
     get_routes = {
         "/api/status": lambda q: views.status(),
+        "/api/health": lambda q: views.health(),
+        "/api/today": lambda q: views.today(),
         "/api/runs": lambda q: {"runs": views.runs()},
         "/api/symbols": lambda q: views.symbols(q.get("run")),
         "/api/sectors": lambda q: views.sectors(),

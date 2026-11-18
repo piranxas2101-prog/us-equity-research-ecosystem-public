@@ -70,6 +70,7 @@ const STEP_GR = {
   outcome_refresh: "Ενημέρωση αποτελεσμάτων", backtest: "Backtest στρατηγικών", sokratis: "Μαθήματα traders",
   petros_training: "Εκπαίδευση μοντέλου", meeting_report: "Αναφορά συνάντησης", action_report: "Αναφορά ενεργειών",
   trader_handoff: "Έλεγχος παράδοσης σε traders", coordination_audit: "Συντονισμός και έλεγχος agents",
+  sec_prefetch: "Προφόρτωση στοιχείων SEC", price_history: "Ιστορικό τιμών",
 };
 const AGENT_GR = { babis: "Babis", giannis: "Giannis", sector_agents: "Τομεακοί agents", petros: "Petros",
   yankos: "Yankos", periklis: "Periklis", sokratis: "Sokratis", system: "Σύστημα" };
@@ -137,6 +138,190 @@ async function pageStatus() {
     try { await post("/api/actions/start-research-run", {}); toast("Το run ξεκίνησε στο παρασκήνιο. Θα δεις ειδοποίηση όταν τελειώσει."); }
     catch (e) { toast("Δεν ξεκίνησε: " + e.message, true); btn.disabled = false; }
   });
+}
+
+// ------------------------------------------------------------ Σήμερα: η αρχική (owner 2026-11-18)
+// Three questions: what waits for the owner, how the paper sessions went, what runs now. Read-only.
+const sgn = (v, digits = 2, unit = "%") => (v === null || v === undefined) ? "άγνωστο"
+  : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("el-GR", { minimumFractionDigits: digits, maximumFractionDigits: digits })}${unit}`;
+const tone = (v) => (v === null || v === undefined) ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
+const cap = (s) => s ? String(s)[0].toUpperCase() + String(s).slice(1) : "άγνωστο";
+// the page's policy refuses inline style attributes: widths and heights are set here from data attributes
+function applySizes(root = app) {
+  root.querySelectorAll("[data-w]").forEach((el) => { el.style.width = Math.max(0, Math.min(100, +el.dataset.w)) + "%"; });
+  root.querySelectorAll("[data-hpx]").forEach((el) => { el.style.height = el.dataset.hpx + "px"; });
+}
+const TREND_GR = { up: "Ανεβαίνει", down: "Πέφτει", flat: "Πλάγια", sideways: "Πλάγια" };
+const MOOD_GR = { calm: "Ήρεμη", anxious: "Ανήσυχη", fearful: "Φοβισμένη", panic: "Πανικός", normal: "Κανονική" };
+const PART_GR = { broad: "Πλατιά", narrow: "Στενή", mixed: "Μικτή", normal: "Κανονική" };
+const REWARDS_GR = { longs: "Τα long", shorts: "Τα short", both: "Και τα δύο", neither: "Κανένα" };
+const gr = (map, v) => v === null || v === undefined ? "άγνωστο" : (map[v] || v);
+
+// New York's session times in Athens time for today (the clocks of Europe and the US change on different dates)
+function zoneOffsetMin(zone, d) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(d.getTime() / 60000) * 60000) / 60000;
+}
+function nyToAthens(h, m) {
+  const [y, mo, dd] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(new Date()).split("-").map(Number);
+  const guess = Date.UTC(y, mo - 1, dd, h, m);
+  const utc = guess - zoneOffsetMin("America/New_York", new Date(guess)) * 60000;
+  return new Date(utc).toLocaleTimeString("el-GR", { timeZone: "Europe/Athens", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+}
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("el-GR", { timeZone: "Europe/Athens", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "—";
+const dayIn = (zone, d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+// the next weekday session (New York's day; holidays are not known here), named from Athens: σήμερα / αύριο / the weekday
+function sessionDayLabel() {
+  const ny = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = new Date(ny.getFullYear(), ny.getMonth(), ny.getDate());
+  if (ny.getHours() * 60 + ny.getMinutes() >= 16 * 60) day.setDate(day.getDate() + 1);
+  while (day.getDay() === 0 || day.getDay() === 6) day.setDate(day.getDate() + 1);
+  const iso = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  const diff = Math.round((Date.parse(iso) - Date.parse(dayIn("Europe/Athens"))) / 86400000);
+  return diff <= 0 ? "σήμερα" : diff === 1 ? "αύριο" : "την " + day.toLocaleDateString("el-GR", { weekday: "long" });
+}
+const KOULIS_GR = { existing_account_exposure: "υπάρχουσα έκθεση", duplicate_symbol_proposal: "διπλή πρόταση",
+  agent_direction_conflict: "αντίθετες κατευθύνσεις agents", market_state_against: "η αγορά κόντρα",
+  unresolved_short_implementation_gates: "ανοιχτοί έλεγχοι για short", results_ahead: "αποτελέσματα μπροστά", shadow_only_strategy: "στρατηγική μόνο σε shadow" };
+const shortDate = (iso) => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—";
+
+function ownerZone(d) {
+  const groups = (d.owner && d.owner.groups) || [];
+  const find = (kind) => groups.find((g) => g.kind === kind) || { count: 0, items: [] };
+  const review = d.review || { open: 0, lanes: {} }, lanes = review.lanes || {};
+  const proposals = find("proposals"), labs = find("labs"), models = find("models");
+  const kinds = groups.filter((g) => g.count > 0).length;
+  const checks = (d.jarvis && d.jarvis.checks) || [];
+  const waitingChecks = checks.filter((c) => c.state === "waiting").length;
+  const readyChecks = checks.filter((c) => c.state && c.state !== "waiting");
+  const problems = (d.jarvis && d.jarvis.problem_lines) || [];
+  const laneRow = (key, label) => `<div class="lane-row"><span class="label">${label}</span><span class="n">${fmt(lanes[key] || 0, 0)}</span>
+    <a class="more" href="#/review/${key}">Άνοιγμα</a></div>`;
+  return `<section class="zone" aria-labelledby="z-owner"><div class="zone-head"><h2 id="z-owner">Χρειάζεται εσένα</h2>
+      <span class="zone-note ${kinds ? "wait" : ""}">${kinds ? `${fmt(kinds, 0)} ${kinds === 1 ? "είδος απόφασης περιμένει" : "είδη αποφάσεων περιμένουν"}` : "Τίποτα δεν περιμένει από σένα"}</span></div>
+    ${problems.length ? `<div class="callout"><b>Ο Jarvis βρήκε πρόβλημα</b>${problems.map((p) => `<div>${esc(p)}</div>`).join("")}</div>` : ""}
+    <div class="row-wrap">
+      <div class="main card ${review.open ? "waiting" : "quiet"}">
+        <div class="zone-head"><h2>Κατηγοριοποίηση</h2><span class="zone-note">${fmt(review.open, 0)} ανοιχτά${(lanes.strong || 0) + (lanes.weak || 0) ? ` · για ${fmt((lanes.strong || 0) + (lanes.weak || 0), 0)} ο Jarvis έχει έτοιμη πρόταση` : ""}</span></div>
+        ${review.open ? laneRow("strong", "Ισχυρή πρόταση Jarvis") + laneRow("weak", "Αδύναμη πρόταση Jarvis") + laneRow("none", "Χωρίς πρόταση: θέλουν εσένα, ένα ένα")
+          + `<div class="actions"><a class="more" href="#/review">Άνοιγμα του ελέγχου σε ομάδες →</a></div>` : `<p class="muted">Κανένα ανοιχτό σύμβολο.</p>`}
+      </div>
+      <div class="side">
+        <div class="card ${proposals.count ? "waiting" : "quiet"}"><h2>Προτάσεις Jarvis</h2>
+          <p class="${proposals.count ? "" : "muted"}">${proposals.count ? `${fmt(proposals.count, 0)} περιμένουν Ναι / Όχι / Αργότερα` : "Καμία δεν περιμένει απόφαση."}</p>
+          <div class="small muted">Τελευταίο πέρασμα: ${d.jarvis && d.jarvis.finished_at ? `${d.jarvis.kind === "after-session" ? "μετά τη συνεδρία" : "μετά το nightly"}, ${when(d.jarvis.finished_at)}` : "άγνωστο"} · <a class="more" href="#/jarvis">σελίδα Jarvis</a></div></div>
+        ${labs.count ? `<div class="card waiting"><h2>Εργαστήρια</h2><p>${labs.items.map(esc).join("<br>")}</p><div class="small muted">${esc(labs.where || "")}</div></div>` : ""}
+        ${models.count ? `<div class="card waiting"><h2>Μοντέλα για προαγωγή</h2><p>${fmt(models.count, 0)} αξίζουν μια ματιά</p><div class="small muted">${esc(models.where || "")}</div></div>` : ""}
+        <div class="card quiet"><h2>Έλεγχοι σε shadow</h2>
+          <p class="${readyChecks.length ? "" : "muted"}">${readyChecks.length ? readyChecks.map((c) => `${esc(c.title)}: ${esc(c.detail || c.verdict || c.state)}`).join("<br>")
+            : `${fmt(waitingChecks, 0)} μαζεύουν δείγμα · κανένας δεν ζητά απόφαση`}</p>
+          ${checks.length ? `<details class="small"><summary>Ποιοι είναι</summary><ul class="plain">${checks.map((c) => `<li>${esc(c.title)} · <span class="muted">${esc(c.detail || c.verdict || "")}</span></li>`).join("")}</ul></details>` : ""}</div>
+      </div>
+    </div></section>`;
+}
+
+function performanceZone(d) {
+  const s = d.session || {}, day = s.day_result || {}, L = d.learning, held = d.held || {}, k = s.koulis || {};
+  const last = (d.history || [])[0];
+  const excess = last && last.session_date === s.session_date ? last.excess_pct : null;
+  const biggest = (held.groups || [])[0];
+  const kpis = `<div class="kpis">
+      <div class="card"><h3>Συνεδρία ${shortDate(s.session_date)}, έναντι SPY ≈</h3><div class="kpi ${tone(excess)}">${sgn(excess, 2, " μον.")}</div>
+        <div class="small muted">${fmt(day.positions, 0)} έκλεισαν, μέσο ${sgn(day.average_result_pct)} · SPY ${sgn(s.spy_open_to_close_pct)}</div></div>
+      <div class="card"><h3>Από την αρχή · ${L ? fmt(L.known, 0) : "άγνωστο"} κλεισμένες</h3>
+        <div class="kpi ${L && L.beat_spy_pct != null ? (L.beat_spy_pct >= 50 ? "pos" : "neg") : ""}">${L && L.beat_spy_pct != null ? fmt(L.beat_spy_pct, 1) + "%" : "άγνωστο"}</div>
+        <div class="small muted">κέρδισαν το SPY · μέσο έναντι SPY ${L ? sgn(L.mean_excess_pct) : "άγνωστο"} · ${L ? fmt(L.days, 0) : "—"} μέρες</div></div>
+      <div class="card"><h3>Ανοιχτές θέσεις · ${fmt(held.positions, 0)}</h3><div class="kpi ${tone(held.mean_pct)}">${sgn(held.mean_pct)}</div>
+        <div class="small muted">μέσο ως τώρα${biggest ? ` · ${esc(cap(biggest.agent))} ${esc(biggest.direction)} ${fmt(biggest.positions, 0)}: ${sgn(biggest.mean_pct)}` : ""}</div></div>
+      <div class="card"><h3>Koulis</h3><div class="kpi">${fmt(k.approved, 0)} / ${fmt(k.blocked, 0)}</div>
+        <div class="small muted">εγκρίσεις / μπλοκ${k.top_reason ? ` · κυρίως ${esc(KOULIS_GR[k.top_reason[0]] || k.top_reason[0])} (${fmt(k.top_reason[1], 0)})` : ""}</div></div>
+    </div>`;
+  const days = (d.history || []).slice().reverse();
+  const top = Math.max(0.01, ...days.map((h) => Math.abs(h.excess_pct || 0)));
+  const ups = days.filter((h) => h.excess_pct > 0).length, downs = days.filter((h) => h.excess_pct < 0).length;
+  const chart = `<figure class="card"><figcaption class="zone-head"><h2>Έναντι SPY, ανά συνεδρία ≈</h2><span class="zone-note">μέσο κλεισμένων μείον SPY · ${fmt(days.length, 0)} συνεδρίες</span></figcaption>
+      <div class="diverge" role="img" aria-label="Διαφορά από το SPY: ${ups} συνεδρίες πάνω, ${downs} κάτω">${days.map((h) => {
+        const v = h.excess_pct, px = v == null ? 0 : Math.max(2, Math.round(64 * Math.abs(v) / top));
+        return `<div class="col" title="${esc(h.session_date)}: ${v == null ? "άγνωστο" : sgn(v, 2, " μον.")}"><div class="v">${v > 0 ? sgn(v, 1, "") : ""}</div>
+          <div class="up">${v > 0 ? `<b data-hpx="${px}"></b>` : ""}</div><div class="down">${v < 0 ? `<b data-hpx="${px}"></b>` : ""}</div>
+          <div class="v">${v < 0 ? sgn(v, 1, "") : v == null ? "?" : ""}</div><div class="d">${shortDate(h.session_date)}</div></div>`;
+      }).join("")}</div>
+      <div class="small muted">Πάνω από τη γραμμή: καλύτερα από το SPY την ίδια μέρα. «?»: άγνωστο αποτέλεσμα.</div></figure>`;
+  const m = d.market;
+  const ch = (key) => m && m.changes && m.changes[key] ? m.changes[key] : null;
+  const since = (key) => ch(key) && ch(key).sessions != null ? `${fmt(ch(key).sessions, 0)} συνεδρίες` : "";
+  const ag = (m && m.agents_candidates) || {};
+  const against = m && ((m.rewards === "shorts" && (ag.long || 0) > (ag.short || 0)) || (m.rewards === "longs" && (ag.short || 0) > (ag.long || 0)));
+  const market = `<div class="card"><div class="zone-head"><h2>Η αγορά</h2><span class="zone-note">${m ? `ανάγνωση της ${shortDate(m.session)}` : "άγνωστο"}</span></div>
+      ${m ? `<div class="tiles">
+        <div class="tile"><div class="t">Τάση</div><div class="v ${m.trend === "down" ? "neg" : m.trend === "up" ? "pos" : ""}">${esc(gr(TREND_GR, m.trend))}</div><div class="s">${since("trend")}</div></div>
+        <div class="tile"><div class="t">Διάθεση</div><div class="v">${esc(gr(MOOD_GR, m.mood))}</div><div class="s">${since("mood")}</div></div>
+        <div class="tile"><div class="t">Συμμετοχή</div><div class="v">${esc(gr(PART_GR, m.participation))}</div><div class="s">${since("participation")}</div></div>
+        <div class="tile"><div class="t">Ανταμείβει</div><div class="v">${esc(gr(REWARDS_GR, m.rewards))}</div><div class="s">${ch("rewards") && ch("rewards").changed ? `από «${esc(gr(REWARDS_GR, ch("rewards").yesterday).toLowerCase())}» χθες` : since("rewards")}</div></div></div>
+        ${against ? `<div class="callout"><b>Οι agents πάνε αντίθετα</b>Προτείνουν ${fmt(ag.long, 0)} long και ${fmt(ag.short, 0)} short, ενώ η αγορά ανταμείβει ${esc(gr(REWARDS_GR, m.rewards).toLowerCase())}.</div>` : ""}
+        <p class="small"><a class="more" href="#/trading">Ολόκληρη η ανάγνωση και οι κλάδοι</a></p>` : `<p class="muted">Δεν υπάρχει ακόμα ανάγνωση της αγοράς.</p>`}</div>`;
+  const near = held.near_stop || [];
+  const nearCard = `<div class="card"><div class="zone-head"><h2>Κοντά στο stop</h2><span class="zone-note">από τις ${fmt(held.positions, 0)} ανοιχτές · μικρότερο περιθώριο πρώτα</span></div>
+      ${near.length ? `<div class="table-wrap short"><table><thead><tr><th>Μετοχή</th><th class="num">Αποτέλεσμα</th><th>Πόσο από το stop έχει φαγωθεί</th><th class="num">Μένουν</th></tr></thead><tbody>
+        ${near.map((p) => `<tr><td>${symbolLink(p.ticker)} <span class="small muted">${esc(cap(p.agent))} · ${esc(p.direction)}</span></td>
+          <td class="num neg">${sgn(p.result_pct)}</td><td><div class="meter"><div data-w="${esc(p.used_pct)}"></div></div><div class="small muted">${fmt(p.used_pct, 0)}% του stop ${fmt(p.stop_pct, 2)}%</div></td>
+          <td class="num"><b>${sgn(p.room_pct, 2, " μον.").replace("+", "")}</b></td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="muted small">Καμία χαμένη θέση με γνωστό stop.</p>`}</div>`;
+  const todayAthens = dayIn("Europe/Athens");  // a session's date is the owner's day: it runs in the Athens afternoon
+  const dayDiff = (iso) => Math.round((Date.parse(iso) - Date.parse(todayAthens)) / 86400000);
+  const whenExp = (iso) => { const n = dayDiff(iso); return n < 0 ? "έληξε" : n === 0 ? "σήμερα" : n === 1 ? "αύριο" : shortDate(iso); };
+  const expiring = held.expiring || [];
+  const side = `<div class="side">
+      <div class="card"><h2>Λήγουν</h2>${expiring.length ? expiring.map((e) => `<div class="listrow">${symbolLink(e.ticker)}
+          <span class="grow">${esc(cap(e.agent))} · ${esc(e.direction)} · ${known(e.sessions_held)}/${known(e.horizon_sessions)}</span><span>${whenExp(e.expires)}</span>
+          <span class="num ${tone(e.result_pct)}">${sgn(e.result_pct)}</span></div>`).join("") : `<p class="muted small">Καμία θέση δεν λήγει τις επόμενες μέρες.</p>`}</div>
+      <div class="card"><h2>Ανοιχτές ανά trader</h2>${(held.groups || []).map((g) => `<div class="listrow"><span>${esc(cap(g.agent))} · ${esc(g.direction)}</span>
+          <span class="grow">${fmt(g.positions, 0)} θέσεις${g.known < g.positions ? ` · ${fmt(g.positions - g.known, 0)} χωρίς αποτέλεσμα` : ""}</span><b class="num ${tone(g.mean_pct)}">${sgn(g.mean_pct)}</b></div>`).join("") || `<p class="muted small">Καμία ανοιχτή θέση.</p>`}</div>
+    </div>`;
+  return `<section class="zone" aria-labelledby="z-perf"><div class="zone-head"><h2 id="z-perf">Πώς πήγαμε</h2>
+      <span class="zone-note"><a class="more" href="#/trading">Ιστορικό συνεδριών</a></span></div>
+    ${kpis}<div class="grid2">${chart}${market}</div><div class="row-wrap"><div class="main">${nearCard}</div>${side}</div></section>`;
+}
+
+function runningZone(d) {
+  const s = d.status || {}, run = s.run || {}, p = s.progress || {}, steps = (s.steps && s.steps.steps) || [];
+  const [label] = STATUS_GR[run.status] || [run.status || "κανένα run"];
+  const active = run.status && !["completed", "completed_review_required", "failed", "stopped_by_owner", "interrupted"].includes(run.status) && run.process_alive;
+  const toScan = p.babis_to_scan ?? p.universe_total, scanned = p.babis_scanned ?? p.babis_processed;
+  const scanning = active && s.steps && s.steps.current_step === "babis_refresh";
+  const pct = scanning && toScan && scanned != null ? Math.min(100, (scanned / toScan) * 100) : null;
+  const items = [];
+  if (run.run_id) items.push({ cls: "done", when: hhmm(run.started_at), what: "Nightly ξεκίνησε", note: "έγινε" });
+  const done = steps.filter((st) => st.finished_at);
+  done.slice(-3).forEach((st) => items.push({ cls: "done", when: `${hhmm(st.started_at)}–${hhmm(st.finished_at)}`, what: STEP_GR[st.key] || st.key, note: `έγινε · ${duration(st.seconds)}` }));
+  const current = steps.find((st) => !st.finished_at && st.key === s.steps.current_step);
+  if (current) items.push({ cls: active ? "now" : "failed", when: active ? "τώρα" : "σταμάτησε", what: `${AGENT_GR[current.agent] || current.agent} · ${STEP_GR[current.key] || current.key}`,
+    note: current.key === "babis_refresh" && pct != null ? `${fmt(pct, 0)}%${p.babis_eta_minutes != null ? ` · ~${fmt(p.babis_eta_minutes / 60, 1)} ώρες` : ""}` : active ? "τρέχει" : "δες τη σελίδα Run" });
+  if (!active && run.finished_at) items.push({ cls: run.status === "failed" || run.status === "interrupted" ? "failed" : "done", when: hhmm(run.finished_at), what: "Nightly τέλος", note: label });
+  if (active) items.push({ cls: "", when: "μετά", what: "Τα υπόλοιπα βήματα", note: "Giannis, τομείς, Petros, πακέτο, traders" });
+  items.push({ cls: "", when: "πρωί", what: "Jarvis + debate shadow", note: "μετά το nightly" });
+  items.push({ cls: "", when: `15:00 → ${nyToAthens(9, 0)}`, what: "Έλεγχος πριν το άνοιγμα", note: sessionDayLabel() });
+  items.push({ cls: "", when: nyToAthens(9, 35), what: "Εντολές paper", note: "09:35 Νέα Υόρκη" });
+  items.push({ cls: "", when: `μετά τις ${nyToAthens(16, 0)}`, what: "Αναφορά συνεδρίας + Jarvis", note: "μετά το κλείσιμο" });
+  return `<section class="zone" aria-labelledby="z-run"><div class="zone-head"><h2 id="z-run">Τι τρέχει</h2><span class="zone-note"><a class="more" href="#/run">Σελίδα Run</a></span></div>
+    <div class="card"><div class="zone-head"><b>${run.run_id ? `Nightly ${esc(run.run_id)}` : "Κανένα run ακόμα"}</b>
+      <span class="zone-note">${active ? `${esc(label)}${pct != null ? ` · Babis ${fmt(scanned, 0)} από ${fmt(toScan, 0)}` : ""}` : esc(label)}${run.stalled ? " · η διεργασία δεν τρέχει πια" : ""}</span></div>
+      ${active && pct != null ? `<div class="meter run"><div data-w="${pct.toFixed(1)}"></div></div>` : ""}
+      <ol class="timeline">${items.map((it) => `<li class="${it.cls}"><div class="when">${esc(it.when)}</div><div class="what">${esc(it.what)}</div><div class="note">${esc(it.note)}</div></li>`).join("")}</ol>
+    </div></section>`;
+}
+
+async function pageToday() {
+  setActive("today");
+  const d = await api("/api/today");
+  const scroll = window.scrollY;
+  const dayName = new Date().toLocaleDateString("el-GR", { timeZone: "Europe/Athens", weekday: "long", day: "numeric", month: "long" });
+  app.innerHTML = `<h1>Σήμερα</h1><div class="sub">${esc(cap(dayName))} · ενημέρωση ${hhmm(d.generated_at)} · ανανεώνεται κάθε λεπτό</div>
+    ${ownerZone(d)}${performanceZone(d)}${runningZone(d)}`;
+  applySizes();
+  window.scrollTo(0, scroll);
 }
 
 // ------------------------------------------------------------ Σύμβολα
@@ -310,7 +495,7 @@ async function pageSymbol(ticker) {
       if (decision === "choose" && !node) { toast("Διάλεξε κόμβο.", true); return; }
       try {
         const res = await post("/api/actions/review-decision", { venue_code: c.venue_code, ticker: d.ticker, decision, node, note });
-        toast(`${res.ticker}: εφαρμόστηκε (batch ${res.batch_id}).`); state.symbols = null; pageSymbol(d.ticker); refreshBadge();
+        toast(`${res.ticker}: εφαρμόστηκε (batch ${res.batch_id}).`); state.symbols = null; pageSymbol(d.ticker); refreshHealth();
       } catch (e) { toast("Δεν εφαρμόστηκε: " + e.message, true); }
     };
     document.getElementById("fix-apply").addEventListener("click", () => send("choose", document.getElementById("fix-node").value));
@@ -359,72 +544,179 @@ async function pageAgents() {
 const REASON_GR = { no_two_sources_agree: "Δεν συμφωνούν δύο πηγές", would_contradict_prior_approval: "Αντιφάσκει με προηγούμενη έγκριση",
   probable_spac_needs_second_signal: "Πιθανό SPAC, θέλει δεύτερη ένδειξη" };
 const SOURCE_GR = { directory: "Κατάλογος Nasdaq", profile: "Προφίλ FMP", sec: "SEC SIC", description: "Περιγραφή (Ollama, συμβουλευτικά)" };
-async function pageReview() {
+// The desk in three lanes (owner 2026-11-18): a strong suggestion, a weak one, none. In a lane with a suggestion the
+// symbols are grouped by what Jarvis proposes; the owner unticks what does not fit and accepts the rest. Every symbol
+// still goes through the same governed, reversible decision (one batch each, one line in the action log).
+const LANE_INFO = {
+  strong: ["Ισχυρή πρόταση Jarvis", "η πρόταση στηρίζεται σε προηγούμενη έγκρισή σου ή σε συμφωνία πηγών"],
+  weak: ["Αδύναμη πρόταση Jarvis", "στηρίζεται σε μία μόνο πηγή: ρίξε μια ματιά στη λίστα"],
+  none: ["Χωρίς πρόταση", "θέλουν εσένα, ένα ένα"],
+};
+const laneOf = (i) => !(i.suggestion && i.suggestion.decision) ? "none" : i.suggestion.confidence === "strong" ? "strong" : "weak";
+const votesLine = (i) => [...i.votes, ...i.advisory_votes].map((v) => `${SOURCE_GR[v.source] || v.source}: ${v.label || v.node}`).join(" · ") || "καμία πηγή";
+
+function reviewCards(container, items, ctx) {
+  container.innerHTML = items.map((i) => {
+    const nodes = [...new Map(i.votes.filter((v) => v.node).map((v) => [v.node, v])).values()];
+    return `<div class="card review-card" data-venue="${esc(i.venue_code)}" data-ticker="${esc(i.ticker)}">
+      <h2>${symbolLink(i.ticker)} <span class="muted small">${esc(i.name || "")}</span></h2>
+      <div class="small">${pill(REASON_GR[i.reason] || i.reason, "warn")} · τωρινό: <b>${esc(i.current_label || "κανένα")}</b> · ανοιχτό από ${when(i.first_seen_at)}</div>
+      <dl class="kv small">${i.votes.map((v) => `<dt>${esc(SOURCE_GR[v.source] || v.source)}</dt><dd>${esc(v.label || v.node)}</dd>`).join("")}
+      ${i.advisory_votes.map((v) => `<dt>${esc(SOURCE_GR[v.source] || v.source)}</dt><dd>${pill(v.label || v.node, "violet")}</dd>`).join("")}</dl>
+      <div class="vote-list">${nodes.map((v) => `<button data-node="${esc(v.node)}">Επιλογή: ${esc(v.label || v.node)}</button>`).join("")}
+        ${i.current_node ? `<button class="good" data-confirm="1">Ο τωρινός είναι σωστός</button>` : ""}</div>
+      <div class="actions"><label class="small muted">Άλλος κόμβος <select class="other"><option value="">διάλεξε…</option>${ctx.options}</select></label><button data-other="1">Εφαρμογή</button></div>
+      ${i.suggestion && i.suggestion.decision ? `<div class="small jarvis-suggestion">Πρόταση Jarvis (${esc(i.suggestion.confidence === "strong" ? "ισχυρή" : "αδύναμη")}): <b>${esc(i.suggestion.label || i.suggestion.node)}</b> · ${esc(i.suggestion.reason)}
+        <button class="good" data-suggest="1">Δέξου την πρόταση</button></div>` : (i.suggestion ? `<div class="muted small">Jarvis: ${esc(i.suggestion.reason)}</div>` : "")}
+      <label class="small muted">Σύντομη αιτιολογία (υποχρεωτική)<textarea class="note"></textarea></label></div>`;
+  }).join("") || `<p class="muted">Καμία ανοιχτή διαφωνία.</p>`;
+  container.querySelectorAll(".review-card").forEach((card) => {
+    const item = items.find((x) => x.ticker === card.dataset.ticker && x.venue_code === card.dataset.venue);
+    const send = async (decision, node) => {
+      const note = card.querySelector(".note").value.trim();
+      if (!note) { toast("Γράψε μια σύντομη αιτιολογία πρώτα.", true); return; }
+      card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      try {
+        const res = await post("/api/actions/review-decision", { venue_code: item.venue_code, ticker: item.ticker, decision, node, note });
+        toast(`${res.ticker}: εφαρμόστηκε (batch ${res.batch_id}).`);
+        ctx.remove([item]);
+      } catch (e) { toast("Δεν εφαρμόστηκε: " + e.message, true); card.querySelectorAll("button").forEach((b) => (b.disabled = false)); }
+    };
+    card.querySelectorAll("button[data-node]").forEach((b) => b.addEventListener("click", () => send("choose", b.dataset.node)));
+    card.querySelector("button[data-confirm]")?.addEventListener("click", () => send("confirm", null));
+    card.querySelector("button[data-suggest]")?.addEventListener("click", () => {
+      const note = card.querySelector(".note");
+      if (!note.value.trim()) note.value = "Πρόταση Jarvis: " + item.suggestion.reason;
+      send(item.suggestion.decision, item.suggestion.decision === "choose" ? item.suggestion.node : null);
+    });
+    card.querySelector("button[data-other]").addEventListener("click", () => {
+      const node = card.querySelector(".other").value; if (!node) { toast("Διάλεξε κόμβο από τη λίστα.", true); return; } send("choose", node);
+    });
+  });
+}
+
+async function acceptGroup(items, note, progress) {
+  if (!note) { toast("Γράψε μια σύντομη αιτιολογία για την ομάδα πρώτα.", true); return []; }
+  if (!items.length) { toast("Δεν είναι τσεκαρισμένο κανένα σύμβολο.", true); return []; }
+  if (!confirm(`Να εφαρμοστεί η πρόταση του Jarvis σε ${items.length} σύμβολα;\nΚάθε σύμβολο γίνεται χωριστό, αναστρέψιμο batch και γράφεται στο ημερολόγιο ενεργειών.`)) return [];
+  const done = [], failed = [];
+  for (const it of items) {
+    progress.textContent = `Εφαρμογή ${done.length + failed.length + 1} από ${items.length}…`;
+    try {
+      await post("/api/actions/review-decision", { venue_code: it.venue_code, ticker: it.ticker, decision: it.suggestion.decision,
+        node: it.suggestion.decision === "choose" ? it.suggestion.node : null, note });
+      done.push(it);
+    } catch (e) { failed.push(`${it.ticker}: ${e.message}`); }
+  }
+  progress.textContent = "";
+  toast(failed.length ? `Εφαρμόστηκαν ${done.length}· δεν εφαρμόστηκαν ${failed.length}: ${failed.slice(0, 3).join(" · ")}` : `Εφαρμόστηκαν και τα ${done.length}.`, failed.length > 0);
+  return done;
+}
+
+async function pageReview(lane) {
   setActive("review");
   const [d, tax] = await Promise.all([api("/api/review"), state.taxonomy ? Promise.resolve(state.taxonomy) : api("/api/taxonomy")]);
   state.taxonomy = tax;
-  const reasons = [...new Set(d.items.map((i) => i.reason))];
-  const f = state.filters;
-  app.innerHTML = `<h1>Έλεγχος κατηγοριοποίησης</h1>
-    <div class="sub">${fmt(d.items.length, 0)} σύμβολα όπου οι πηγές διαφωνούν. Η απόφασή σου περνά από τον ελεγχόμενο μηχανισμό του Babis και αναιρείται αν χρειαστεί.</div>
-    <div class="filters"><select id="reason"><option value="">Όλοι οι λόγοι</option>${reasons.map((r) => `<option value="${esc(r)}" ${f.reason === r ? "selected" : ""}>${esc(REASON_GR[r] || r)}</option>`).join("")}</select>
-      <input id="rq" placeholder="Σύμβολο" value="${esc(f.rq || "")}"><span id="rcount" class="muted small"></span></div>
-    <div id="cards" class="grid wide"></div>`;
   const options = tax.nodes.map((n) => `<option value="${esc(n.id)}">${"· ".repeat(n.level - 1)}${esc(n.label)}</option>`).join("");
+  const f = state.filters;
+  const counts = () => d.items.reduce((acc, i) => { acc[laneOf(i)] += 1; return acc; }, { strong: 0, weak: 0, none: 0 });
+  let current = LANE_INFO[lane] ? lane : null;
+  if (!current) { const c = counts(); current = c.strong ? "strong" : c.weak ? "weak" : "none"; }
+  const open = new Set();
   const render = () => {
-    const items = d.items.filter((i) => (!f.reason || i.reason === f.reason) && (!f.rq || i.ticker.toLowerCase().includes(f.rq.toLowerCase()))).slice(0, 60);
-    document.getElementById("rcount").textContent = `εμφανίζονται ${items.length}`;
-    document.getElementById("cards").innerHTML = items.map((i) => {
-      const nodes = [...new Map(i.votes.filter((v) => v.node).map((v) => [v.node, v])).values()];
-      return `<div class="card review-card" data-venue="${esc(i.venue_code)}" data-ticker="${esc(i.ticker)}">
-        <h2><a href="#/symbol/${encodeURIComponent(i.ticker)}">${esc(i.ticker)}</a> <span class="muted small">${esc(i.name || "")}</span></h2>
-        <div class="small">${pill(REASON_GR[i.reason] || i.reason, "warn")} · τωρινό: <b>${esc(i.current_label || "κανένα")}</b> · ανοιχτό από ${when(i.first_seen_at)}</div>
-        <dl class="kv small">${i.votes.map((v) => `<dt>${esc(SOURCE_GR[v.source] || v.source)}</dt><dd>${esc(v.label || v.node)}</dd>`).join("")}
-        ${i.advisory_votes.map((v) => `<dt>${esc(SOURCE_GR[v.source] || v.source)}</dt><dd>${pill(v.label || v.node, "violet")}</dd>`).join("")}</dl>
-        <div class="vote-list">${nodes.map((v) => `<button data-node="${esc(v.node)}">Επιλογή: ${esc(v.label || v.node)}</button>`).join("")}
-          ${i.current_node ? `<button class="good" data-confirm="1">Ο τωρινός είναι σωστός</button>` : ""}</div>
-        <div class="actions"><select class="other"><option value="">…ή άλλος κόμβος</option>${options}</select><button data-other="1">Εφαρμογή</button></div>
-        ${i.suggestion && i.suggestion.decision ? `<div class="small jarvis-suggestion">Πρόταση Jarvis (${esc(i.suggestion.confidence === "strong" ? "ισχυρή" : "αδύναμη")}): <b>${esc(i.suggestion.label || i.suggestion.node)}</b> · ${esc(i.suggestion.reason)}
-          <button class="good" data-suggest="1">Δέξου την πρόταση</button></div>` : (i.suggestion ? `<div class="muted small">Jarvis: ${esc(i.suggestion.reason)}</div>` : "")}
-        <textarea class="note" placeholder="Σύντομη αιτιολογία (υποχρεωτική)"></textarea></div>`;
-    }).join("") || `<p class="muted">Καμία ανοιχτή διαφωνία.</p>`;
-    document.querySelectorAll(".review-card").forEach((card) => {
-      const send = async (decision, node) => {
-        const note = card.querySelector(".note").value.trim();
-        if (!note) { toast("Γράψε μια σύντομη αιτιολογία πρώτα.", true); return; }
-        card.querySelectorAll("button").forEach((b) => (b.disabled = true));
-        try {
-          const res = await post("/api/actions/review-decision", { venue_code: card.dataset.venue, ticker: card.dataset.ticker, decision, node, note });
-          toast(`${res.ticker}: εφαρμόστηκε (batch ${res.batch_id}).`);
-          d.items = d.items.filter((i) => !(i.ticker === card.dataset.ticker && i.venue_code === card.dataset.venue));
-          render(); refreshBadge();
-        } catch (e) { toast("Δεν εφαρμόστηκε: " + e.message, true); card.querySelectorAll("button").forEach((b) => (b.disabled = false)); }
+    const c = counts();
+    const items = d.items.filter((i) => laneOf(i) === current);
+    app.innerHTML = `<div class="crumbs"><a href="#/">Σήμερα</a> › Αποφάσεις</div><h1>Κατηγοριοποίηση</h1>
+      <div class="sub">${fmt(d.items.length, 0)} ανοιχτά. Η απόφαση είναι δική σου· περνά από τον ελεγχόμενο μηχανισμό του Babis και αναιρείται αν χρειαστεί.</div>
+      <div class="lanes">${Object.entries(LANE_INFO).map(([key, [title, note]]) => `<button type="button" class="lane-card ${key} ${key === current ? "active" : ""}" data-lane="${key}" aria-pressed="${key === current}">
+        <div class="t">${esc(title)}</div><div class="kpi">${fmt(c[key], 0)}</div><div class="small muted">${esc(note)}</div></button>`).join("")}</div>
+      <section class="card" aria-live="polite"><div class="zone-head"><h2>${esc(LANE_INFO[current][0])} · ${fmt(items.length, 0)}</h2>
+        ${current === "none" ? `<span class="filters"><select id="reason" aria-label="Λόγος"><option value="">Όλοι οι λόγοι</option>${[...new Set(items.map((i) => i.reason))].map((r) => `<option value="${esc(r)}" ${f.reason === r ? "selected" : ""}>${esc(REASON_GR[r] || r)}</option>`).join("")}</select>
+          <input id="rq" aria-label="Σύμβολο" placeholder="Σύμβολο" value="${esc(f.rq || "")}"><span id="rcount" class="muted small"></span></span>` : `<span class="zone-note">ομαδοποιημένα ανά πρόταση · άνοιξε μια ομάδα, ξετσέκαρε όσα δεν ταιριάζουν, δέξου τα υπόλοιπα</span>`}</div>
+        <div id="lane-body"></div></section>`;
+    app.querySelectorAll("button[data-lane]").forEach((b) => b.addEventListener("click", () => { location.hash = "#/review/" + b.dataset.lane; }));
+    const body = document.getElementById("lane-body");
+    const ctx = { options, remove: (gone) => { d.items = d.items.filter((i) => !gone.includes(i)); render(); refreshHealth(); } };
+    if (current === "none") {
+      const draw = () => {
+        const shown = items.filter((i) => (!f.reason || i.reason === f.reason) && (!f.rq || i.ticker.toLowerCase().includes(f.rq.toLowerCase()))).slice(0, 60);
+        document.getElementById("rcount").textContent = `εμφανίζονται ${shown.length}`;
+        body.className = "grid wide"; reviewCards(body, shown, ctx);
       };
-      card.querySelectorAll("button[data-node]").forEach((b) => b.addEventListener("click", () => send("choose", b.dataset.node)));
-      card.querySelector("button[data-confirm]")?.addEventListener("click", () => send("confirm", null));
-      card.querySelector("button[data-suggest]")?.addEventListener("click", () => {
-        const item = d.items.find((x) => x.ticker === card.dataset.ticker && x.venue_code === card.dataset.venue);
-        const note = card.querySelector(".note");
-        if (!note.value.trim()) note.value = "Πρόταση Jarvis: " + item.suggestion.reason;
-        send(item.suggestion.decision, item.suggestion.decision === "choose" ? item.suggestion.node : null);
+      document.getElementById("reason").addEventListener("change", (e) => { f.reason = e.target.value; draw(); });
+      document.getElementById("rq").addEventListener("input", (e) => { f.rq = e.target.value; draw(); });
+      draw();
+      return;
+    }
+    const groups = new Map();
+    items.forEach((i) => {
+      const key = i.suggestion.decision + "|" + i.suggestion.node;
+      if (!groups.has(key)) groups.set(key, { key, decision: i.suggestion.decision, label: i.suggestion.label || i.suggestion.node, items: [] });
+      groups.get(key).items.push(i);
+    });
+    const sorted = [...groups.values()].sort((a, b) => b.items.length - a.items.length || String(a.label).localeCompare(String(b.label), "el"));
+    body.innerHTML = sorted.map((g, n) => `<details class="group" data-key="${esc(g.key)}" ${open.has(g.key) ? "open" : ""}>
+        <summary><span class="label">${g.decision === "confirm" ? "Κράτα" : "Άλλαξε σε"}: ${esc(g.label)}</span><span class="n">${fmt(g.items.length, 0)}</span></summary>
+        <div class="group-body">
+          <div class="picks">${g.items.map((i, k) => `<label><input type="checkbox" checked data-k="${k}">
+            <span><b>${esc(i.ticker)}</b> <span class="small">${esc(i.name || "")}</span><span class="src">${esc(votesLine(i))}${i.reason !== "no_two_sources_agree" ? " · " + esc(REASON_GR[i.reason] || i.reason) : ""}</span></span></label>`).join("")}</div>
+          <div class="group-actions"><label>Αιτιολογία, μία για όλη την ομάδα<input class="gnote" value="${esc(`Πρόταση Jarvis για την ομάδα: ${g.decision === "confirm" ? "κράτα" : "άλλαξε σε"} ${g.label}`)}"></label>
+            <button type="button" class="primary gaccept">Δέξου τα επιλεγμένα (${fmt(g.items.length, 0)})</button>
+            <button type="button" class="gone">Ένα ένα</button><span class="progress-note" aria-live="polite"></span></div>
+          <div class="grid wide gcards"></div>
+        </div></details>`).join("") || `<p class="muted">Τίποτα σε αυτή τη λωρίδα.</p>`;
+    body.className = "";
+    body.querySelectorAll("details.group").forEach((el) => {
+      const g = groups.get(el.dataset.key);
+      const picked = () => [...el.querySelectorAll("input[data-k]")].filter((x) => x.checked).map((x) => g.items[+x.dataset.k]);
+      const btn = el.querySelector(".gaccept");
+      el.addEventListener("toggle", () => { if (el.open) open.add(g.key); else open.delete(g.key); });
+      el.querySelectorAll("input[data-k]").forEach((x) => x.addEventListener("change", () => { btn.textContent = `Δέξου τα επιλεγμένα (${picked().length})`; }));
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const done = await acceptGroup(picked(), el.querySelector(".gnote").value.trim(), el.querySelector(".progress-note"));
+        btn.disabled = false;
+        if (done.length) ctx.remove(done);
       });
-      card.querySelector("button[data-other]").addEventListener("click", () => {
-        const node = card.querySelector(".other").value; if (!node) { toast("Διάλεξε κόμβο από τη λίστα.", true); return; } send("choose", node);
-      });
+      el.querySelector(".gone").addEventListener("click", () => reviewCards(el.querySelector(".gcards"), g.items, ctx));
     });
   };
-  document.getElementById("reason").addEventListener("change", (e) => { f.reason = e.target.value; render(); });
-  document.getElementById("rq").addEventListener("input", (e) => { f.rq = e.target.value; render(); });
   render();
 }
 
 // ------------------------------------------------------------ router
-async function refreshBadge() {
+// The strip at the top of every page (owner 2026-11-18): the nightly, today's session, Ollama; and the menu's counts.
+const health = { proposals: 0, review: 0 };
+function updateTodayBadge() {
+  const kinds = (health.review > 0 ? 1 : 0) + (health.proposals > 0 ? 1 : 0);
+  const b = document.getElementById("today-badge");
+  b.textContent = kinds || ""; b.classList.toggle("hidden", !kinds);
+  b.title = kinds ? `${kinds} ${kinds === 1 ? "είδος απόφασης περιμένει" : "είδη αποφάσεων περιμένουν"}` : "";
+}
+async function refreshHealth() {
   try {
-    const s = await api("/api/status");
+    const h = await api("/api/health");
+    const run = h.run || {}, p = h.progress, s = h.session || {};
+    const chips = [];
+    if (run.process_alive) {
+      const scanning = p && p.babis_to_scan && p.babis_scanned != null && p.babis_scanned < p.babis_to_scan;
+      chips.push(`<a class="hchip on" href="#/run"><i></i>Nightly τρέχει${scanning ? ` · Babis ${fmt(p.babis_scanned, 0)} / ${fmt(p.babis_to_scan, 0)}${p.babis_eta_minutes != null ? ` · ~${fmt(p.babis_eta_minutes / 60, 1)} ώρες` : ""}` : h.step ? ` · ${esc(STEP_GR[h.step] || h.step)}` : ""}</a>`);
+    } else if (run.stalled) {
+      chips.push(`<a class="hchip bad" href="#/run"><i></i>Το nightly σταμάτησε</a>`);
+    } else if (run.run_id) {
+      const [label, cls] = STATUS_GR[run.status] || [run.status || "άγνωστο", ""];
+      chips.push(`<a class="hchip ${cls === "bad" ? "bad" : ""}" href="#/run"><i></i>Nightly: ${esc(label)}${run.finished_at ? ` · ${when(run.finished_at)}` : ""}</a>`);
+    }
+    if (s.fresh) chips.push(`<a class="hchip on" href="#/live"><i></i>Συνεδρία ζωντανά</a>`);
+    else if (s.files_today) chips.push(`<a class="hchip" href="#/live"><i></i>Συνεδρία · τελευταία εγγραφή ${hhmm(s.last_write)}</a>`);
+    else chips.push(`<span class="hchip"><i></i>Συνεδρία ${sessionDayLabel()} · έλεγχος 15:00 · εντολές ${nyToAthens(9, 35)}</span>`);
+    chips.push(`<span class="hchip ${h.ollama ? "on" : ""}"><i></i>Ollama · ${h.ollama ? "ανοιχτό" : "κλειστό"}</span>`);
+    document.getElementById("health").innerHTML = chips.join("");
+    health.review = h.review_open || 0;
     const b = document.getElementById("review-badge");
-    b.textContent = s.review_open ?? ""; b.classList.toggle("hidden", !s.review_open);
-  } catch (e) { /* the page still works without the badge */ }
+    b.textContent = h.review_open ? fmt(h.review_open, 0) : ""; b.classList.toggle("hidden", !h.review_open);
+    updateTodayBadge();
+  } catch (e) { /* the page still works without the strip */ }
 }
 // ------------------------------------------------------------ Αναφορές
 // A small, escape-first Markdown renderer for the reports this project writes itself.
@@ -605,7 +897,7 @@ async function pageTrading(session, live = false) {
 
 // ------------------------------------------------------------ Ρολόγια και ένδειξη ζωντανής συνεδρίας
 function tickClocks() {
-  const time = (zone) => new Date().toLocaleTimeString("el-GR", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
+  const time = (zone) => new Date().toLocaleTimeString("el-GR", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   document.getElementById("clock-athens").textContent = "Αθήνα " + time("Europe/Athens");
   document.getElementById("clock-ny").textContent = "Νέα Υόρκη " + time("America/New_York");
 }
@@ -680,6 +972,7 @@ async function refreshJarvisBadge() {
     const d = await api("/api/jarvis");
     const b = document.getElementById("jarvis-badge");
     b.textContent = d.proposals.length || ""; b.classList.toggle("hidden", !d.proposals.length);
+    health.proposals = d.proposals.length; updateTodayBadge();
   } catch (e) { /* the page still works without the badge */ }
 }
 
@@ -687,15 +980,17 @@ async function route() {
   const hash = decodeURIComponent(location.hash.slice(1) || "/");
   const [, page, arg] = hash.split("/");
   clearInterval(route.timer);
+  window.scrollTo(0, 0);  // a new page starts at its top (the timed refreshes keep the reader's place)
   // a slow page (the first read of a large table) says it is loading instead of leaving the old page in place
   const slow = setTimeout(() => { app.innerHTML = `<p class="muted">Φόρτωση… Η πρώτη ανάγνωση μεγάλων πινάκων μπορεί να πάρει μερικά δευτερόλεπτα.</p>`; }, 600);
   try {
-    if (!page) { await pageStatus(); route.timer = setInterval(() => (location.hash === "" || location.hash === "#/") && pageStatus().catch(() => {}), 30000); }
+    if (!page) { await pageToday(); route.timer = setInterval(() => (location.hash === "" || location.hash === "#/") && pageToday().catch(() => {}), 60000); }
+    else if (page === "run") { await pageStatus(); route.timer = setInterval(() => location.hash === "#/run" && pageStatus().catch(() => {}), 30000); }
     else if (page === "screener") await pageScreener();
     else if (page === "symbol" && arg) await pageSymbol(arg);
     else if (page === "sectors") await pageSectors(arg);
     else if (page === "agents") await pageAgents();
-    else if (page === "review") await pageReview();
+    else if (page === "review") await pageReview(arg);
     else if (page === "reports") await pageReports(arg);
     else if (page === "trading") await pageTrading(arg);
     else if (page === "jarvis") await pageJarvis(arg);
@@ -709,7 +1004,8 @@ async function route() {
 }
 window.addEventListener("hashchange", route);
 route();
-refreshBadge();
+refreshHealth();
+setInterval(refreshHealth, 60000);
 refreshJarvisBadge();
 tickClocks();
 setInterval(tickClocks, 20000);

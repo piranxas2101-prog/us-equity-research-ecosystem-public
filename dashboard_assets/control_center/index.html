@@ -8,27 +8,38 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <aside class="nav">
-    <div class="brand">Κέντρο Ελέγχου<small>έρευνα μετοχών ΗΠΑ</small></div>
-    <a href="#/" data-page="status">Κατάσταση</a>
-    <a href="#/live" data-page="live">Ζωντανή συνεδρία <span id="live-dot" class="dot hidden"></span></a>
-    <a href="#/screener" data-page="screener">Σύμβολα</a>
-    <a href="#/sectors" data-page="sectors">Τομείς</a>
-    <a href="#/agents" data-page="agents">Agents</a>
-    <a href="#/reports" data-page="reports">Αναφορές</a>
-    <a href="#/trading" data-page="trading">Paper trading</a>
-    <a href="#/jarvis" data-page="jarvis">Jarvis <span id="jarvis-badge" class="badge hidden"></span></a>
-    <a href="#/review" data-page="review">Έλεγχος κατηγοριοποίησης <span id="review-badge" class="badge hidden"></span></a>
+  <aside class="nav" aria-label="Κύριο μενού">
+    <a class="brand" href="#/" title="Σήμερα"><img class="brand-logo" src="/logo" alt="" width="64" height="64"><span>Κέντρο Ελέγχου<small>έρευνα μετοχών ΗΠΑ</small></span></a>
+    <div class="nav-group">
+      <a href="#/" data-page="today">Σήμερα <span id="today-badge" class="badge wait hidden"></span></a>
+    </div>
+    <div class="nav-group"><div class="nav-title">Συνεδρία</div>
+      <a href="#/live" data-page="live">Ζωντανά <span id="live-dot" class="dot hidden"></span></a>
+      <a href="#/trading" data-page="trading">Ιστορικό συνεδριών</a>
+    </div>
+    <div class="nav-group"><div class="nav-title">Έρευνα</div>
+      <a href="#/run" data-page="status">Run</a>
+      <a href="#/screener" data-page="screener">Σύμβολα</a>
+      <a href="#/sectors" data-page="sectors">Τομείς</a>
+      <a href="#/reports" data-page="reports">Αναφορές</a>
+    </div>
+    <div class="nav-group"><div class="nav-title">Ομάδα</div>
+      <a href="#/agents" data-page="agents">Agents</a>
+      <a href="#/jarvis" data-page="jarvis">Jarvis <span id="jarvis-badge" class="badge hidden"></span></a>
+    </div>
+    <div class="nav-group"><div class="nav-title">Αποφάσεις</div>
+      <a href="#/review" data-page="review">Κατηγοριοποίηση <span id="review-badge" class="count hidden"></span></a>
+    </div>
     <div class="nav-foot">Μόνο τοπικά · το paper trading μόνο για ανάγνωση<br>Καμία σύνδεση με broker</div>
   </aside>
   <div class="shell">
-    <header class="topbar">
+    <header class="topbar" role="status" aria-live="polite">
+      <div id="health" class="health"></div>
       <div class="topbar-info"><span id="clock-athens" class="clock"></span><span id="clock-ny" class="clock"></span></div>
-      <a class="logo" href="#/" title="Κέντρο Ελέγχου"><img src="/logo" alt="Πιράνχας" width="64" height="52"></a>
     </header>
     <main id="app"><p class="muted">Φόρτωση…</p></main>
   </div>
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script src="/app.js"></script>
 </body>
 </html>

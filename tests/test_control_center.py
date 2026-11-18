@@ -238,6 +238,50 @@ class ControlCenterHttpTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(json.loads(body)["runs"], [])
 
+    # -- the home page "Σήμερα" and the strip at the top (owner 2026-11-18)
+    def test_today_and_health_work_on_an_empty_ecosystem_and_are_reads_only(self):
+        for path in ("/api/today", "/api/health"):
+            response, body = self.request("GET", path)
+            self.assertEqual(response.status, 200, body)
+            self.assertEqual(self.action(path, {})[0].status, 404)
+        today = json.loads(self.request("GET", "/api/today")[1])
+        self.assertEqual((today["held"]["positions"], today["held"]["mean_pct"], today["market"]), (0, None, None))
+        self.assertEqual(today["review"], {"open": 0, "lanes": {"strong": 0, "weak": 0, "none": 0}, "reasons": {}})
+
+    def test_today_lists_positions_near_their_stop_and_keeps_unknowns_unknown(self):
+        from datetime import date
+
+        folder = self.root / "output" / "paper_session"
+        folder.mkdir()
+        held = [{"ticker": "FAR", "agent": "yankos", "direction": "long", "result_pct": -1.0, "stop_pct": 10.0, "expires": "2027-01-01"},
+                {"ticker": "NEAR", "agent": "yankos", "direction": "long", "result_pct": -6.0, "stop_pct": 7.0, "expires": "2026-11-18"},
+                {"ticker": "UP", "agent": "periklis", "direction": "short", "result_pct": 4.0, "stop_pct": 8.0, "expires": "2026-11-19"},
+                {"ticker": "NORES", "agent": "yankos", "direction": "long", "result_pct": None, "stop_pct": 5.0, "expires": "bad"},
+                {"ticker": "NOSTOP", "agent": "yankos", "direction": "long", "result_pct": -3.0, "stop_pct": None}]
+        for name, spy in (("20261116", -1.29), ("20261117", None)):
+            (folder / f"session_report_{name}.json").write_text(json.dumps({
+                "session_date": f"2026-11-{name[-2:]}", "spy_open_to_close_pct": spy,
+                "day_result": {"positions": 3, "average_result_pct": 0.07}, "held_positions": held,
+                "koulis": {"approved_count": 5, "blocked_count": 7, "blocked_reasons": {"a": 2, "b": 5}}}), encoding="utf-8")
+        before = sorted(p.name for p in (self.root / "output").rglob("*"))
+        today = cc.Views(self.root).today(date(2026, 11, 18))
+        self.assertEqual([p["ticker"] for p in today["held"]["near_stop"]], ["NEAR", "FAR"])   # least room first
+        self.assertEqual((today["held"]["near_stop"][0]["room_pct"], today["held"]["near_stop"][0]["used_pct"]), (1.0, 86))
+        self.assertEqual([p["ticker"] for p in today["held"]["expiring"]], ["NEAR", "UP"])       # a bad date is skipped
+        yankos = next(g for g in today["held"]["groups"] if g["agent"] == "yankos")
+        self.assertEqual((yankos["positions"], yankos["known"], yankos["mean_pct"]), (4, 3, -3.33))  # unknown is not a zero
+        self.assertEqual((today["held"]["positions"], today["held"]["with_result"]), (5, 4))
+        self.assertEqual([h["excess_pct"] for h in today["history"]], [None, 1.36])            # SPY unknown: excess unknown
+        self.assertEqual(list(today["session"]["koulis"]["top_reason"]), ["b", 5])
+        self.assertEqual(sorted(p.name for p in (self.root / "output").rglob("*")), before)    # nothing written
+
+    def test_health_asks_ollama_and_never_starts_it(self):
+        asked = []
+        views = cc.Views(self.root, ollama_probe=lambda: asked.append(1) or False)
+        health = views.health()
+        self.assertEqual((health["ollama"], asked, health["run"]["run_id"], health["progress"]), (False, [1], None, None))
+        self.assertEqual(health["session"], {"files_today": 0, "last_write": None, "fresh": False})
+
 
 class FakeChat:
     def __init__(self, available: bool = False) -> None:

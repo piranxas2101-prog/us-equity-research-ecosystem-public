@@ -535,7 +535,7 @@ async function pageAgents() {
     <div class="grid wide">
       <div class="card"><h2>Εγγεγραμμένοι agents</h2>${table(d.registered, [["agent_id", "Agent"], ["agent_type", "Ρόλος"], ["owned_sector", "Τομέας"], ["status", "Κατάσταση"]])}</div>
       <div class="card"><h2>Ουρές τομεακών agents</h2>${table(d.queues, [["agent_id", "Agent"], ["status", "Κατάσταση"], ["items", "Σύμβολα"]])}</div>
-      <div class="card"><h2>Μάθηση</h2>${table(d.learning, [["agent_id", "Agent"], ["episodes", "Επεισόδια"], ["outcomes", "Αποτελέσματα"], ["last_recorded", "Τελευταία παρατήρηση"]])}</div>
+      <div class="card"><h2>Μάθηση</h2>${d.learning_counted_at ? `<p class="small muted">Μέτρηση ${when(d.learning_counted_at)} · ξαναμετριέται το πολύ κάθε 10′ όσο γράφει το nightly</p>` : ""}${table(d.learning, [["agent_id", "Agent"], ["episodes", "Επεισόδια"], ["outcomes", "Αποτελέσματα"], ["last_recorded", "Τελευταία παρατήρηση"]])}</div>
       <div class="card"><h2>Μοντέλα (shadow/champion)</h2>${table(d.models, [["agent_id", "Agent"], ["task_id", "Εργασία"], ["model_version", "Έκδοση"], ["state", "Κατάσταση"], ["training_rows", "Γραμμές"]])}</div>
     </div>`;
 }

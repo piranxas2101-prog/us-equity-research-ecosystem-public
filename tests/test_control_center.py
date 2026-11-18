@@ -227,6 +227,19 @@ class ControlCenterHttpTests(unittest.TestCase):
             {"agent_id": "yankos", "episodes": 2, "outcomes": 3, "last_recorded": "2026-11-10"},
             {"agent_id": "babis", "episodes": 1, "outcomes": 0, "last_recorded": "2026-11-08"}])
         self.assertIs(views.agents()["learning"], learning)          # the file did not change: the kept answer
+        self.assertIsNotNone(views.agents()["learning_counted_at"])
+        # the nightly keeps writing the file: the kept answer stands for ten minutes, then it is counted again
+        conn = sqlite3.connect(path)
+        conn.execute("INSERT INTO agent_learning_outcomes VALUES ('o4','e3')")
+        conn.commit()
+        conn.close()
+        os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 10**9))
+        start = views._clock()
+        views._clock = lambda: start + 60
+        self.assertIs(views.agents()["learning"], learning)
+        views._clock = lambda: start + cc.LEARNING_REFRESH_SECONDS + 1
+        recounted = {row["agent_id"]: row["outcomes"] for row in views.agents()["learning"]}
+        self.assertEqual(recounted, {"yankos": 3, "babis": 1})
 
     def test_only_reads_exist_for_trading(self):
         for path in ("/api/trading", "/api/trading/live", "/logo"):

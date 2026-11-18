@@ -70,6 +70,7 @@ TODAY_NEAR_STOP_ROWS = 5
 TODAY_EXPIRY_DAYS = 2  # positions whose horizon ends today or in the next two days
 TODAY_HISTORY_SESSIONS = 12
 LIVE_FRESH_SECONDS = 600  # same as the live page: a session file rewritten within 10 minutes
+LEARNING_REFRESH_SECONDS = 600  # the agents page re-counts learning at most every 10 minutes while the file changes
 OLLAMA_PROBE_URL = "http://127.0.0.1:11434/api/version"
 
 
@@ -147,10 +148,11 @@ class Views:
     def __init__(self, root: Path = ROOT, ollama_probe: Any = None):
         self.root = root
         self._ollama_probe = ollama_probe or ollama_running
+        self._clock = time.time
         self._lock = threading.Lock()
         self._run_cache: dict[str, Any] = {}
         self._live_cache: tuple[Any, dict[str, Any]] | None = None
-        self._learning_cache: tuple[Any, list[dict[str, Any]]] | None = None
+        self._learning_cache: tuple[Any, list[dict[str, Any]], float] | None = None  # (file key, answer, counted at)
         self._taxonomy: tuple[dict, dict] | None = None
         self._lanes_cache: tuple[int, dict[str, Any]] | None = None
 
@@ -599,6 +601,10 @@ class Views:
             conn = read_only(intel)
             try:
                 result["learning"] = self._learning(conn, intel)
+                with self._lock:
+                    counted = self._learning_cache[2] if self._learning_cache else None
+                result["learning_counted_at"] = (datetime.fromtimestamp(counted, timezone.utc).isoformat()
+                                                 if counted else None)
                 result["models"] = [dict(r) for r in conn.execute(
                     "SELECT agent_id, task_id, model_version, state, training_rows, updated_at FROM agent_model_registry ORDER BY updated_at DESC")]
             except sqlite3.Error:
@@ -610,26 +616,30 @@ class Views:
         return result
 
     def _learning(self, conn: sqlite3.Connection, path: Path) -> list[dict[str, Any]]:
-        """Episodes and outcomes per agent. The episode rows carry whole JSON documents (half a million of them), so
-        only the indexes are read: the count and the latest observation from the agent index, the outcomes through
-        the outcome table's own index. Kept until the database file changes (2026-11-11: the old query took 2.5 min)."""
+        """Episodes and outcomes per agent. The episode rows carry whole JSON documents (half a million of them, a
+        44 GB file), so only the indexes are read: the count and the latest observation from the agent index; the
+        outcomes by matching three index scans in memory (outcome -> episode_id -> rowid -> agent_id), never a join
+        that reads the table (2026-11-18: the join took 153 s, the scans 7 s, same counts). The answer is kept until
+        the file changes, and while the nightly keeps changing it, for LEARNING_REFRESH_SECONDS at least."""
         stat = path.stat()
         key = (stat.st_mtime_ns, stat.st_size)
         with self._lock:
             cached = self._learning_cache
-        if cached and cached[0] == key:
+        if cached and (cached[0] == key or self._clock() - cached[2] < LEARNING_REFRESH_SECONDS):
             return cached[1]
         rows = {r["agent_id"]: {"agent_id": r["agent_id"], "episodes": r["episodes"], "outcomes": 0,
                                 "last_recorded": r["last_observed"]} for r in conn.execute(
             "SELECT agent_id, COUNT(*) AS episodes, MAX(observed_at) AS last_observed "
             "FROM agent_learning_episodes GROUP BY agent_id")}
-        for r in conn.execute("SELECT e.agent_id, COUNT(*) AS outcomes FROM agent_learning_outcomes o "
-                              "JOIN agent_learning_episodes e ON e.episode_id=o.episode_id GROUP BY e.agent_id"):
-            if r["agent_id"] in rows:
-                rows[r["agent_id"]]["outcomes"] = r["outcomes"]
+        agent_by_rowid = {row[1]: row[0] for row in conn.execute("SELECT agent_id, rowid FROM agent_learning_episodes")}
+        rowid_by_episode = {row[0]: row[1] for row in conn.execute("SELECT episode_id, rowid FROM agent_learning_episodes")}
+        for (episode_id,) in conn.execute("SELECT episode_id FROM agent_learning_outcomes"):
+            agent = agent_by_rowid.get(rowid_by_episode.get(episode_id))
+            if agent in rows:
+                rows[agent]["outcomes"] += 1
         learning = sorted(rows.values(), key=lambda r: -r["episodes"])
         with self._lock:
-            self._learning_cache = (key, learning)
+            self._learning_cache = (key, learning, self._clock())
         return learning
 
     def review(self) -> dict[str, Any]:

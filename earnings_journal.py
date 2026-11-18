@@ -256,16 +256,23 @@ def proposals(result: dict[str, Any]) -> list[dict[str, Any]]:
 
     Owner 2026-11-18 (RULES_REVIEW section 14): a tag is what the results say, so it is not known before the release.
     The monitors' lessons therefore act after the release ("keep" / "reduce or close"), never "before" it, and there
-    is none for the announcement reaction, which is over by the time the results can be read."""
+    is none for the announcement reaction, which is over by the time the results can be read. Giannis's reaction lesson
+    says the same: it explains the move already made, it is not a forecast to weigh."""
     names = {"reaction": "the announcement reaction", "drift5": "the 5-session drift", "drift20": "the 20-session drift"}
     out = []
     for f in result["findings"]:
         lean = "better" if f["effect_pct_points"] > 0 else "worse"
         key = f"{f['outcome']}:{f['tag']}={f['value']}:{lean}"
         what = f"{names[f['outcome']]} has been {lean} than for other results"
+        if f["outcome"] == "reaction":
+            # owner 2026-11-18: the reaction is mostly over when Giannis reads the filing (the press release comes
+            # about a day earlier), so it explains the move already made; it is not a forecast to weigh
+            giannis = (f"Results with {f['tag']} = {f['value']}: {what}. This is the move already made when the "
+                       "filing is read, not a forecast; do not weigh it as one (the drift lessons cover what follows).")
+        else:
+            giannis = f"Weigh results with {f['tag']} = {f['value']}: {what}."
         out.append({"target_agent": "giannis", "criterion_id": f"results:{key}",
-                    "proposed_change": f"Weigh results with {f['tag']} = {f['value']}: {what}.",
-                    "support": f["records"], "evidence": f})
+                    "proposed_change": giannis, "support": f["records"], "evidence": f})
         if f["outcome"] != "reaction":
             side = "prefer" if lean == "better" else "avoid"
             for trader in TRADERS:

@@ -80,8 +80,13 @@ class FindingTests(unittest.TestCase):
         monitor = [i for i in ej.proposals(result) if i["target_agent"] == "position_monitor"]
         self.assertEqual([i["criterion_id"] for i in monitor], ["results_hold:drift5:revenue_trend=decelerating:worse"])
         self.assertIn("reduce or close it after the release", monitor[0]["proposed_change"])
-        giannis = {i["criterion_id"] for i in ej.proposals(result) if i["target_agent"] == "giannis"}
-        self.assertIn("results:reaction:revenue_trend=decelerating:worse", giannis)  # Giannis's lessons unchanged
+        giannis = {i["criterion_id"]: i["proposed_change"] for i in ej.proposals(result) if i["target_agent"] == "giannis"}
+        # owner 2026-11-18: the reaction explains the move already made; only the drift is something to weigh
+        reaction = giannis["results:reaction:revenue_trend=decelerating:worse"]
+        self.assertIn("move already made", reaction)
+        self.assertIn("not a forecast", reaction)
+        self.assertFalse(reaction.startswith("Weigh"))
+        self.assertTrue(giannis["results:drift5:revenue_trend=decelerating:worse"].startswith("Weigh results with"))
 
     def test_no_finding_without_enough_events(self):
         conn = sqlite3.connect(":memory:")

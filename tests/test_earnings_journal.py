@@ -67,6 +67,21 @@ class FindingTests(unittest.TestCase):
         self.assertIn(("yankos", f"results_entry:{key}"), by_agent)          # the traders learn the entries
         self.assertIn(("periklis", f"results_entry:{key}"), by_agent)
         self.assertIn(("position_monitor", f"results_hold:{key}"), by_agent)  # the monitors learn the holding
+        # owner 2026-11-18: the monitors act after the release (the results' content is unknown before it)
+        text = next(i["proposed_change"] for i in items if i["criterion_id"] == f"results_hold:{key}")
+        self.assertIn("has just reported", text)
+        self.assertIn("keep it after the release", text)
+        self.assertNotIn("before", text)
+
+    def test_monitor_lessons_after_the_release_and_none_for_the_reaction(self):
+        base = {"tag": "revenue_trend", "records": 100, "years": 6, "years_same_sign": 6}
+        result = {"findings": [{**base, "outcome": "reaction", "value": "decelerating", "effect_pct_points": -7.4},
+                               {**base, "outcome": "drift5", "value": "decelerating", "effect_pct_points": -2.0}]}
+        monitor = [i for i in ej.proposals(result) if i["target_agent"] == "position_monitor"]
+        self.assertEqual([i["criterion_id"] for i in monitor], ["results_hold:drift5:revenue_trend=decelerating:worse"])
+        self.assertIn("reduce or close it after the release", monitor[0]["proposed_change"])
+        giannis = {i["criterion_id"] for i in ej.proposals(result) if i["target_agent"] == "giannis"}
+        self.assertIn("results:reaction:revenue_trend=decelerating:worse", giannis)  # Giannis's lessons unchanged
 
     def test_no_finding_without_enough_events(self):
         conn = sqlite3.connect(":memory:")

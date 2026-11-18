@@ -251,8 +251,12 @@ TRADERS = ("yankos", "periklis")
 
 def proposals(result: dict[str, Any]) -> list[dict[str, Any]]:
     """Each finding becomes a lesson candidate for every agent it concerns (owner 2026-10-22): Giannis weighs the
-    results; the traders choose entries in the sessions after results (the drift); the position monitors follow
-    positions held across a results release (the reaction and the drift). Fixed text per criterion."""
+    results; the traders choose entries in the sessions after results (the drift); the position monitors decide what
+    to do with a held position once its results are out (the drift only). Fixed text per criterion.
+
+    Owner 2026-11-18 (RULES_REVIEW section 14): a tag is what the results say, so it is not known before the release.
+    The monitors' lessons therefore act after the release ("keep" / "reduce or close"), never "before" it, and there
+    is none for the announcement reaction, which is over by the time the results can be read."""
     names = {"reaction": "the announcement reaction", "drift5": "the 5-session drift", "drift20": "the 20-session drift"}
     out = []
     for f in result["findings"]:
@@ -269,10 +273,12 @@ def proposals(result: dict[str, Any]) -> list[dict[str, Any]]:
                             "proposed_change": f"After results with {f['tag']} = {f['value']}, {side} long entries in "
                                                f"the following sessions: {what}.",
                             "support": f["records"], "evidence": f})
-        action = "hold through" if lean == "better" else "reduce or close before"
+        if f["outcome"] == "reaction":
+            continue
+        action = "keep it" if lean == "better" else "reduce or close it"
         out.append({"target_agent": "position_monitor", "criterion_id": f"results_hold:{key}",
-                    "proposed_change": f"For a long position whose company reports results with {f['tag']} = "
-                                       f"{f['value']}, {action} the release: {what}.",
+                    "proposed_change": f"For a long position whose company has just reported results with "
+                                       f"{f['tag']} = {f['value']}, {action} after the release: {what}.",
                     "support": f["records"], "evidence": f})
     return out
 

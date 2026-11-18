@@ -142,5 +142,26 @@ class GitIntegrationTests(unittest.TestCase):
                 self.assertEqual(ci.main(["--root", str(root)]), 1)
 
 
+class ReleaseFreezeTests(unittest.TestCase):
+    """Owner 2026-11-18: inside the measurement period a change to what reaches orders is flagged."""
+
+    def test_inside_the_period_a_release_file_warns_outside_it_nothing(self):
+        files = ci.parse_diff(diff_for("koulis_risk_gate.py", "x = 1") + diff_for("jarvis.py", "y = 2"))
+        inside = ci.release_findings(files, ROOT, "2026-12-01")
+        self.assertEqual([(f.level, f.rule) for f in inside], [("WARN", "release-freeze")])
+        self.assertIn("koulis_risk_gate.py", inside[0].message)
+        self.assertNotIn("jarvis.py", inside[0].message)
+        self.assertEqual(ci.release_findings(files, ROOT, "2026-11-20"), [])
+        self.assertEqual(ci.release_findings(files, ROOT, "2026-12-19"), [])
+
+    def test_research_changes_are_free(self):
+        files = ci.parse_diff(diff_for("giannis_rule_based_from_shortlist.py", "x = 1"))
+        self.assertEqual(ci.release_findings(files, ROOT, "2026-12-01"), [])
+
+    def test_no_manifest_no_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            files = ci.parse_diff(diff_for("koulis_risk_gate.py", "x = 1"))
+            self.assertEqual(ci.release_findings(files, Path(tmp), "2026-12-01"), [])
+
 if __name__ == "__main__":
     unittest.main()

@@ -513,3 +513,16 @@ collecting), so a "no" or a missed deadline is decided too, not left running.
 monitor's act after the release ("keep it" / "reduce or close it"), and no agent gets a lesson from an announcement
 reaction (the move already made when the results can be read, not a forecast); reaction findings stay in the
 journal's report as description. Existing lessons keep their decided text; a newer wording is kept beside it.
+
+**Owner's decision 2026-11-18 (evening): the release freeze for period P1.** `release_manifest.json` lists what
+reaches orders (the traders and their playbooks, the trade plan and holding horizon, the fundamental filter, the
+thesis exit, Miltos, Koulis, Thymios, the pre-open check and recheck, the paper trader and monitors, the trading
+clock and window, and the `paper_session` / `preopen` sections of `scanner_config.json`); research is not in it.
+`release_guard.py` hashes them into a `release_id` (line endings ignored, a missing file recorded as missing). Every
+Jarvis pass appends a snapshot to `data/release_log.jsonl` and reports the release; a change inside the period
+(2026-11-23 .. 2026-12-18) is a problem line with its date and files, and the period's measurements are then split
+before / after. `paper_trade_ledger.py` stamps every record with the release its session ran under (`release_id`,
+`release_basis`): the last snapshot before 09:00 New York, checked against the files after the session; a change
+on the day leaves it unknown. The invariants check warns when a commit inside the period touches these files.
+Allowed inside the period: a bug fix or a stricter risk limit; anything else is the owner's call. Nothing is
+blocked: no session, order or commit is stopped. Starting release: `3860a191c60509bc`.

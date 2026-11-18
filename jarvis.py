@@ -136,6 +136,16 @@ def _learning(root: Path, day: date) -> tuple[dict[str, Any], list[jarvis_state.
     return _guard(part), proposals
 
 
+def release_section(root: Path, kind: str) -> dict[str, Any]:
+    """Owner 2026-11-18 (ADR-002): the fingerprint of what reaches orders, taken on every pass, and every change of it
+    inside the measurement period (each splits the period's measurements before / after). Read and logged only."""
+    import release_guard
+
+    current = release_guard.snapshot(root, kind)
+    changes = release_guard.period_changes(release_guard.read_log(root), release_guard.load_manifest(root))
+    return {"release_id": current["release_id"], **changes}
+
+
 def _guard_list(fn: Callable[[], list[Any]]) -> list[Any]:
     """A part that only adds proposals: on failure it adds none (the pass and its report go on)."""
     try:
@@ -309,6 +319,7 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
     sections = record["sections"]
     # owner 2026-11-18: the owner's approvals go through Jarvis - a "yes" on a lesson is carried out here, once
     sections["applied"] = _guard(lambda: {"items": jarvis_decisions.apply_approved(root)})
+    sections["release"] = _guard(lambda: release_section(root, kind))
     expected = expected_nightly_day(kind, day)
     sections["nightly"] = _guard(lambda: {"steps": [s.as_dict() for s in
                                                     jarvis_health.nightly_health(root, expected_day=expected)]})

@@ -1,0 +1,42 @@
+{
+  "schema": "ecosystem.release_manifest.v1",
+  "note": "Owner 2026-11-18 (ADR-002, RULES_REVIEW section 14): what reaches orders - which trade opens, how big, when it closes. Its fingerprint (release_id) is taken by every Jarvis pass and written on every ledger record. During a measurement period these change only for a bug fix or a stricter risk limit; any change is reported and splits the period's measurements before/after. Research, reports, Jarvis and the Control Center are not in the list and change freely.",
+  "period": {"id": "P1", "start": "2026-11-23", "end": "2026-12-18"},
+  "files": [
+    "yankos_strategy_agent.py",
+    "periklis_strategy_agent.py",
+    "yankos_playbooks.json",
+    "periklis_playbooks.json",
+    "playbook_catalog_v2.json",
+    "playbook_framework.py",
+    "strategy_signals.py",
+    "daily_strategies.py",
+    "technical_setup.py",
+    "candlestick_signals.py",
+    "strategy_tiers.py",
+    "trader_trade_plan.py",
+    "trader_confidence.py",
+    "fundamental_filter.py",
+    "holding_horizon.py",
+    "thesis_exit.py",
+    "positions_registry.py",
+    "results_calendar.py",
+    "entry_confirmation_rules.py",
+    "miltos_entry_stalker.py",
+    "koulis_risk_gate.py",
+    "thymios_order_intent.py",
+    "market_state.py",
+    "preopen_check.py",
+    "preopen_open_recheck.py",
+    "alpaca_paper_trader.py",
+    "alpaca_multi_day_monitor.py",
+    "alpaca_paper_exit_manager.py",
+    "alpaca_paper_position_monitor.py",
+    "alpaca_short_gate_data.py",
+    "trading_clock.py",
+    "trading_window_config.json"
+  ],
+  "config_keys": {
+    "scanner_config.json": ["paper_session", "preopen"]
+  }
+}

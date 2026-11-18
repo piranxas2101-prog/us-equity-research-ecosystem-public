@@ -25,7 +25,7 @@ decision is kept beside it (``result_at_decision_pct``), and the record says whi
 from __future__ import annotations
 
 import argparse
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import os
@@ -614,6 +614,28 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def session_release(root: Path, session: date, *, now: datetime | None = None) -> dict[str, Any]:
+    """The release the session ran under (owner 2026-11-18, ``release_guard``): Jarvis's snapshots before the session,
+    checked against the files as they are now, after it. A change on the day leaves the id unknown, never guessed."""
+    import release_guard
+
+    try:
+        current = release_guard.fingerprint(root)
+    except (OSError, ValueError):
+        return {"release_id": None, "basis": "unknown"}
+    now = now or datetime.now(timezone.utc)
+    log = release_guard.read_log(root) + [{"at": now.astimezone(timezone.utc).isoformat(timespec="seconds"),
+                                            "release_id": current["release_id"]}]
+    return release_guard.for_session(log, session)
+
+
+def stamp_release(records: list[dict[str, Any]], release: dict[str, Any]) -> None:
+    """Every record carries the release it was made under; one already stamped keeps its own."""
+    for record in records:
+        record.setdefault("release_id", release.get("release_id"))
+        record.setdefault("release_basis", release.get("basis"))
+
+
 def store(conn: sqlite3.Connection, records: list[dict[str, Any]]) -> dict[str, int]:
     """Insert new records; complete an incomplete one; never rewrite a complete one."""
     counts = {"inserted": 0, "completed": 0, "kept": 0}
@@ -685,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
     key_id, secret = os.getenv("ALPACA_API_KEY_ID", "").strip(), os.getenv("ALPACA_API_SECRET_KEY", "").strip()
     orders = alpaca_closed_orders(key_id, secret) if key_id and secret else None
     records = build_records(args.root / "output", session, orders=orders)
+    stamp_release(records, session_release(args.root, session))  # owner 2026-11-18 (RULES_REVIEW section 14)
     with connect(args.root / "data" / "paper_learning.db") as conn:
         counts = store(conn, records)
         closed_log = args.root / "data" / "paper_positions_closed.jsonl"

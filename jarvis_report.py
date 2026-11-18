@@ -46,6 +46,10 @@ def _problems(sections: dict[str, Any]) -> list[str]:
     for key, section in sections.items():
         if isinstance(section, dict) and section.get("error"):
             out.append(f"το κομμάτι «{key}» του Jarvis απέτυχε: {section['error']}")
+    for change in (sections.get("release") or {}).get("changes") or []:
+        out.append(f"η έκδοση (ό,τι φτάνει στις εντολές) άλλαξε μέσα στην περίοδο {sections['release'].get('period')} "
+                   f"στις {str(change['at'])[:10]}: {', '.join(change['files']) or 'άγνωστα αρχεία'} - οι μετρήσεις "
+                   "χωρίζονται πριν / μετά")
     for item in (sections.get("applied") or {}).get("items") or []:
         if item.get("result") != "applied":
             out.append(f"η απόφασή σου «{item.get('title')}» δεν εφαρμόστηκε")
@@ -106,6 +110,18 @@ def _ecosystem_lines(section: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _release_lines(section: dict[str, Any] | None) -> list[str]:
+    """Owner 2026-11-18 (ADR-002): the release of what reaches orders, and whether it changed inside the period."""
+    if not section:
+        return []
+    if section.get("error"):
+        return [f"- Έκδοση: άγνωστο ({section['error']})"]
+    changes = section.get("changes") or []
+    where = (f"στην περίοδο {section.get('period')} ({section.get('start')} έως {section.get('end')}): "
+             + ("καμία αλλαγή" if not changes else f"{len(changes)} αλλαγές (δες «Τι πήγε στραβά»)"))
+    return [f"- Έκδοση (ό,τι φτάνει στις εντολές): {section.get('release_id') or 'άγνωστο'}; {where}."]
+
+
 def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     sections = record.get("sections") or {}
     problems = _problems(sections)
@@ -133,7 +149,8 @@ def render(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         out += [f"- **{r.get('title') or r['id']}**: {STATE_GR.get(r['state'], r['state'])}"
                 + (f" — «{r['verdict']}»" if r.get("verdict") not in (None, "refreshed") else "")
                 + (f" ({r['detail']})" if r.get("detail") else "") for r in results] or ["- Κανένας έλεγχος δεν ήταν σε προθεσμία."]
-    out += ["", f"## {SECTIONS[5]}", *_ecosystem_lines(sections.get("ecosystem")), ""]
+    out += ["", f"## {SECTIONS[5]}", *_ecosystem_lines(sections.get("ecosystem")), *_release_lines(sections.get("release")),
+            ""]
     out += [f"## {SECTIONS[6]}", *_learning_lines(sections.get("learning")), ""]
     tuning = sections.get("tuning") or {}
     changes = tuning.get("changes") or []

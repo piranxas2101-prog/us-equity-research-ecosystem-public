@@ -237,6 +237,26 @@ def check(files: list[FileDiff]) -> list[Finding]:
     return findings
 
 
+def release_findings(files: list[FileDiff], root: Path, today: str) -> list[Finding]:
+    """Owner 2026-11-18 (ADR-002): inside a measurement period, a change to what reaches orders (release_manifest.json)
+    is allowed only for a bug fix or a stricter risk limit; it splits the period's measurements before / after."""
+    try:
+        manifest = json.loads((root / "release_manifest.json").read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return []
+    period = manifest.get("period") or {}
+    if not str(period.get("start") or "") <= today <= str(period.get("end") or ""):
+        return []
+    watched = set(manifest.get("files") or []) | set(manifest.get("config_keys") or {}) | {"release_manifest.json"}
+    hit = [f.path for f in files if f.path in watched]
+    if not hit:
+        return []
+    return [Finding("WARN", "release-freeze",
+                    f"period {period.get('id')} ({period.get('start')}..{period.get('end')}): what reaches orders "
+                    f"changed ({', '.join(hit)}) - only a bug fix or a stricter risk limit; say which in the commit "
+                    "message, the owner decides anything else (scanner_config.json: check paper_session / preopen)")]
+
+
 def render(findings: list[Finding], file_count: int) -> str:
     lines = [f"Invariant check: {file_count} changed file(s)"]
     for level in ("STOP", "WARN", "REVIEW"):
@@ -263,6 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(args.root).resolve()
     files = collect_diff(root, args.base)
     findings = check(files)
+    from datetime import date
+
+    findings[:0] = release_findings(files, root, date.today().isoformat())
     if args.json:
         print(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=2))
     else:

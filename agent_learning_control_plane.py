@@ -484,10 +484,12 @@ def upsert_lesson_candidate(conn: sqlite3.Connection, *, target_agent: str, task
         "SELECT status,proposal_sha256,evidence_json FROM agent_lesson_candidates WHERE lesson_id=?", (lesson_id,)
     ).fetchone()
     if existing:
-        # Evaluation may add evidence, but it cannot silently rewrite or promote
-        # an already proposed lesson.
+        # Evaluation may add evidence, but it cannot silently rewrite or promote an already proposed lesson. A newer
+        # wording of the same criterion (owner 2026-11-18: it used to stop the whole recording with an error) is kept
+        # beside the decided one as ``proposal_revision``; the stored proposal and its hash never change.
         if str(existing[1]) != proposal_hash:
-            raise ValueError(f"Lesson candidate definition changed: {lesson_id}")
+            evidence = {**evidence, "proposal_revision": {"proposal": proposal, "sha256": proposal_hash,
+                                                          "seen_at": stamp}}
         decisions = json.loads(existing[2] or "{}").get("decisions")
         if decisions:  # the owner's decisions stay with the lesson when new evidence arrives
             evidence = {**evidence, "decisions": decisions}
@@ -514,6 +516,49 @@ def upsert_lesson_candidate(conn: sqlite3.Connection, *, target_agent: str, task
 # experiments stays the owner's to fill.
 WAITING_REASON = ("owner 2026-11-18: a new lesson waits as a candidate; only the owner puts it in shadow for a "
                   "measurement period")
+
+
+LEANS = {"better": "worse", "worse": "better", "prefer": "avoid", "avoid": "prefer"}
+OPEN_STATUSES = ("candidate", "shadow", "accepted")
+
+
+def _lean_free(criterion: str) -> tuple[str, ...]:
+    return tuple("*" if part in LEANS else part for part in str(criterion).split(":"))
+
+
+def conflicting_lessons(db_path: Path) -> list[dict[str, Any]]:
+    """Open lessons whose finding flipped sign (owner 2026-11-18): the same criterion for the same agent, task and
+    rubric with the opposite lean (better/worse, prefer/avoid), both still open. For each group the newest stands and
+    every older one is listed, so the owner can archive it through Jarvis; nothing is changed here (read-only)."""
+    if not Path(db_path).exists():
+        return []
+    try:
+        with closing(sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)) as conn:
+            rows = conn.execute(
+                "SELECT lesson_id, target_agent, task_id, rubric_version, criterion_id, status, proposal_json,"
+                f" created_at FROM agent_lesson_candidates WHERE status IN ({','.join('?' for _ in OPEN_STATUSES)})",
+                OPEN_STATUSES).fetchall()
+    except sqlite3.Error:
+        return []
+    groups: dict[tuple[Any, ...], list[tuple[Any, ...]]] = {}
+    for row in rows:
+        if not any(part in LEANS for part in str(row[4]).split(":")):
+            continue
+        groups.setdefault((row[1], row[2], row[3], _lean_free(row[4])), []).append(row)
+    out = []
+    for items in groups.values():
+        if len({r[4] for r in items}) < 2:
+            continue
+        items.sort(key=lambda r: (str(r[7]), str(r[0])))
+        newest = items[-1]
+        for old in items[:-1]:
+            if old[4] == newest[4]:
+                continue
+            out.append({"lesson_id": old[0], "target_agent": old[1], "task_id": old[2], "criterion_id": old[4],
+                        "status": old[5], "proposed_change": json.loads(old[6] or "{}").get("proposed_change"),
+                        "newer_lesson_id": newest[0], "newer_criterion_id": newest[4],
+                        "newer_proposed_change": json.loads(newest[6] or "{}").get("proposed_change")})
+    return sorted(out, key=lambda x: x["lesson_id"])
 
 
 def waiting_lesson_items(db_path: Path, task_ids: tuple[str, ...]) -> list[dict[str, Any]]:

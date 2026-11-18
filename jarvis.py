@@ -331,6 +331,7 @@ def run_pass(kind: str, *, root: Path, today: date, python: str, clock: Callable
         proposals.append(resume["proposal"])
     proposals += paper_learning_proposals(root)
     proposals += _guard_list(lambda: jarvis_decisions.period_proposals(root))
+    proposals += _guard_list(lambda: jarvis_decisions.conflict_proposals(root))
     withdrawals = _withdrawals(root, sections, proposals)
 
     def store() -> dict[str, Any]:

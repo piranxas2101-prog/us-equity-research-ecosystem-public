@@ -89,6 +89,26 @@ def period_proposals(root: Path) -> list[Proposal]:
     return out
 
 
+def conflict_proposals(root: Path) -> list[Proposal]:
+    """A finding that flipped sign leaves two open lessons saying opposite things (owner 2026-11-18): Jarvis proposes
+    archiving the older one; the owner's yes is carried out on the next pass."""
+    import agent_learning_control_plane
+
+    out = []
+    for item in agent_learning_control_plane.conflicting_lessons(root / "data" / "market_intel.db"):
+        in_period = item["status"] == "shadow"
+        out.append(Proposal(
+            source="lesson_conflict", source_key=item["lesson_id"],
+            title=f"Το εύρημα άλλαξε πρόσημο: «{item.get('proposed_change') or item['criterion_id']}» "
+                  f"έναντι του νεότερου «{item.get('newer_proposed_change') or item['newer_criterion_id']}»",
+            evidence={"verdict": "sign_flipped", "criterion_id": item["criterion_id"],
+                      "newer_criterion_id": item["newer_criterion_id"], "status": item["status"],
+                      "action": lesson_action([item["lesson_id"]], "archived")},
+            change=("Αν πεις ναι: ο Jarvis αρχειοθετεί το παλιό στο επόμενο πέρασμα"
+                    + (" (είναι σε shadow: βγαίνει από την περίοδο)" if in_period else ""))))
+    return out
+
+
 def _ensure(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS applied (proposal_id TEXT PRIMARY KEY, at TEXT NOT NULL,"
                  " result TEXT NOT NULL, detail_json TEXT NOT NULL)")

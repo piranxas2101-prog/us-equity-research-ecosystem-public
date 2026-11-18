@@ -131,5 +131,21 @@ class DecisionsTests(unittest.TestCase):
         self.assertIn("Τίποτα (εφαρμόζω μόνο ό,τι είπες «ναι»", md)
 
 
+    def test_a_flipped_finding_becomes_a_proposal_whose_yes_archives_the_older_lesson(self) -> None:
+        old = self.lesson("results:reaction:gross_margin=steady:better")
+        self.lesson("results:reaction:gross_margin=steady:worse", shadow=False)
+        with closing(sqlite3.connect(self.intel)) as conn:  # the older one really is older
+            conn.execute("UPDATE agent_lesson_candidates SET created_at='2026-10-22' WHERE lesson_id=?", (old,))
+            conn.commit()
+        (proposal,) = jd.conflict_proposals(self.root)
+        self.assertEqual((proposal.source, proposal.source_key), ("lesson_conflict", old))
+        self.assertEqual(proposal.evidence["action"], jd.lesson_action([old], "archived"))
+        self.assertIn("βγαίνει από την περίοδο", proposal.change)  # it was in shadow
+        self.assertEqual(jd.apply_approved(self.root), [])  # nothing without the owner's yes
+        self.propose(proposal, "yes")
+        (done,) = jd.apply_approved(self.root)
+        self.assertEqual((done["result"], self.status(old)), ("applied", "archived"))
+        self.assertEqual(jd.conflict_proposals(self.root), [])
+
 if __name__ == "__main__":
     unittest.main()

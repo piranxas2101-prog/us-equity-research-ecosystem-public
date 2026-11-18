@@ -482,3 +482,11 @@ lessons from Sokratis (`paper_learning` lists the results-journal lessons too); 
 teaches traders only), so a lesson reaches him only through a measurement period and promotion. Known flaws to fix
 next: a finding whose sign flips leaves the old opposite lesson open (reaction `gross_margin=steady` had both), and
 any change to a lesson's text makes `upsert_lesson_candidate` raise, archived lessons included.
+
+**Fixed the same evening (owner: "yes, fix them").** (1) A newer wording of an existing lesson no longer stops the
+recording with an error: the decided text and its hash stay, the newer wording is kept beside it as
+`proposal_revision` in the lesson's evidence. (2) A finding that flips sign: `conflicting_lessons` finds open lessons
+(waiting, shadow or accepted) with the same criterion for the same agent, task and rubric and the opposite lean
+(better/worse, prefer/avoid); Jarvis proposes archiving the older one (`lesson_conflict`, with a lesson action), and
+the owner's yes is carried out on the next pass. Nothing is archived without that yes. None is open today (the only
+one, reaction `gross_margin=steady`, was archived in the triage).

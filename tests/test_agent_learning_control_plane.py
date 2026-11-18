@@ -312,5 +312,53 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         self.assertFalse([d for d in waiting if ":reaction:" in d["criterion_id"]])
         self.assertTrue(all(d["criterion_id"].startswith(("results:drift", "results_entry:drift")) for d in waiting))
 
+    def test_a_new_wording_never_crashes_and_never_rewrites_the_decided_text(self) -> None:
+        # owner 2026-11-18: a changed proposal text used to stop the whole recording with an error
+        conn = self.connection()
+        kwargs = dict(target_agent="position_monitor", task_id="earnings_journal", rubric_version="r",
+                      criterion_id="results_hold:drift5:dilution=True:worse", support_count=3,
+                      proposal={"proposed_change": "close before the release"}, evidence={"n": 1})
+        lesson_id, _ = learning.upsert_lesson_candidate(conn, **kwargs)
+        learning.apply_lesson_decisions(conn, [{"lesson_id": lesson_id, "status": "archived", "reason": "owner"}])
+        new = {"proposed_change": "close after the release"}
+        again, created = learning.upsert_lesson_candidate(conn, **{**kwargs, "proposal": new, "evidence": {"n": 2}})
+        self.assertEqual((again, created), (lesson_id, False))
+        status, proposal, evidence = conn.execute(
+            "SELECT status, proposal_json, evidence_json FROM agent_lesson_candidates WHERE lesson_id=?",
+            (lesson_id,)).fetchone()
+        self.assertEqual(status, "archived")
+        self.assertEqual(json.loads(proposal)["proposed_change"], "close before the release")
+        evidence = json.loads(evidence)
+        self.assertEqual(evidence["proposal_revision"]["proposal"], new)
+        self.assertEqual(evidence["decisions"][-1]["to"], "archived")  # the owner's decisions survive
+
+    def test_a_flipped_finding_lists_the_older_open_lesson(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "intel.db"
+            self.assertEqual(learning.conflicting_lessons(db), [])
+            conn = sqlite3.connect(db)
+            conn.row_factory = sqlite3.Row
+            learning.init_schema(conn)
+
+            def add(criterion: str, created: str, agent: str = "giannis", status: str = "candidate") -> str:
+                conn.execute("INSERT INTO agent_lesson_candidates VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                             (criterion + agent, agent, "earnings_journal", "r", criterion, status, 1,
+                              json.dumps({"proposed_change": criterion}), "{}", "h", created, created))
+                conn.commit()
+                return criterion + agent
+
+            old = add("results:reaction:gross_margin=steady:better", "2026-10-22", status="shadow")
+            add("results:reaction:gross_margin=steady:worse", "2026-11-07")
+            add("results:drift5:dilution=True:worse", "2026-10-22")
+            add("results:drift5:dilution=False:better", "2026-10-22")  # another value, not a flip
+            add("results:drift5:growth=x:better", "2026-10-22", agent="yankos")
+            add("results:drift5:growth=x:worse", "2026-10-23", agent="periklis")  # another agent, not a flip
+            add("category:prefer:yankos:p:long:market_cap=mid", "2026-10-22", agent="koulis", status="archived")
+            add("category:avoid:yankos:p:long:market_cap=mid", "2026-11-01", agent="koulis")  # old one closed
+            conn.close()
+            (item,) = learning.conflicting_lessons(db)
+            self.assertEqual((item["lesson_id"], item["status"], item["newer_criterion_id"]),
+                             (old, "shadow", "results:reaction:gross_margin=steady:worse"))
+
 if __name__ == "__main__":
     unittest.main()

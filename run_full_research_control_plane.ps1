@@ -91,8 +91,14 @@ try {
     # owner 2026-11-18 (ADR-002): one orchestrator. scanner_config.json pipeline.orchestrator = "python" runs the
     # same research steps through daily_pipeline.py (per-step state, resume, run lock); "powershell" or missing keeps
     # run_daily_dual_watchlist.ps1. tests/test_daily_pipeline.py keeps the two step lists equal.
-    $orchestrator = [string]((Get-Content "scanner_config.json" -Raw | ConvertFrom-Json).pipeline.orchestrator)
-    $state.orchestrator = if ($orchestrator -eq "python") { "python" } else { "powershell" }
+    # pipeline.orchestrator_from (YYYY-MM-DD, optional): "python" applies only to runs started on or after that day
+    # (owner 2026-11-18: from the 2026-11-20 nightly, after one more night on the PowerShell runner).
+    $pipelineConfig = (Get-Content "scanner_config.json" -Raw | ConvertFrom-Json).pipeline
+    $orchestrator = [string]$pipelineConfig.orchestrator
+    $orchestratorFrom = [string]$pipelineConfig.orchestrator_from
+    $today = (Get-Date).ToString("yyyy-MM-dd")
+    $pythonDue = [string]::IsNullOrWhiteSpace($orchestratorFrom) -or $today -ge $orchestratorFrom
+    $state.orchestrator = if ($orchestrator -eq "python" -and $pythonDue) { "python" } else { "powershell" }
     if ($state.orchestrator -eq "python") {
         $pipelineArgs = @("daily_pipeline.py", "run", "--full-market", "--full-market-limit", "$UniverseLimit",
                           "--fundamental-control-plane-limit", "$FundamentalControlPlaneLimit", "--run-id", $runId)

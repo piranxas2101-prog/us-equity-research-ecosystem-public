@@ -204,6 +204,9 @@ class OrchestratorSwitchTests(unittest.TestCase):
         self.assertIn(r'& ".\run_daily_dual_watchlist.ps1" @dailyArgs', text)  # the default path stays
         config = json.loads((root / "scanner_config.json").read_text(encoding="utf-8"))
         self.assertIn(config["pipeline"]["orchestrator"], ("powershell", "python"))
+        # owner 2026-11-18: python from the 2026-11-20 nightly; before that day the PowerShell runner stays
+        self.assertEqual(config["pipeline"].get("orchestrator_from"), "2026-11-20")
+        self.assertIn('$today -ge $orchestratorFrom', text)
 
     def test_the_python_runner_accepts_those_options(self) -> None:
         import contextlib

@@ -549,3 +549,9 @@ blocked: no session, order or commit is stopped. Starting release: `3860a191c605
   than 60 days). `apply --rule <name> --yes` deletes one rule's candidates, logged in `data/retention_log.jsonl`;
   nothing else deletes. The audit record (`output/runs`, 13 GB) and the databases are only reported; the largest,
   `data/market_intel.db` (41 GB), needs its own plan with the owner.
+
+**Owner 2026-11-18 (later): "yes, from tomorrow".** `pipeline.orchestrator` = `"python"` with
+`pipeline.orchestrator_from` = `2026-11-20`: the nightly that starts on 2026-11-19 still uses the PowerShell runner,
+the one that starts on 2026-11-20 and after uses `daily_pipeline.py`. Going back is setting `"powershell"`. The same
+day the retention rules were applied on the owner's yes (61 old baseline copies, 8 GB; 4 old audit reports; 35 old
+logs), logged in `data/retention_log.jsonl`.

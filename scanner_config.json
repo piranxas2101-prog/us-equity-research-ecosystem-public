@@ -242,7 +242,8 @@
     }
   },
   "pipeline": {
-    "orchestrator": "powershell",
+    "orchestrator": "python",
+    "orchestrator_from": "2026-11-20",
     "fundamental_first": true,
     "full_universe": true,
     "stage1_limit": 120,

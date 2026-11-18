@@ -466,3 +466,19 @@ the waiting lessons per task, so the owner can choose from them when a period en
   extension, the next period's lessons (Jarvis proposes the waiting ones once a period is judged). Lessons in a
   period are no longer proposed by the older follow (`shadow_follow`); the period's test judges them. Lessons stay
   REVIEW in `jarvis_tiers`: nothing moves without the owner's yes.
+
+**Owner's decision 2026-11-18 (evening): triage of the results-journal lessons (Giannis).** The 168 in shadow (plus 8
+new ones waiting) were 30 findings of `earnings_journal.py`, each filed 2-4 times (Giannis, the position monitor and,
+for the drift, each trader). Out of sample (results filed after 2026-10-22, one observation per filing day, Holm) the
+journal's method holds - decelerating revenue went with a worse reaction on 16 of 16 days (Holm p 0.0007),
+accelerating with a better one on 13 of 16 - but the drift has no out-of-sample days yet (3 for 5 sessions, none for
+20). Decisions (`docs/decisions/lesson_triage_giannis_2026-11-18.json`, 171): archived - the 56 reaction lessons
+(the tags are what the results say, unknown before the release; for Giannis the reaction is mostly over when he reads
+the filing), the 30 position-monitor drift copies (their text acts before the release), one side of each mirrored
+pair (12: dilution False, losses narrowing at 20 sessions, pr_verified yes) and the Altman Z lesson (a distress label
+judged at 3 sessions); back to waiting - 72 drift lessons for Giannis, Yankos and Periklis (78 with the 6 already
+waiting). `shadow -> candidate` is now an allowed transition, by decision only. The traders learn the waiting drift
+lessons from Sokratis (`paper_learning` lists the results-journal lessons too); Giannis has no teacher (Sokratis
+teaches traders only), so a lesson reaches him only through a measurement period and promotion. Known flaws to fix
+next: a finding whose sign flips leaves the old opposite lesson open (reaction `gross_margin=steady` had both), and
+any change to a lesson's text makes `upsert_lesson_candidate` raise, archived lessons included.

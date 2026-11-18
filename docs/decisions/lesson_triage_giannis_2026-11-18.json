@@ -1,0 +1,1376 @@
+{
+ "schema": "ecosystem.lesson_decisions.v1",
+ "decided_by": "owner",
+ "decided_on": "2026-11-18",
+ "source": "docs/RULES_REVIEW.md section 14 (Giannis triage of the results-journal lessons)",
+ "decisions": [
+  {
+   "lesson_id": "lesson_ab1d3aa2e6dd084ef3137343",
+   "target_agent": "giannis",
+   "task_id": "fundamental_quality",
+   "criterion_id": "altman_z2_zone_outcome_order_h3",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the Altman Z zone is a distress-risk label; three sessions is the wrong horizon to judge it by"
+  },
+  {
+   "lesson_id": "lesson_304c08c3199251d38a07ec98",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_b2b22e48e6e6e893a0ecd8a7",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_71b415f808fd4df6b845fc91",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_1e0f7b17ec402653279e33b6",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_41888c0b7f47c93fbd4a1a99",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_197880be351dbfb84f4a6e2f",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_5d694051fdb62df012e3a51c",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_9f72e063894fdbc22be7eb48",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:losses=widening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_98be2e8a3c70135c49796806",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_ca2ea6b6d3d182f81b930635",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_a61d8b44c18738644c4556fb",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_5c920eb091babd493ad3d327",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift20:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_0e215fbc966fa2043cd2c166",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_1ea19942a60f94a24ec2a84d",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_17d41ab986b20b684d43bdb4",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_de9750cbeb517e3e44741ea8",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_97a3ab6c5bb342933882b4df",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_23149e39561c1149e05a88b2",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_617fcfd67c096a32d6bb3ce4",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:growth_bucket=>=25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_c520ff27a528711323f9edf4",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:operating_margin=steady:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_b80417d1e831110a1d130a7f",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_6078d793a6ac6f4cb4446235",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:pr_profit=profit:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_657bc66d53ac3e0169f1e76d",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:pr_revenue_growth=0..10%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_79328534bddfc74a26115835",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:pr_verified=no:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_65aa16df18f0b0a3bb4eb704",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_66d02ba4f22ed814eaa96cd6",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_fb0547f17375855fc1e13183",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_79e6e7ca46302caefda7f06d",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:drift5:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_49c16e7c994c486ac62723bf",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_042a9a378dad6dec7ef1c414",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:dilution=True:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_28bebf874435d8e38043d309",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:gross_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_fec12ee067ec692a904424be",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:gross_margin=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_e50fa7aaecc1a0404df425c8",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:gross_margin=steady:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_5e8e39d38ead8ccf4a439d26",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:gross_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_b61b44f614991fd16e43d50d",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:growth_bucket=-10..0%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_872184581027dd7cf4051733",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:growth_bucket=0..10%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_18801d4b08bb3e357356d672",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:growth_bucket=10..25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_706a17167332f98cfed8cd4f",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:growth_bucket=<-10%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_7b43b5a06e6c7787d64e4e5f",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:growth_bucket=>=25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_643634256ed3ea290a5e6537",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_500a5514d71457faf117541b",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:losses=widening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_1f275f568320f06e6199a0a2",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:operating_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_1c4a37bd37414527f167c2b4",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:operating_margin=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_2b83e7ea6f839e5d281335a9",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:operating_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_5e44818ca471f1be063a20f6",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_eps=down:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_9629b6dde6c9cd0e62ec11d5",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_eps=up:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_115c456deb24e16a11d50f13",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_profit=loss:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_7f9acf670a64a406f8a10545",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_profit=profit:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_0675d75918081f07460df539",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_profit=turned_loss:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_3eacb9512cad1cdfe6f84741",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_verified=no:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_a94ace3d051213e8dfc34fa1",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_7a0e87f7582d8ae350d93cac",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:revenue_trend=accelerating:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_d2da357fa106489a8c48d316",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:revenue_trend=decelerating:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_5c922afe2d36d9621779afef",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:revenue_trend=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_23e276f2e55eb67a48d875d5",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:runway_bucket=<12m:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_70ec194c4bd5dbbaae15f2e2",
+   "target_agent": "giannis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results:reaction:runway_bucket=>=24m:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the announcement reaction is mostly over when Giannis reads the filing (the press release comes about a day earlier); what is still ahead is the drift, which has its own lessons"
+  },
+  {
+   "lesson_id": "lesson_235ac7865f0481fc823f14e3",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_71d2286c689cca26ef198639",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_f19285f1fa7fb1c3dc6ee01a",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_b48874cae0f2d9a099a38b2f",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_404c0782126165be3179237c",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_462c4298fb79aa72d137a778",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_fb68522e315767aebcf88644",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_2861e3f204f23c71c233513e",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_955b99d95281c2654207f63f",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_c6b324dbcc4e07749b2691f8",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_26cb31bf0df122234fdce75a",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_6b764f26faa02f42598a86ba",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_c5b4c79b31bae73b26623110",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_24fd4268a3e1045fec67c339",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_9fafbcdb9c04c95de4d7eb82",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:losses=widening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_9e6f0cf1d61c3b8551e3d4a8",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:losses=widening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_2ac949f52008cc67699a4c2c",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_c6b987a4d867aa8a329705ac",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_d89983c33af08932b70357d6",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_ed6b34ca28652b3a5b7c0ac9",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_97ffd87d05094fb0ed0fde15",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_149a3bd58c8d36b943a973c1",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_1a60aa21af277e46a72c8f3f",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_79dad9fddb1218b4e4a57915",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift20:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_3e197d27fe5b445294f4adf8",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_4f502b30e1665b8cd5c3c394",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_6e2d2059cef3447827678486",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_b459884f9b03df5dd1a31cb6",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:dilution=True:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_a19437d6069a3bd8816d8956",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_43643dfa514e7bb53376f779",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:gross_margin=improving:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_919bc3c24949881e4a5c92f5",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_6783598276d2016c3a1823c7",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:gross_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_2065c34c5ae2798544b206be",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_617db2804af8bad801a4d190",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=10..25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_5837df2255e61a325acbd847",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_0dcd835831fc55843f59841e",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=<-10%:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_b0f699b734c275ddf0e2a2fa",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=>=25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_2b4325d486f39f2587e3e9d8",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:growth_bucket=>=25%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_d740a4f1b15832e9197a9449",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:operating_margin=steady:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_e43f8add121fff5844f7ec62",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:operating_margin=steady:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_050db934c3edabb29f5e632e",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_37a865bfa3efed81183759b8",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:operating_margin=worsening:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_6117eea5052e970689350df9",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_profit=profit:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_8efcfa5bdd5e89e63c71acd0",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_profit=profit:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_35d6c907e619b4345fe1305f",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_revenue_growth=0..10%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_70a274a9ed9f852e1612cad9",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_revenue_growth=0..10%:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_245012e8759c0080eb21e97c",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_verified=no:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_eb5a6292ecde81a857bab9ca",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_verified=no:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_827eb50286d9e3bbc2a04f56",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_450bccf651e6714ebfbb473e",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the other side of the same test (kept: the 'avoid' side)"
+  },
+  {
+   "lesson_id": "lesson_c1b4e73054d6ec3f7fe991d9",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_9b7d130d6b4996a4e2b43a5f",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:revenue_trend=decelerating:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_182b14f12e667a22e516f115",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_fe7875b8359408cf830335f5",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:runway_bucket=<12m:worse",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_6cf755afc28483ad1529c6a6",
+   "target_agent": "periklis",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_5b8f8b8fbe911021560dc1df",
+   "target_agent": "yankos",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_entry:drift5:runway_bucket=>=24m:better",
+   "status": "candidate",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): waiting for a measurement period; the traders learn it from Sokratis as waiting (Giannis has no teacher: Sokratis teaches traders only); candidate for period P2"
+  },
+  {
+   "lesson_id": "lesson_aaad67ca086497437e078207",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_ce17119c629420de8b46f6db",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:dilution=True:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_aad45fe4137c90214c783041",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:gross_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_df4d6c4237cbb6b57a03a3de",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:gross_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_d6a520a3f8a9333b39b217ea",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:growth_bucket=10..25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_e69c7432dacd1e7e1628ff8f",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:growth_bucket=<-10%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_a8b42ac8872160c8110137d4",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_c501905e5be2c3d190ca7b0d",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:losses=widening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_8484e21b81cc702068a7ace8",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:operating_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_1656ae1de3d2115b8a290143",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:revenue_trend=decelerating:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_e39b5af448f6739687ab7d7e",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:runway_bucket=<12m:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_30e5dc7ff8149b8423b72050",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift20:runway_bucket=>=24m:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_b7ae06b6032fefcae93c3e48",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_835b357a63c6b505ab2359f6",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:dilution=True:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_a56a1dbd3c4440ef04bbcd04",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:gross_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_153c601de4b69b61a118c304",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:gross_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_dafc8e678bd8ef73dab1017f",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:growth_bucket=10..25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_a0f95a331303dd7b06d86186",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:growth_bucket=<-10%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_cb0ba0248e35d9a1de215e65",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:growth_bucket=>=25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_0eddc0c9de45827cb35b7296",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:operating_margin=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_c52c1d4e6e21f413f19e3eff",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:operating_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_c460689e9d7cd57f25029677",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_profit=loss:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_179f4e1d42b40bf61d8869d4",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_profit=profit:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_226fd9578e4b13ae069bdac5",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_revenue_growth=0..10%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_277c3673ac3bff3fd395e3e6",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_revenue_growth=<-10%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_6df1573712dfb1a6616de400",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_verified=no:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_bf588d258af38654bf4e3fad",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_1b9c60f7896c9753d4d84fca",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:revenue_trend=decelerating:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_8db473ce6da925e5c60f9714",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:runway_bucket=<12m:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_49f81176889016834444fe08",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:drift5:runway_bucket=>=24m:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): the text times the action before the release, when the results are not known yet; the usable form is the traders' entries after the results"
+  },
+  {
+   "lesson_id": "lesson_9d17b576be71d5aedad170c7",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:dilution=False:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_b04228848193e01aced2f745",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:dilution=True:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_89ad9efce949d5360e8d6ead",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:gross_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_a0af8c392a95f22c819a14eb",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:gross_margin=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_01f9cacbd4d7a053ec26565e",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:gross_margin=steady:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_a0d283ea4c20460d6d18eff1",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:gross_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_cc0c93b2d4bdf0c54c4b05f4",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:growth_bucket=-10..0%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_ae723d9ad5f4f79dd8a4938f",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:growth_bucket=0..10%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_af296e455f6fee95dc17e18b",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:growth_bucket=10..25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_9a3f8a4bb9c2541faf7a605b",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:growth_bucket=<-10%:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_522f717f79b6665d1a8fd87a",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:growth_bucket=>=25%:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_3fa0eb04cded74b9f70dc0fe",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:losses=narrowing:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_793d16a76b297594a5b9b9af",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:losses=widening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_f04293527b4dc2a4ccf5cb06",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:operating_margin=improving:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_bc1f8f4117000f25c0fa94fe",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:operating_margin=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_8119835d8330cabb57f3fe20",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:operating_margin=worsening:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_d6b08708e9dc1bbb9470582a",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_eps=down:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_087379ca9ba2b26ec7fe9ef0",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_eps=up:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_c04b762f5c7640dedc5a3d2d",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_profit=loss:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_57f0de85e3c8aca351585e98",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_profit=profit:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_6b8ec2ed13260eeb5ac5345b",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_profit=turned_loss:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_56f6664570c334f99b76140d",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_verified=no:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_791754caef12f56ac26c5258",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:pr_verified=yes:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_ac3d90e9196c9cb8eb898e76",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:revenue_trend=accelerating:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_fb7f03c73a5c9f4f43f31e93",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:revenue_trend=decelerating:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_f75c99ef55003545740d5b84",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:revenue_trend=steady:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_120d057c9175789ebd3af0be",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:runway_bucket=<12m:worse",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  },
+  {
+   "lesson_id": "lesson_6b11ed96fd28fecf66cb518c",
+   "target_agent": "position_monitor",
+   "task_id": "earnings_journal",
+   "criterion_id": "results_hold:reaction:runway_bucket=>=24m:better",
+   "status": "archived",
+   "reason": "owner 2026-11-18 (Giannis triage, RULES_REVIEW section 14): not usable: the tag is what the results say, unknown before the release, so 'hold through / close before the release' would need the results in advance"
+  }
+ ]
+}

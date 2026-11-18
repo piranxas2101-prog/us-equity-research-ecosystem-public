@@ -37,7 +37,7 @@ class StatusTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             learning.set_lesson_status(conn, lesson_id, "shadow", reason="again")
         with self.assertRaises(ValueError):
-            learning.set_lesson_status(conn, lesson_id, "candidate", reason="back")
+            learning.set_lesson_status(conn, lesson_id, "champion", reason="not a lesson status")
         # evidence keeps being added without a promotion
         learning.upsert_lesson_candidate(
             conn, target_agent="giannis", task_id="earnings_journal", rubric_version="r",

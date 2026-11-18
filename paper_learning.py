@@ -1065,11 +1065,12 @@ def run_evaluation(root: Path, *, since: date | None = None, until: date | None 
     evaluation["lesson_candidates"] = lessons
     evaluation["shadow_lessons"] = shadow_lessons(root / "data" / "market_intel.db", records)
     evaluation["shadow_follow"] = shadow_follow(root / "data" / "market_intel.db", records, lab=lab, legacy=legacy)
-    # owner 2026-11-18: lessons waiting for a measurement period are still taught (Sokratis), as waiting
+    # owner 2026-11-18: lessons waiting for a measurement period are still taught (Sokratis, traders only), as waiting;
+    # the results-journal ones too (Giannis triage: the drift lessons for Yankos and Periklis)
     import agent_learning_control_plane
 
     evaluation["waiting_lessons"] = agent_learning_control_plane.waiting_lesson_items(
-        root / "data" / "market_intel.db", ("paper_trading", "jarvis_learning"))
+        root / "data" / "market_intel.db", ("paper_trading", "jarvis_learning", "earnings_journal"))
     return evaluation, records, trade_review(records)
 
 

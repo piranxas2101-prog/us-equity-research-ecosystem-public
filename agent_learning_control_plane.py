@@ -550,7 +550,10 @@ def waiting_lessons(db_path: Path) -> dict[str, int] | None:
 
 # archived -> candidate (owner 2026-11-18): an archived lesson can go back to the waiting list by the owner's decision,
 # so the agents learn it again; new evidence alone never revives it (upsert_lesson_candidate keeps the status).
-LESSON_TRANSITIONS = {"candidate": {"shadow", "rejected", "archived"}, "shadow": {"accepted", "rejected", "archived"},
+# shadow -> candidate (owner 2026-11-18, Giannis triage): a lesson can leave a measurement period's budget and wait,
+# still taught, by the owner's decision only; nothing moves a lesson by itself.
+LESSON_TRANSITIONS = {"candidate": {"shadow", "rejected", "archived"},
+                      "shadow": {"accepted", "rejected", "archived", "candidate"},
                       "rejected": {"archived"}, "accepted": {"archived"}, "archived": {"candidate"}}
 
 

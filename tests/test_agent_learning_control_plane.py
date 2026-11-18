@@ -187,8 +187,16 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         self.assertEqual(decisions[0]["reason"], learning.WAITING_REASON)
         self.assertFalse(hasattr(learning, "shadow_all_candidates"))  # no bulk move to shadow any more
         learning.set_lesson_status(conn, lesson_id, "shadow", reason="owner: period P1")
-        with self.assertRaises(ValueError):  # shadow never goes back to waiting
-            learning.set_lesson_status(conn, lesson_id, "candidate", reason="back")
+        with self.assertRaises(ValueError):  # never accepted straight from waiting, never twice in shadow
+            learning.set_lesson_status(conn, lesson_id, "shadow", reason="again")
+        # owner 2026-11-18: back to waiting only by a decision (upsert never moves it)
+        learning.set_lesson_status(conn, lesson_id, "candidate", reason="owner: out of the period, still taught")
+        learning.upsert_lesson_candidate(
+            conn, target_agent="petros", task_id="fundamental_synthesis",
+            rubric_version="r1", criterion_id="rationale", support_count=26,
+            proposal={"change": "require rationale"}, evidence={"run_id": "r3"},
+        )
+        self.assertEqual(conn.execute("SELECT status FROM agent_lesson_candidates").fetchone()[0], "candidate")
 
     def test_waiting_lessons_are_counted_per_task_and_unknown_stays_unknown(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -233,8 +241,8 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         conn = self.connection()
         self._shadow(conn, "a", "b")
         bad_batches = [
-            [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "b", "status": "candidate",
-                                                                       "reason": "back to candidate"}],
+            [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "b", "status": "shadow",
+                                                                       "reason": "already in shadow"}],
             [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "b", "status": "archived",
                                                                        "reason": " "}],
             [{"lesson_id": "a", "status": "archived", "reason": "ok"}, {"lesson_id": "a", "status": "archived",
@@ -286,6 +294,23 @@ class AgentLearningControlPlaneTests(unittest.TestCase):
         self.assertEqual({c["lesson_id"] for c in follow["creates"]} - set(decided), {c["lesson_id"]
                                                                                       for c in follow["creates"]})
 
+
+    def test_giannis_triage_of_2026_11_18_is_well_formed(self) -> None:
+        # owner 2026-11-18: the results-journal lessons - reaction and position-monitor copies archived (not usable),
+        # one side of each mirrored pair archived, the drift lessons for Giannis and the traders back to waiting
+        root = Path(__file__).resolve().parents[1]
+        triage = json.loads((root / "docs" / "decisions" / "lesson_triage_giannis_2026-11-18.json"
+                             ).read_text(encoding="utf-8"))
+        items = triage["decisions"]
+        ids = [d["lesson_id"] for d in items]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(d["reason"].startswith("owner 2026-11-18") for d in items))
+        archived = [d for d in items if d["status"] == "archived"]
+        waiting = [d for d in items if d["status"] == "candidate"]
+        self.assertEqual((len(archived), len(waiting), len(items)), (99, 72, 171))
+        self.assertFalse([d for d in waiting if d["target_agent"] == "position_monitor"])
+        self.assertFalse([d for d in waiting if ":reaction:" in d["criterion_id"]])
+        self.assertTrue(all(d["criterion_id"].startswith(("results:drift", "results_entry:drift")) for d in waiting))
 
 if __name__ == "__main__":
     unittest.main()

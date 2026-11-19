@@ -24,7 +24,8 @@ class Fake:
 class ChatTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
+        # resolved: on the CI runner TEMP is a short 8.3 path (RUNNER~1) and select_sources returns resolved paths
+        self.root = Path(self.tmp.name).resolve()
         jarvis = self.root / "output" / "jarvis"
         jarvis.mkdir(parents=True)
         (jarvis / "report_latest.md").write_text("# Jarvis\nμέσο αποτέλεσμα -0.42%, θέσεις 18\n", encoding="utf-8")

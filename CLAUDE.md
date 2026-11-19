@@ -24,7 +24,8 @@ Use the locked runtime `.venv-next` (Python 3.12):
 .\run_py.cmd <script.py> ...                                                  # launcher wrapper
 .\build_demo.ps1                                                              # rebuild local HTML dashboards from saved runs
 .\.venv-next\Scripts\python.exe daily_pipeline.py plan --full-market         # research-only Python runner: show the steps, run nothing
-.\.venv-next\Scripts\python.exe daily_pipeline.py run --resume <run_id>       # continue a failed run from the failed step
+.\.venv-next\Scripts\python.exe daily_pipeline.py run --resume <run_id>       # continue a failed run from the failed step (its own saved options)
+.\run_full_research_control_plane.ps1 -ResumeRunId <run_id>                   # same for a failed nightly: also its guards, after-run steps and pointer (a direct resume of it is refused)
 .\.venv-next\Scripts\python.exe shadow_replay.py --variant shadow_variants/<file>.json  # test a trader variant on archived runs (read-only)
 .\.venv-next\Scripts\python.exe filing_llm_extractor.py run --limit 5         # local-Ollama evidence pilot on cached 10-Ks (model in filing_llm_extraction_config.json)
 .\.venv-next\Scripts\python.exe filing_llm_extractor.py review                # review CSV/MD under output/

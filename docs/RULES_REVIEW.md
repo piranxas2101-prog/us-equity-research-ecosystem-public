@@ -527,6 +527,14 @@ on the day leaves it unknown. The invariants check warns when a commit inside th
 Allowed inside the period: a bug fix or a stricter risk limit; anything else is the owner's call. Nothing is
 blocked: no session, order or commit is stopped. Starting release: `3860a191c60509bc`.
 
+Code review 2026-11-20 (before the period, owner: "do them all"): the list missed modules the order path imports
+that decide trades - the freshness and risk-level rule (`primary_data_freshness.py`), the catalyst score lens, the
+instrument-type rules, the scorecards behind trader confidence, the packet's execution gate, the results-calendar
+sources, the price store, the shock reading of the thesis exit - and the two trader launchers that set the score
+floor, stop, take-profit and order limits. They are listed now; `tests/test_release_guard.py` fails when a listed
+module imports a local module that is neither listed nor excused in `not_listed` with the reason it cannot change
+which trade opens, how big or when it closes. Starting release from then (with the same review's stricter unknown-input and notional checks): `6f75593734e13ae9`.
+
 **Owner's decision 2026-11-18 (evening): the rest of ADR-002.**
 
 * **Documentation gates leave the nightly's critical path.** In both runners only the unknown-data contract stops the

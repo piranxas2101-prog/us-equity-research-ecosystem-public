@@ -135,5 +135,42 @@ class UnknownDataTests(unittest.TestCase):
             self.assertEqual(path.read_text(encoding="utf-8"), original)
 
 
+class TraderUnknownInputsTests(unittest.TestCase):
+    """Code review 2026-11-20: a missing freshness flag was read as fresh and written as True (hiding the gap from
+    Koulis), and a missing risk level was read as "Medium" (tradable)."""
+
+    def test_helpers_keep_unknown(self) -> None:
+        import primary_data_freshness as rows
+        self.assertIsNone(rows.declared_fresh({}))
+        self.assertIsNone(rows.declared_fresh({"fresh_primary_data": "yes"}))
+        self.assertIs(rows.declared_fresh({"fresh_primary_data": False}), False)
+        self.assertEqual(rows.risk_level({}), "Unknown")
+        self.assertEqual(rows.risk_level({"risk_level": "medium"}), "Medium")
+        self.assertEqual(rows.risk_level({"risk_level": "extreme"}), "Unknown")
+        self.assertFalse(rows.primary_data_fresh({"fundamentals_fresh": None}))
+
+    def test_yankos_never_makes_a_candidate_of_an_unknown_risk_level(self) -> None:
+        import yankos_strategy_agent as yankos
+        row = {"ticker": "ABC", "instrument_type": "common", "rsi_14": 50.0}
+        playbook = {"name": "support_bounce_swing"}
+        extras = {"ticker": "ABC", "instrument_type": "common", "risk_level": "Unknown", "fresh_primary_data": None,
+                  "timing": "neutral", "rsi": 50.0, "volume_ratio": None, "macd_histogram": None, "atr_14_pct": None,
+                  "price_position_20d": None, "price_position_60d": None, "return_20d": None, "candle_patterns": [],
+                  "candle_bias": "neutral", "candle_score": None}
+        signal = yankos.finalize_directional_signal(row, playbook, 9.5, ["strong"], 1.0, [], extras)
+        self.assertNotEqual(signal["signal_verdict"], "candidate")
+        self.assertEqual(signal["risk_level"], "Unknown")
+        self.assertIsNone(signal["fresh_primary_data"])
+        known = yankos.finalize_directional_signal(row, playbook, 9.5, ["strong"], 1.0, [], {**extras, "risk_level": "Low"})
+        self.assertEqual(known["signal_verdict"], "candidate")  # the same scores with a known risk level do qualify
+
+    def test_periklis_context_keeps_unknown(self) -> None:
+        import periklis_strategy_agent as periklis
+        ctx = periklis.common_row_context({"ticker": "ABC"})
+        self.assertEqual((ctx["risk_level"], ctx["fresh_primary_data"]), ("Unknown", None))
+        ctx = periklis.common_row_context({"ticker": "ABC", "risk_level": "Low", "fresh_primary_data": True})
+        self.assertEqual((ctx["risk_level"], ctx["fresh_primary_data"]), ("Low", True))
+
+
 if __name__ == "__main__":
     unittest.main()

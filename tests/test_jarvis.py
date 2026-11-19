@@ -112,7 +112,10 @@ class PassTests(unittest.TestCase):
                    {"run_id": "full_research_x", "status": "failed", "started_at": "2026-11-16T01:30:00+02:00"})
         jarvis.run_pass("after-session", root=self.root, today=D, python="py")
         self.assertIn("resume:full_research_x", [p["source_key"] for p in open_props(self.root)])
-        self.assertIn("--resume full_research_x", self.report(D).read_text(encoding="utf-8"))
+        report = self.report(D).read_text(encoding="utf-8")
+        # through the launcher, so the pointer, the guards and the after-run steps follow (code review 2026-11-20)
+        self.assertIn(r"run_full_research_control_plane.ps1 -ResumeRunId full_research_x", report)
+        self.assertNotIn("daily_pipeline.py run --resume", report)
 
     def test_check_that_is_no_longer_ready_withdraws_its_proposal(self):
         (self.root / "jarvis_checks.json").write_text(json.dumps({"checks": [

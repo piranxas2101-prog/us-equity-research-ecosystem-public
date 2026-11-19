@@ -94,6 +94,32 @@ class KoulisRiskGateTests(unittest.TestCase):
         reasons = {item["ticker"]: item["block_reason"] for item in payload["blocked_intents"]}
         self.assertEqual(reasons, {"OLD": "stale_primary_data", "UNK": "stale_primary_data"})
 
+    def test_a_missing_risk_level_is_unknown_not_medium(self) -> None:
+        # code review 2026-11-20: "or 'Medium'" let a row without a risk level through
+        missing = signal("yankos", "MISS", "long", 8.0)
+        del missing["risk_level"]
+        lower = signal("yankos", "LOW", "long", 8.0)
+        lower["risk_level"] = "medium"
+        high = signal("yankos", "HIGH", "long", 8.0)
+        high["risk_level"] = "High"
+        payload = self.build([missing, lower, high], [])
+        self.assertEqual([item["ticker"] for item in payload["approved_intents"]], ["LOW"])
+        reasons = {item["ticker"]: item["block_reason"] for item in payload["blocked_intents"]}
+        self.assertEqual(reasons, {"MISS": "unknown_risk_level", "HIGH": "high_risk"})
+
+    def test_a_non_finite_notional_is_refused_by_koulis_and_thymios(self) -> None:
+        nan = float("nan")
+        _, blocked = koulis_risk_gate.candidate_rows(
+            strategy("yankos", [signal("yankos", "ABC", "long", 8.0)]), "yankos", 7.0, nan, expected_run_id="run_test",
+            today="2026-08-25")
+        self.assertEqual(blocked[0]["block_reason"], "invalid_agent_notional")
+        payload = self.build([signal("yankos", "ABC", "long", 8.0)], [])
+        for bad in (nan, float("inf")):
+            tampered = json.loads(json.dumps(payload))
+            tampered["approved_intents"][0]["notional_usd"] = bad
+            with self.assertRaisesRegex(Exception, "finite positive"):
+                validate_intent_payload(tampered)
+
     def test_score_mode_keeps_the_old_raw_score_order(self) -> None:
         bounce = [signal("yankos", f"B{i}", "long", 10.0, "support_bounce_swing") for i in range(4)]
         momentum = [signal("periklis", "M0", "long", 9.0, "momentum_12_1")]

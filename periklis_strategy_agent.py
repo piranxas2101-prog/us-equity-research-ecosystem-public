@@ -20,6 +20,7 @@ import strategy_signals
 import trader_confidence
 import fundamental_filter
 import fundamental_research_packet
+import primary_data_freshness as row_inputs
 from run_context import attach_run_context, require_compatible_runs
 from common import load_json
 
@@ -157,7 +158,7 @@ def build_short_case(ctx: dict[str, Any], playbook_name: str = "") -> tuple[floa
         rationale.append("Medium risk is manageable with discipline.")
     else:
         score += w["risk_high"]
-        rationale.append("High risk profile is too unstable for a controlled short.")
+        rationale.append("High risk profile is too unstable for a controlled short." if ctx["risk_level"] == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if ctx["fresh_primary_data"]:
         score += w["fresh_data"]
@@ -352,8 +353,8 @@ def common_row_context(row: dict[str, Any]) -> dict[str, Any]:
         "ticker": str(row.get("ticker") or "").upper().strip(),
         "technical": technical,
         "instrument_type": classify_instrument(row),
-        "risk_level": str(row.get("risk_level") or "Medium"),
-        "fresh_primary_data": bool(row.get("fresh_primary_data", True)),
+        "risk_level": row_inputs.risk_level(row),  # unknown stays unknown (code review 2026-11-20)
+        "fresh_primary_data": row_inputs.declared_fresh(row),
         "flags": row.get("dilution_flags") if isinstance(row.get("dilution_flags"), list) else [str(item) for item in (row.get("dilution_flags") or [])],
         "rsi": to_float(row.get("rsi_14")),
         "volume_ratio": to_float(row.get("volume_ratio_20")),
@@ -400,12 +401,12 @@ def final_signal_payload(
     selected_rationale = rationale[:8]
 
     t = VERDICT_THRESHOLDS
-    if (final_score >= t["long_candidate_min"] and instrument_type == "common" and risk_level != "High"
+    if (final_score >= t["long_candidate_min"] and instrument_type == "common" and risk_level in row_inputs.TRADABLE_RISK
             and final_score >= short_score + t["long_candidate_margin"]):
         direction = "long"
         verdict = "candidate"
         confidence = "High" if risk_level == "Low" else "Medium"
-    elif (short_score >= t["short_candidate_min"] and instrument_type == "common" and risk_level != "High"
+    elif (short_score >= t["short_candidate_min"] and instrument_type == "common" and risk_level in row_inputs.TRADABLE_RISK
             and short_score > final_score):
         direction = "short"
         verdict = "candidate"
@@ -500,7 +501,7 @@ def early_accumulation_swing(playbook: dict[str, Any], row: dict[str, Any]) -> d
         rationale.append("Medium risk is acceptable but not ideal.")
     else:
         score -= 1.4
-        rationale.append("High risk profile is too unstable for this setup.")
+        rationale.append("High risk profile is too unstable for this setup." if ctx["risk_level"] == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if ctx["fresh_primary_data"]:
         score += 0.8
@@ -677,7 +678,7 @@ def pre_run_breakout_confirmation(playbook: dict[str, Any], row: dict[str, Any])
         rationale.append("Medium risk is acceptable but not ideal.")
     else:
         score -= 1.4
-        rationale.append("High risk profile is too unstable for breakout confirmation.")
+        rationale.append("High risk profile is too unstable for breakout confirmation." if ctx["risk_level"] == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if ctx["fresh_primary_data"]:
         score += 0.8

@@ -39,6 +39,21 @@ class SessionReportTests(unittest.TestCase):
             self.assertIn("Δεν υπάρχει σημερινός έλεγχος", text)
             self.assertIn("Miltos (όλη η μέρα): δεν υπάρχει σημερινή εγγραφή", text)
 
+    def test_after_midnight_athens_it_is_still_the_new_york_session(self):
+        # code review 2026-11-20: a retried report at 00:20 Athens is 17:20 New York, the same session
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        athens = ZoneInfo("Europe/Athens")
+        self.assertEqual(psr.session_today(datetime(2026, 10, 14, 0, 20, tzinfo=athens)), TODAY)
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            write(out, "koulis_order_intents_latest.json", {"generated_at": "2026-10-13T13:35:00+00:00",
+                                                             "approved_count": 1})
+            write(out, "miltos_entry_stalker_latest.json", {"run_timestamp": "2026-10-14T00:05:00+03:00"})
+            report = psr.build(out, TODAY, spy_move=None)
+            self.assertEqual(report["koulis"]["approved_count"], 1)
+            self.assertIsNotNone(report["miltos"])  # 00:05 Athens is 17:05 New York on the 13th
+
     def test_a_position_closed_mid_session_comes_from_the_journal(self):
         import alpaca_paper_position_monitor as monitor
 

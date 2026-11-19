@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -106,8 +107,9 @@ def validate_intent_payload(payload: dict[str, Any], *, today: date | None = Non
             raise IntentValidationError(f"Fundamental execution gate is not passed for {ticker}.")
         if not fundamental_packet_hash or not fundamental_thesis_id or not fundamental_thesis_hash:
             raise IntentValidationError(f"Fundamental thesis identity is incomplete for {ticker}.")
-        if notional <= 0:
-            raise IntentValidationError(f"Notional must be positive for {ticker}.")
+        if not math.isfinite(notional) or notional <= 0:
+            # code review 2026-11-20: NaN passed "<= 0" and the total-notional limit; the last check before Alpaca
+            raise IntentValidationError(f"Notional must be a finite positive amount for {ticker}.")
         notional_source = str(item.get("notional_source") or "default")
         trade_plan = item.get("trade_plan")
         if notional_source == "agent_suggestion":

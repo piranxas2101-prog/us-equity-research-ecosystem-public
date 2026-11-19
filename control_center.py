@@ -343,7 +343,7 @@ class Views:
         until the close), with how fresh each file is. Rebuilt only when one of the files changed."""
         import paper_session_report as psr
 
-        today = today or date.today()
+        today = today or psr.session_today()  # the New York session, as the report counts it (code review 2026-11-20)
         out = self.root / "output"
         sources, stamps = [], []
         for key, label, relative in LIVE_SOURCES:
@@ -355,7 +355,7 @@ class Views:
             stamps.append(changed)
             moment = None if changed is None else datetime.fromtimestamp(changed).astimezone()
             sources.append({"key": key, "label": label, "updated_at": moment.isoformat() if moment else None,
-                            "today": bool(moment and moment.date() == today),
+                            "today": bool(moment and moment.astimezone(psr.NEW_YORK).date() == today),
                             # written once a day (the check, the gate) or rewritten all session long
                             "continuous": key not in ("preopen", "koulis")})
         journal = out / "paper_session" / f"actions_{today:%Y%m%d}.jsonl"

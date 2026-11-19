@@ -150,6 +150,49 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(state["status"], "completed")
         self.assertEqual(state["warnings"], [])
 
+    def test_refused_resume_leaves_the_failed_state_as_it_was(self) -> None:
+        self.fail = {"c"}
+        with self.assertRaises(dp.PipelineFailed):
+            self.run_once()
+        before = dp.load_json(self.state_path)
+        (self.root / "a.out").write_text("overwritten by another run", encoding="utf-8")
+        with self.assertRaises(dp.ResumeConflict):
+            self.run_once(previous=before)
+        self.assertEqual(dp.load_json(self.state_path), before)
+
+    def test_an_unexpected_error_in_a_warn_only_step_is_a_warning(self) -> None:
+        def broken(ctx: dp.Context) -> None:
+            raise TypeError("babis json is a list")
+        stages = [dp.Stage("a", True, lambda ctx: ["a"], outputs=("a.out",)), dp.Stage("summary", False, action=broken),
+                  dp.Stage("e", True, lambda ctx: ["e"])]
+        state = dp.run_pipeline(stages, self.context(), state_path=self.state_path, executor=self.executor, root=self.root)
+        self.assertEqual(state["status"], "completed_with_warnings")
+        self.assertEqual(state["stages"][1]["status"], "warning")
+        self.assertIn("TypeError", state["stages"][1]["error"])
+        self.assertEqual(self.calls, ["a", "e"])
+
+    def test_an_unexpected_error_in_a_critical_step_fails_with_the_step_named(self) -> None:
+        def broken(ctx: dp.Context) -> None:
+            raise AttributeError("no")
+        stages = [dp.Stage("a", True, lambda ctx: ["a"]), dp.Stage("check", True, action=broken)]
+        with self.assertRaises(dp.PipelineFailed):
+            dp.run_pipeline(stages, self.context(), state_path=self.state_path, executor=self.executor, root=self.root)
+        saved = dp.load_json(self.state_path)
+        self.assertEqual((saved["status"], saved["failed_stage"]), ("failed", "check"))
+
+    def test_an_interruption_is_recorded_instead_of_running(self) -> None:
+        def interrupt(argv: list[str], log: Path, env: dict[str, str]) -> int:
+            raise KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            dp.run_pipeline(self.stages(), self.context(), state_path=self.state_path, executor=interrupt, root=self.root)
+        saved = dp.load_json(self.state_path)
+        self.assertEqual((saved["status"], saved["failed_stage"]), ("interrupted", "a"))
+
+    def test_state_records_the_run_options(self) -> None:
+        state = self.run_once()
+        self.assertEqual(state["options"]["run_id"], "run_test")
+        self.assertNotIn("python", state["options"])
+
     def test_state_never_lives_in_the_manifest_folder(self) -> None:
         # run_manifest.py must create output/runs/<run_id>/ itself and refuses an existing one.
         self.assertNotEqual(dp.STATE_DIR, dp.OUTPUT / "runs")
@@ -189,6 +232,81 @@ class GateTests(unittest.TestCase):
         for script in ("agent_assimilation.py verify", "agent_personality_practical_exam.py", "agent_personality.py verify",
                        "agent_methodology.py verify", "agent_personality_behavior.py", "trader_playbook_assimilation.py"):
             self.assertIn(script, ci)
+
+class ResumeOptionsTests(unittest.TestCase):
+    """Code review 2026-11-20: a resume continues the run as it was started, and a nightly is resumed only through
+    its launcher (otherwise its pointer stays "failed" and the afternoon's fallback overwrites the outputs)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_saved_options_win_over_the_resume_command_line(self) -> None:
+        started = dp.Options(run_id="full_research_x", full_market=True, full_market_limit=0,
+                             fundamental_control_plane_limit=0)
+        previous = {"options": dp.saved_options(started)}
+        cli = dp.Options(run_id="full_research_x", python="py")  # resume typed without --full-market
+        options, from_state = dp.options_for_resume(previous, cli)
+        self.assertTrue(from_state)
+        self.assertTrue(options.full_market)
+        self.assertEqual(options.fundamental_control_plane_limit, 0)
+        self.assertEqual(options.python, "py")
+        argv = next(s for s in dp.build_stages() if s.name == "babis").command(dp.Context(options=options, timestamp="t"))
+        self.assertIn("--full-universe", argv)
+
+    def test_a_state_without_options_keeps_the_command_line(self) -> None:
+        cli = dp.Options(run_id="old_run")
+        self.assertEqual(dp.options_for_resume({}, cli), (cli, False))
+
+    def test_the_launchers_run_is_recognised_from_its_pointer(self) -> None:
+        pointer = self.root / "pointer.json"
+        self.assertFalse(dp.launcher_owns("full_research_x", pointer))
+        pointer.write_text('{"run_id": "full_research_x", "status": "failed"}', encoding="utf-8")
+        self.assertTrue(dp.launcher_owns("full_research_x", pointer))
+        self.assertFalse(dp.launcher_owns("run_other", pointer))
+
+    def _main(self, argv: list[str]) -> tuple[int, str]:
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = dp.main(argv)
+        return code, out.getvalue()
+
+    def test_a_direct_resume_of_the_nightly_is_refused(self) -> None:
+        import os
+        from unittest import mock
+        state_dir = self.root / "runs"
+        (state_dir / "full_research_x").mkdir(parents=True)
+        (state_dir / "full_research_x" / "pipeline_state.json").write_text("{}", encoding="utf-8")
+        pointer = self.root / "pointer.json"
+        pointer.write_text('{"run_id": "full_research_x", "status": "failed"}', encoding="utf-8")
+        env = {k: v for k, v in os.environ.items() if k != dp.LAUNCHER_ENV}
+        with mock.patch.object(dp, "STATE_DIR", state_dir), mock.patch.object(dp, "NIGHTLY_POINTER", pointer), \
+                mock.patch.dict(os.environ, env, clear=True), mock.patch.object(dp, "run_pipeline") as run:
+            code, out = self._main(["run", "--resume", "full_research_x"])
+        self.assertEqual(code, 1)
+        self.assertIn("-ResumeRunId full_research_x", out)
+        run.assert_not_called()
+
+    def test_a_resume_without_state_stops_cleanly(self) -> None:
+        from unittest import mock
+        with mock.patch.object(dp, "STATE_DIR", self.root / "runs"):
+            code, out = self._main(["run", "--resume", "nope"])
+        self.assertEqual(code, 1)
+        self.assertIn("No saved state", out)
+
+    def test_the_launcher_resumes_through_the_pipeline_with_its_marker(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "run_full_research_control_plane.ps1").read_text(encoding="utf-8")
+        self.assertIn("[string]$ResumeRunId", text)
+        self.assertIn(f"$env:{dp.LAUNCHER_ENV} = $runId", text)
+        self.assertIn('& $pythonPath "daily_pipeline.py" "run" "--resume" $runId', text)
+        self.assertIn("$savedOptions.full_market_limit", text)
+
 
 class OrchestratorSwitchTests(unittest.TestCase):
     """Owner 2026-11-18 (ADR-002): one orchestrator, chosen by scanner_config.json pipeline.orchestrator."""

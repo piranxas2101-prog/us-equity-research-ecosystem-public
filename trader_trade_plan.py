@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Any
 
 import holding_horizon
+import primary_data_freshness
 import playbook_framework
 import trader_confidence
 
@@ -59,7 +60,7 @@ def suggested_notional(row: dict[str, Any], policy: dict[str, Any]) -> tuple[flo
     score_factor = 0.50 + clamp((score - score_floor) / max(0.01, 10.0 - score_floor), 0.0, 1.0)
     # Sized by the risk tier (the values the old "confidence" label carried), so no order size changes.
     confidence = trader_confidence.sizing_label(row)
-    risk = str(row.get("risk_level") or "Medium")
+    risk = primary_data_freshness.risk_level(row)  # "Unknown" has no multiplier: the smallest size
     direction = str(row.get("trade_direction") or "flat").lower()
     confidence_factor = to_float((policy.get("confidence_multipliers") or {}).get(confidence), 0.5)
     risk_factor = to_float((policy.get("risk_multipliers") or {}).get(risk), 0.0)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any
 
 import agent_methodology
 import agent_personality
-from primary_data_freshness import primary_data_fresh
+from primary_data_freshness import TRADABLE_RISK, primary_data_fresh, risk_level
 from thymios_order_intent import (
     SCHEMA,
     build_validation_report,
@@ -196,8 +197,11 @@ def candidate_rows(
             reason = "not_candidate"
         elif str(raw.get("instrument_type") or "common").lower() != "common":
             reason = "non_common_instrument"
-        elif str(raw.get("risk_level") or "Medium").lower() == "high":
+        elif risk_level(raw) == "High":
             reason = "high_risk"
+        elif risk_level(raw) not in TRADABLE_RISK:
+            # code review 2026-11-20: a missing risk level is unknown, not "Medium"
+            reason = "unknown_risk_level"
         elif not primary_data_fresh(raw):
             reason = "stale_primary_data"
         elif score < min_score:
@@ -228,7 +232,8 @@ def candidate_rows(
             reason = "results_ahead"
         elif direction == "short" and remaining_gates:
             reason = "unresolved_short_implementation_gates:" + ",".join(sorted(remaining_gates))
-        elif selected_notional <= 0:
+        elif not math.isfinite(selected_notional) or selected_notional <= 0:
+            # code review 2026-11-20: NaN passed "<= 0" and every limit comparison
             reason = "invalid_agent_notional"
         item = {
             "agent": agent,

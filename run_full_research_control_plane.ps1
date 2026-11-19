@@ -1,7 +1,10 @@
 param(
     [int]$UniverseLimit = 0,
     [int]$FundamentalControlPlaneLimit = 0,
-    [string]$CompletionReportPath = ""
+    [string]$CompletionReportPath = "",
+    # Continue a failed nightly run (python orchestrator) from its failed step, with the options it was started with,
+    # then run the same guards and after-run steps and update the run pointer (code review 2026-11-20).
+    [string]$ResumeRunId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +21,20 @@ $pythonPath = Join-Path $projectRoot ".venv-next\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     throw "The locked .venv-next Python runtime is required for a full research run."
 }
+$resuming = -not [string]::IsNullOrWhiteSpace($ResumeRunId)
+if ($resuming) {
+    $pipelineState = Join-Path $outputDir "pipeline_runs\$ResumeRunId\pipeline_state.json"
+    if (-not (Test-Path -LiteralPath $pipelineState)) {
+        throw "No daily_pipeline.py state for run $ResumeRunId ($pipelineState): only a run of the python orchestrator can be resumed."
+    }
+    $runId = $ResumeRunId
+    $savedOptions = (Get-Content -LiteralPath $pipelineState -Raw | ConvertFrom-Json).options
+    if ($null -ne $savedOptions) {
+        # the guards below must judge the run by the limits it was started with
+        $UniverseLimit = [int]$savedOptions.full_market_limit
+        $FundamentalControlPlaneLimit = [int]$savedOptions.fundamental_control_plane_limit
+    }
+}
 
 $state = [ordered]@{
     schema = "ecosystem.full_research_control_plane_background.v1"
@@ -31,6 +48,7 @@ $state = [ordered]@{
     live_money = $false
     python_runtime = $pythonPath
     status = "running_pipeline"
+    resumed = $resuming
 }
 $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pointer -Encoding UTF8
 
@@ -98,8 +116,11 @@ try {
     $orchestratorFrom = [string]$pipelineConfig.orchestrator_from
     $today = (Get-Date).ToString("yyyy-MM-dd")
     $pythonDue = [string]::IsNullOrWhiteSpace($orchestratorFrom) -or $today -ge $orchestratorFrom
-    $state.orchestrator = if ($orchestrator -eq "python" -and $pythonDue) { "python" } else { "powershell" }
-    if ($state.orchestrator -eq "python") {
+    $state.orchestrator = if ($resuming -or ($orchestrator -eq "python" -and $pythonDue)) { "python" } else { "powershell" }
+    if ($resuming) {
+        $env:ECOSYSTEM_FULL_RESEARCH_LAUNCHER_RUN = $runId
+        & $pythonPath "daily_pipeline.py" "run" "--resume" $runId
+    } elseif ($state.orchestrator -eq "python") {
         $pipelineArgs = @("daily_pipeline.py", "run", "--full-market", "--full-market-limit", "$UniverseLimit",
                           "--fundamental-control-plane-limit", "$FundamentalControlPlaneLimit", "--run-id", $runId)
         & $pythonPath @pipelineArgs

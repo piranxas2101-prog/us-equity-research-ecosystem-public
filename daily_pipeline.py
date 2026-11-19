@@ -7,7 +7,12 @@ PowerShell orchestrator's research flow, and adds what that script lacks:
 - a state file per run (``output/pipeline_runs/<run_id>/pipeline_state.json``)
   records each step's status, duration, exit code, log and output hashes;
 - ``--resume <run_id>`` reuses the steps that succeeded, retries the ones that
-  failed (critical or warn-only), and refuses if reused outputs changed since;
+  failed (critical or warn-only), and refuses if reused outputs changed since.
+  A resume runs with the options the run was started with (saved in its state),
+  never with whatever the resume command line says. A nightly full-research run
+  is resumed only through its launcher (``run_full_research_control_plane.ps1
+  -ResumeRunId <run_id>``), so the run pointer, the guards and the after-run
+  steps follow; a direct resume of it is refused (code review 2026-11-20);
 - a lock stops two runs from overwriting each other's ``*_latest`` files.
 
 It never submits paper or live orders: there is no trader-handoff step here.
@@ -26,7 +31,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -41,6 +46,10 @@ LOGS = ROOT / "logs"
 # never be written into twice).
 STATE_DIR = OUTPUT / "pipeline_runs"
 LOCK_PATH = OUTPUT / "daily_pipeline.lock"
+# The nightly launcher's run pointer; read by Jarvis and fallback_research.py to tell whether the nightly completed.
+NIGHTLY_POINTER = OUTPUT / "full_research_control_plane_background_latest.json"
+# Set by run_full_research_control_plane.ps1 to the run id it is resuming.
+LAUNCHER_ENV = "ECOSYSTEM_FULL_RESEARCH_LAUNCHER_RUN"
 STATE_SCHEMA = "ecosystem.daily_pipeline_state.v1"
 POWERSHELL = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 TRADER_HANDOFF_STATUS = "research_only_default"
@@ -399,6 +408,13 @@ def run_pipeline(stages: list[Stage], ctx: Context, *, state_path: Path,
     done = {item["name"]: item for item in (previous or {}).get("stages", [])
             if item.get("status") in {"completed", "skipped"}}
     if previous:
+        # every reused output is checked before the state file is touched: a refused resume leaves the failed run's
+        # state as it was, so it can still be read and resumed (code review 2026-11-20)
+        for stage in stages:
+            for path, digest in ((done.get(stage.name) or {}).get("outputs") or {}).items():
+                if file_sha256(root / path) != digest:
+                    raise ResumeConflict(f"{path} changed since stage '{stage.name}' finished in run "
+                                         f"{ctx.options.run_id}; another run may have overwritten it. Start a new run.")
         ctx.baseline.update(previous.get("baseline") or {})
         for item in previous.get("stages", []):
             if item["name"] in done:
@@ -406,59 +422,106 @@ def run_pipeline(stages: list[Stage], ctx: Context, *, state_path: Path,
     state: dict[str, Any] = {"schema": STATE_SCHEMA, "run_id": ctx.options.run_id, "timestamp": ctx.timestamp,
                              "research_only": True, "paper_submission": False, "status": "running",
                              "started_at": (previous or {}).get("started_at") or _now(), "stages": [],
+                             "options": saved_options(ctx.options),
                              "warnings": ctx.warnings, "baseline": ctx.baseline}
+    if previous:
+        state["resumed_at"] = [*(previous.get("resumed_at") or []), _now()]
     _save_state(state_path, state)
-    for stage in stages:
-        if stage.name in done:
-            recorded = done[stage.name]
-            for path, digest in (recorded.get("outputs") or {}).items():
-                if file_sha256(root / path) != digest:
-                    raise ResumeConflict(f"{path} changed since stage '{stage.name}' finished in run "
-                                         f"{ctx.options.run_id}; another run may have overwritten it. Start a new run.")
-            state["stages"].append({**recorded, "reused_on_resume": True})
-            continue
-        entry: dict[str, Any] = {"name": stage.name, "critical": stage.critical, "started_at": _now()}
-        warnings_before = len(ctx.warnings)
-        reason = stage.skip_reason(ctx) if stage.skip_reason else None
-        started = time.monotonic()
-        if reason:
-            entry.update(status="skipped", reason=reason)
-        else:
-            try:
-                if stage.action:
-                    stage.action(ctx)
-                    code = 0
-                else:
-                    assert stage.command is not None
-                    log = LOGS / f"daily_pipeline_{ctx.options.run_id}_{stage.name}.log"
-                    entry["log"] = str(log)
-                    code = executor(stage.command(ctx), log, env)
-            except (OSError, ValueError, KeyError, PipelineFailed) as exc:
-                code = 1
-                entry["error"] = str(exc)[:500]
-            entry["exit_code"] = code
-            if code == 0:
-                entry["status"] = "completed"
-            elif stage.critical:
-                entry["status"] = "failed"
-            else:
-                entry["status"] = "warning"
-                ctx.warnings.append(f"Stage {stage.name} failed with exit code {code}. Log: {entry.get('log', '-')}")
-        entry["seconds"] = round(time.monotonic() - started, 1)
-        entry["finished_at"] = _now()
-        entry["warnings"] = ctx.warnings[warnings_before:]
-        entry["outputs"] = {path: file_sha256(root / path) for path in stage.outputs if (root / path).exists()}
-        state["stages"].append(entry)
-        print(f"[{entry['status']:>9}] {stage.name} ({entry['seconds']}s)", flush=True)
-        if entry["status"] == "failed":
-            state.update(status="failed", failed_stage=stage.name, finished_at=_now())
-            _save_state(state_path, state)
-            raise PipelineFailed(f"Critical stage '{stage.name}' failed. Later stages were not run. "
-                                 f"Fix it, then continue with: daily_pipeline.py run --resume {ctx.options.run_id}")
+    current = ""
+    try:
+        for stage in stages:
+            current = stage.name
+            if stage.name in done:
+                state["stages"].append({**done[stage.name], "reused_on_resume": True})
+                continue
+            _run_stage(stage, ctx, state, state_path, executor, env, root)
+    except PipelineFailed:
+        raise
+    except BaseException as exc:
+        # Ctrl+C, a closed window or anything unexpected: the state says where it stopped instead of "running"
+        state.update(status="interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "failed",
+                     failed_stage=current, error=f"{type(exc).__name__}: {str(exc)[:300]}", finished_at=_now())
         _save_state(state_path, state)
+        raise
     state.update(status="completed_with_warnings" if ctx.warnings else "completed", finished_at=_now())
     _save_state(state_path, state)
     return state
+
+
+def _run_stage(stage: Stage, ctx: Context, state: dict[str, Any], state_path: Path,
+               executor: Callable[[list[str], Path, dict[str, str]], int], env: dict[str, str], root: Path) -> None:
+    entry: dict[str, Any] = {"name": stage.name, "critical": stage.critical, "started_at": _now()}
+    warnings_before = len(ctx.warnings)
+    reason = stage.skip_reason(ctx) if stage.skip_reason else None
+    started = time.monotonic()
+    if reason:
+        entry.update(status="skipped", reason=reason)
+    else:
+        try:
+            if stage.action:
+                stage.action(ctx)
+                code = 0
+            else:
+                assert stage.command is not None
+                log = LOGS / f"daily_pipeline_{ctx.options.run_id}_{stage.name}.log"
+                entry["log"] = str(log)
+                code = executor(stage.command(ctx), log, env)
+        except Exception as exc:  # noqa: BLE001 - any error of one step is that step's failure, never a lost state
+            code = 1
+            entry["error"] = f"{type(exc).__name__}: {str(exc)[:500]}"
+        entry["exit_code"] = code
+        if code == 0:
+            entry["status"] = "completed"
+        elif stage.critical:
+            entry["status"] = "failed"
+        else:
+            entry["status"] = "warning"
+            ctx.warnings.append(f"Stage {stage.name} failed with exit code {code}. Log: {entry.get('log', '-')}")
+    entry["seconds"] = round(time.monotonic() - started, 1)
+    entry["finished_at"] = _now()
+    entry["warnings"] = ctx.warnings[warnings_before:]
+    entry["outputs"] = {path: file_sha256(root / path) for path in stage.outputs if (root / path).exists()}
+    state["stages"].append(entry)
+    print(f"[{entry['status']:>9}] {stage.name} ({entry['seconds']}s)", flush=True)
+    if entry["status"] == "failed":
+        state.update(status="failed", failed_stage=stage.name, finished_at=_now())
+        _save_state(state_path, state)
+        raise PipelineFailed(f"Critical stage '{stage.name}' failed. Later stages were not run. "
+                             f"Fix it, then continue with: {resume_hint(ctx.options.run_id)}")
+    _save_state(state_path, state)
+
+
+def saved_options(options: Options) -> dict[str, Any]:
+    """The run's options as recorded in its state; the interpreter path is the machine's, not the run's."""
+    return {key: value for key, value in asdict(options).items() if key != "python"}
+
+
+def options_for_resume(previous: dict[str, Any], fallback: Options) -> tuple[Options, bool]:
+    """A resume continues the run as it was started: its saved options win over the resume command line. A state
+    written before options were saved (before 2026-11-20) falls back to the command line, reported as such."""
+    saved = previous.get("options")
+    if not isinstance(saved, dict):
+        return fallback, False
+    known = {f.name for f in fields(Options)} - {"python"}
+    return Options(**{**{k: v for k, v in saved.items() if k in known}, "run_id": fallback.run_id,
+                      "python": fallback.python}), True
+
+
+def launcher_owns(run_id: str, pointer: Path | None = None) -> bool:
+    """True when ``run_id`` is the nightly launcher's run: resuming it outside the launcher would leave the pointer
+    saying "failed" (the afternoon's fallback research would then overwrite the resumed outputs)."""
+    try:
+        data = json.loads((pointer or NIGHTLY_POINTER).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("run_id") == run_id
+
+
+def resume_hint(run_id: str) -> str:
+    if launcher_owns(run_id):
+        return (r"powershell -ExecutionPolicy Bypass -File .\run_full_research_control_plane.ps1 "
+                f"-ResumeRunId {run_id}")
+    return f"daily_pipeline.py run --resume {run_id}"
 
 
 class RunLock:
@@ -553,10 +616,23 @@ def main(argv: list[str] | None = None) -> int:
     resume_id = getattr(args, "resume", "")
     run_id = resume_id or args.run_id or f"run_{timestamp}"
     state_path = STATE_DIR / run_id / "pipeline_state.json"
-    previous = load_json(state_path) if resume_id else None
-    if previous:
+    options = _options(args, run_id)
+    previous = None
+    if resume_id:
+        if not state_path.is_file():
+            print(f"[STOPPED] No saved state for run {resume_id}: {state_path}")
+            return 1
+        if launcher_owns(resume_id) and os.environ.get(LAUNCHER_ENV) != resume_id:
+            print(f"[STOPPED] {resume_id} is the nightly launcher's run. Resume it through the launcher, so the run "
+                  f"pointer, the guards and the after-run steps follow:\n  {resume_hint(resume_id)}")
+            return 1
+        previous = load_json(state_path)
         timestamp = previous.get("timestamp") or timestamp
-    ctx = Context(options=_options(args, run_id), timestamp=timestamp)
+        options, from_state = options_for_resume(previous, options)
+        print(("Resume uses the run's own options: " if from_state else
+               "[WARN] This run's state has no saved options; the command line's are used: ")
+              + json.dumps(saved_options(options), ensure_ascii=False))
+    ctx = Context(options=options, timestamp=timestamp)
     stages = build_stages()
 
     if args.command == "plan":

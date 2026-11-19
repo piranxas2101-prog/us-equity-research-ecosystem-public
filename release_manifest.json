@@ -34,8 +34,39 @@
     "alpaca_paper_position_monitor.py",
     "alpaca_short_gate_data.py",
     "trading_clock.py",
-    "trading_window_config.json"
+    "trading_window_config.json",
+    "primary_data_freshness.py",
+    "catalyst_trade_lens.py",
+    "instrument_type_rules.py",
+    "strategy_scorecards.py",
+    "fundamental_research_packet.py",
+    "run_context.py",
+    "common.py",
+    "market_intel_db.py",
+    "preopen_recheck.py",
+    "catalyst_taxonomy.py",
+    "catalyst_taxonomy.json",
+    "price_history_store.py",
+    "periodic_filing.py",
+    "sec_results_releases.py",
+    "macro_environment.py",
+    "start_trader_paper_trading_today.ps1",
+    "start_trader_afternoon_session.ps1"
   ],
+  "not_listed_note": "Code review 2026-11-20: tests/test_release_guard.py fails when a listed .py imports a local module that is neither listed nor here with the reason it cannot change which trade opens, how big or when it closes.",
+  "not_listed": {
+    "agent_methodology": "identity only: a stale methodology id blocks the gate, it never picks or sizes a trade",
+    "agent_personality": "identity only: personality never changes evidence, scores, limits or orders (CLAUDE.md)",
+    "news_watch": "headlines recorded in shadow at the pre-open check (owner 2026-11-09); no decision reads them",
+    "research_workflow_orchestrator": "load_env only: reads credentials from .env",
+    "fundamental_control_plane_batch": "ticker-to-CIK lookup for fetching filings",
+    "provider_rate_limiter": "request pacing for data providers",
+    "monitor_core": "Yahoo symbol spelling for the short-gate data fetch",
+    "macro_regime": "the nightly FRED economy reading (research); the order path reads only macro_environment.market_state_history",
+    "us_equity_monitor": "Babis's scanner (research), reached through macro_environment's FRED fetch, which the order path never calls",
+    "research_control_plane": "packet building at night (research); the traders use only the packet's validation and execution gate",
+    "technical_research_lab": "ExecutionCosts for the nightly scorecards; trader_confidence uses only decision_key and wilson_lower_bound"
+  },
   "config_keys": {
     "scanner_config.json": ["paper_session", "preopen"]
   }

@@ -724,7 +724,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             import paper_session_report
 
-            counts["session_report"] = paper_session_report.refresh_closed(args.root, date.today())
+            # the New York session, not the Athens date: after 00:00 Athens it is still that session's evening
+            # (code review 2026-11-20)
+            counts["session_report"] = paper_session_report.refresh_closed(args.root, session)
         except Exception as exc:  # noqa: BLE001 - the report is a reading aid; the ledger's work stands
             counts["session_report"] = f"not refreshed: {type(exc).__name__}"
     print(json.dumps({"session": session.isoformat(), "records": len(records),

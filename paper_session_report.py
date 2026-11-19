@@ -130,8 +130,16 @@ def refresh_closed(root: Path, today: date) -> dict[str, Any] | None:
     return report["day_result"]
 
 
+def session_today(now: datetime | None = None) -> date:
+    """The New York date: the report runs after the close (16:10 New York, 23:10 Athens) and may retry past
+    midnight Athens, when the Athens date is already the next day."""
+    return (now or datetime.now(NEW_YORK)).astimezone(NEW_YORK).date()
+
+
 def _today(payload: dict[str, Any] | None, today: date, *keys: str) -> dict[str, Any] | None:
-    """The payload only if one of its timestamps falls on ``today`` (local date)."""
+    """The payload only if one of its timestamps falls on ``today``, the New York session date (a stamp without a
+    zone is this computer's local time). Code review 2026-11-20: the Athens date moved a report written after
+    00:00 Athens (17:00 New York) to the next day and dropped the session's own files."""
     if payload is None:
         return None
     for key in keys:
@@ -142,7 +150,7 @@ def _today(payload: dict[str, Any] | None, today: date, *keys: str) -> dict[str,
             stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except ValueError:
             continue
-        if (stamp.astimezone() if stamp.tzinfo else stamp).date() == today:
+        if (stamp if stamp.tzinfo else stamp.astimezone()).astimezone(NEW_YORK).date() == today:
             return payload
     return None
 
@@ -564,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=ROOT)
     args = parser.parse_args(argv)
-    today = date.today()
+    today = session_today()
     out = args.root / "output"
     report = build(out, today, spy_session_move(today), prices=lambda tickers: session_prices(tickers, today))
     folder = out / "paper_session"

@@ -57,6 +57,35 @@ class FingerprintTests(unittest.TestCase):
         self.assertIn("koulis_risk_gate.py", current["files"])
         self.assertNotIn("giannis_rule_based_from_shortlist.py", current["files"])  # research changes freely
 
+    def test_every_module_the_order_path_imports_is_listed_or_excused(self) -> None:
+        """Code review 2026-11-20: primary_data_freshness, catalyst_trade_lens and the trader launchers decided trades
+        without being fingerprinted, so a change to them inside the period would have mixed the measurements
+        unseen. Every local module a listed .py imports (also inside a function) must be listed, or excused in
+        ``not_listed`` with the reason it cannot change which trade opens, how big or when it closes."""
+        import ast
+
+        manifest = rg.load_manifest(ROOT)
+        listed = set(manifest["files"])
+        excused = set(manifest.get("not_listed") or {})
+        local = {p.stem for p in ROOT.glob("*.py")}
+        unlisted: dict[str, set[str]] = {}
+        for rel in sorted(f for f in listed if f.endswith(".py")):
+            tree = ast.parse((ROOT / rel).read_text(encoding="utf-8-sig"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = {alias.name.split(".")[0] for alias in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                    names = {node.module.split(".")[0]}
+                else:
+                    continue
+                for name in names & local:
+                    if f"{name}.py" not in listed and name not in excused:
+                        unlisted.setdefault(name, set()).add(rel)
+        self.assertEqual(unlisted, {}, "list these in release_manifest.json files, or excuse them in not_listed")
+        self.assertEqual(sorted(excused & {f[:-3] for f in listed}), [], "a module is listed and excused at once")
+        for launcher in ("start_trader_paper_trading_today.ps1", "start_trader_afternoon_session.ps1"):
+            self.assertIn(launcher, listed)  # they set the score floor, stop, take-profit and order limits
+
     def test_snapshots_and_period_changes(self) -> None:
         at = lambda d, h: datetime(2026, 11, d, h, tzinfo=timezone.utc)  # noqa: E731
         rg.snapshot(self.root, "after-nightly", now=at(20, 10))

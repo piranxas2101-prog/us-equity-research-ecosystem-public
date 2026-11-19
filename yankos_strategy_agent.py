@@ -21,6 +21,7 @@ import strategy_signals
 import trader_confidence
 import fundamental_filter
 import fundamental_research_packet
+import primary_data_freshness as row_inputs
 from run_context import attach_run_context, require_compatible_runs
 from common import load_json
 
@@ -140,7 +141,7 @@ def build_short_case(inp: ShortCaseInputs) -> tuple[float, list[str]]:
         rationale.append("Medium risk is tradable but needs discipline.")
     else:
         score += w["risk_high"]
-        rationale.append("High risk profile is too unstable for a controlled short.")
+        rationale.append("High risk profile is too unstable for a controlled short." if inp.risk_level == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if inp.fresh_primary_data:
         score += w["fresh_data"]
@@ -323,14 +324,14 @@ def finalize_directional_signal(
     confidence = "Low"
     rationale = long_rationale[:8]
 
-    if (long_score >= t["long_candidate_min"] and instrument_type == "common" and risk_level != "High"
+    if (long_score >= t["long_candidate_min"] and instrument_type == "common" and risk_level in row_inputs.TRADABLE_RISK
             and long_score >= short_score + t["long_candidate_margin"]):
         direction = "long"
         score = round(max(0.0, min(long_score, 10.0)), 2)
         verdict = "candidate"
         confidence = "High" if risk_level == "Low" else "Medium"
         rationale = long_rationale[:8]
-    elif (short_score >= t["short_candidate_min"] and instrument_type == "common" and risk_level != "High"
+    elif (short_score >= t["short_candidate_min"] and instrument_type == "common" and risk_level in row_inputs.TRADABLE_RISK
             and short_score > long_score):
         direction = "short"
         score = round(max(0.0, min(short_score, 10.0)), 2)
@@ -433,8 +434,8 @@ def support_bounce_swing(playbook: dict[str, Any], row: dict[str, Any]) -> dict[
     ticker = str(row.get("ticker") or "").upper().strip()
     technical = technical_setup.analyze_technical_setup(row)
     instrument_type = classify_instrument(row)
-    risk_level = str(row.get("risk_level") or "Medium")
-    fresh_primary_data = bool(row.get("fresh_primary_data", True))
+    risk_level = row_inputs.risk_level(row)  # unknown stays unknown (code review 2026-11-20)
+    fresh_primary_data = row_inputs.declared_fresh(row)
     flags = row.get("dilution_flags") or []
     if not isinstance(flags, list):
         flags = [str(flags)]
@@ -474,7 +475,7 @@ def support_bounce_swing(playbook: dict[str, Any], row: dict[str, Any]) -> dict[
         rationale.append("Medium risk is acceptable but not ideal.")
     else:
         score -= 1.5
-        rationale.append("High risk profile is not suitable for this swing playbook.")
+        rationale.append("High risk profile is not suitable for this swing playbook." if risk_level == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if fresh_primary_data:
         score += 0.8
@@ -618,7 +619,7 @@ def support_bounce_swing(playbook: dict[str, Any], row: dict[str, Any]) -> dict[
             ticker=ticker,
             instrument_type=instrument_type,
             risk_level=risk_level,
-            fresh_primary_data=fresh_primary_data,
+            fresh_primary_data=fresh_primary_data is True,
             timing=timing,
             rsi=rsi,
             volume_ratio=volume_ratio,
@@ -669,8 +670,8 @@ def controlled_breakout_swing(playbook: dict[str, Any], row: dict[str, Any]) -> 
     ticker = str(row.get("ticker") or "").upper().strip()
     technical = technical_setup.analyze_technical_setup(row)
     instrument_type = classify_instrument(row)
-    risk_level = str(row.get("risk_level") or "Medium")
-    fresh_primary_data = bool(row.get("fresh_primary_data", True))
+    risk_level = row_inputs.risk_level(row)  # unknown stays unknown (code review 2026-11-20)
+    fresh_primary_data = row_inputs.declared_fresh(row)
     flags = row.get("dilution_flags") or []
     if not isinstance(flags, list):
         flags = [str(flags)]
@@ -709,7 +710,7 @@ def controlled_breakout_swing(playbook: dict[str, Any], row: dict[str, Any]) -> 
         rationale.append("Medium risk is acceptable but not ideal.")
     else:
         score -= 1.4
-        rationale.append("High risk profile is too unstable for controlled breakout logic.")
+        rationale.append("High risk profile is too unstable for controlled breakout logic." if risk_level == "High" else "Risk level unknown: scored like high risk, never a candidate.")
 
     if fresh_primary_data:
         score += 0.7
@@ -880,7 +881,7 @@ def controlled_breakout_swing(playbook: dict[str, Any], row: dict[str, Any]) -> 
             ticker=ticker,
             instrument_type=instrument_type,
             risk_level=risk_level,
-            fresh_primary_data=fresh_primary_data,
+            fresh_primary_data=fresh_primary_data is True,
             timing=timing,
             rsi=rsi,
             volume_ratio=volume_ratio,
@@ -934,8 +935,8 @@ def daily_strategy_signal(playbook: dict[str, Any], row: dict[str, Any]) -> dict
         short_score=scored.short_score, short_rationale=scored.short_rationale,
         extras={
             "ticker": str(row.get("ticker") or "").upper().strip(), "instrument_type": classify_instrument(row),
-            "risk_level": str(row.get("risk_level") or "Medium"),
-            "fresh_primary_data": bool(row.get("fresh_primary_data", True)),
+            "risk_level": row_inputs.risk_level(row),
+            "fresh_primary_data": row_inputs.declared_fresh(row),
             "timing": str(row.get("technical_timing") or "neutral"), "rsi": to_float(row.get("rsi_14")),
             "volume_ratio": to_float(row.get("volume_ratio_20")), "macd_histogram": to_float(row.get("macd_histogram")),
             "atr_14_pct": to_float(row.get("atr_14_pct")), "price_position_20d": to_float(row.get("price_position_20d_pct")),

@@ -165,7 +165,11 @@ def resume_proposal(root: Path, nightly: dict[str, Any]) -> jarvis_state.Proposa
     return jarvis_state.Proposal(
         source="run", source_key=f"resume:{run_id}", title=f"Το run {run_id} σταμάτησε ({status}): συνέχεια;",
         evidence={"verdict": status, "run_id": run_id, "diagnosis": step.get("diagnosis"), "detail": step.get("detail")},
-        change=(f"Συνέχεια από το βήμα που απέτυχε: .\\.venv-next\\Scripts\\python.exe daily_pipeline.py run --resume {run_id} "
+        # through the nightly launcher (code review 2026-11-20): the run's own options, the full-universe guards, the
+        # after-run steps and the run pointer, which otherwise stays "failed" and lets the afternoon's fallback
+        # research overwrite the resumed outputs
+        change=(f"Συνέχεια από το βήμα που απέτυχε: powershell -ExecutionPolicy Bypass -File "
+                f".\\run_full_research_control_plane.ps1 -ResumeRunId {run_id} "
                 "(το ξεκινάς εσύ· ο Jarvis δεν ξεκινά run)"))
 
 

@@ -434,6 +434,33 @@ def daily_apply(db: sqlite3.Connection, snapshot: str, *, root: Path = PROJECT,
 # agreement through the governed batch or a person's approval.
 
 REVIEW_DESK = "babis_review_desk"
+OWNER_RESOLUTIONS = ("owner_confirmed_current", "owner_chose_node")
+
+
+def _agreement(votes: list[dict[str, Any]]) -> str | None:
+    """The node two sources agree on, from votes as the desk stores them."""
+    try:
+        return corroborated_node([Vote(str(v["source"]), str(v["node"]), str(v.get("basis") or ""))
+                                  for v in votes if v.get("node")])[0]
+    except (KeyError, TypeError):
+        return None
+
+
+def _owner_already_kept(existing: Any, row: dict[str, Any]) -> bool:
+    """The owner decided this item and the sources say nothing new since (2026-11-19).
+
+    An approval that two sources contradict goes to the desk; when the owner keeps it, the same two sources
+    contradict it again the next night, and the item reopened every night (75 on 2026-11-19, confirmed on 09-30 and
+    on 11-17). It stays closed while the node is the one the owner left and the sources agree on the same other node
+    as when the owner decided; a new agreement opens it again.
+    """
+    if existing is None or existing["status"] != "resolved" or existing["resolution"] not in OWNER_RESOLUTIONS:
+        return False
+    if row.get("reason") != "would_contradict_prior_approval" or existing["current_node"] != row.get("old_node"):
+        return False
+    details = (row.get("source_ref") or {}).get("details") or {}
+    now_agree = _agreement(details.get("votes") or [])
+    return now_agree is not None and now_agree == _agreement(json.loads(existing["votes_json"] or "[]"))
 
 
 def review_desk_schema(db: sqlite3.Connection) -> None:
@@ -449,7 +476,7 @@ def update_review_desk(db: sqlite3.Connection, snapshot: str, rows: list[dict[st
     review_desk_schema(db)
     stamp = now()
     seen = {(row["venue_code"], row["ticker"]): row for row in rows}
-    opened = refreshed = resolved = 0
+    opened = refreshed = resolved = kept = 0
     with db:
         for key, row in seen.items():
             if row["status"] != "reassessment_review":
@@ -458,8 +485,14 @@ def update_review_desk(db: sqlite3.Connection, snapshot: str, rows: list[dict[st
             values = (row.get("name"), row["reason"], row.get("old_node"),
                       json.dumps(details.get("votes") or [], sort_keys=True),
                       json.dumps(details.get("advisory_votes") or [], sort_keys=True))
-            existing = db.execute("SELECT status FROM classification_review_item WHERE venue_code=? AND ticker=?", key).fetchone()
-            if existing and existing[0] == "open":
+            cursor = db.execute("SELECT status, resolution, current_node, votes_json FROM classification_review_item "
+                                "WHERE venue_code=? AND ticker=?", key)
+            found = cursor.fetchone()
+            existing = None if found is None else dict(zip([c[0] for c in cursor.description], found))
+            if _owner_already_kept(existing, row):
+                kept += 1
+                continue
+            if existing and existing["status"] == "open":
                 db.execute("UPDATE classification_review_item SET name=?, reason=?, current_node=?, votes_json=?, advisory_json=?, "
                            "last_seen_snapshot=?, last_seen_at=?, times_seen=times_seen+1 WHERE venue_code=? AND ticker=?",
                            (*values, snapshot, stamp, *key))
@@ -479,7 +512,8 @@ def update_review_desk(db: sqlite3.Connection, snapshot: str, rows: list[dict[st
                        "WHERE venue_code=? AND ticker=?", (stamp, resolution, venue, ticker))
             resolved += 1
     open_count = db.execute("SELECT COUNT(*) FROM classification_review_item WHERE status='open'").fetchone()[0]
-    return {"desk": REVIEW_DESK, "open": open_count, "opened": opened, "still_open": refreshed, "resolved": resolved}
+    return {"desk": REVIEW_DESK, "open": open_count, "opened": opened, "still_open": refreshed, "resolved": resolved,
+            "owner_kept": kept}
 
 
 def owner_decision(db: sqlite3.Connection, venue_code: str, ticker: str, *, node: str | None, note: str,

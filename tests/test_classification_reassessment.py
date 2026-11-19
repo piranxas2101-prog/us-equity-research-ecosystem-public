@@ -150,6 +150,31 @@ class ReviewDeskTests(unittest.TestCase):
         self.assertEqual(db.execute("SELECT resolution FROM classification_review_item WHERE ticker='EDU'").fetchone()[0],
                          "sources_now_agree")
 
+    def test_an_approval_the_owner_kept_stays_closed_until_the_sources_say_something_new(self):
+        # 2026-11-19: 75 approvals the owner confirmed on 09-30 and 11-17 reopened every night
+        def contradict(agree_on):
+            votes = [{"source": "directory", "node": "industrials.transport.freight", "basis": "x"},
+                     {"source": "profile", "node": "industrials.transport", "basis": "x"},
+                     {"source": "sec", "node": agree_on, "basis": "x"}]
+            return {"venue_code": "Q", "ticker": "AAL", "name": "American Airlines", "status": "reassessment_review",
+                    "reason": "would_contradict_prior_approval", "old_node": "industrials.transport.passenger.airlines",
+                    "source_ref": {"details": {"votes": votes, "advisory_votes": []}}}
+
+        db = sqlite3.connect(":memory:")
+        r.update_review_desk(db, "s1", [contradict("industrials.transport.freight.logistics")])
+        db.execute("UPDATE classification_review_item SET status='resolved', resolution='owner_confirmed_current'")
+        same = r.update_review_desk(db, "s2", [contradict("industrials.transport.freight.logistics")])
+        self.assertEqual((same["open"], same["opened"], same["owner_kept"]), (0, 0, 1))
+        new = r.update_review_desk(db, "s3", [contradict("industrials.transport.marine")])   # agreement moves up
+        self.assertEqual((new["open"], new["opened"], new["owner_kept"]), (1, 1, 0))
+
+    def test_an_item_resolved_by_the_sources_opens_again_as_before(self):
+        db = sqlite3.connect(":memory:")
+        row = {**self.row("EDU", "reassessment_review"), "reason": "would_contradict_prior_approval"}
+        r.update_review_desk(db, "s1", [row])
+        db.execute("UPDATE classification_review_item SET status='resolved', resolution='sources_now_agree'")
+        self.assertEqual(r.update_review_desk(db, "s2", [row])["opened"], 1)
+
     def test_report_lists_every_vote_and_the_advisory_model(self):
         db = sqlite3.connect(":memory:")
         r.update_review_desk(db, "s1", [self.row("EDU", "reassessment_review")])

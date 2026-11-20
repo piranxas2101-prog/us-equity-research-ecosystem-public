@@ -202,6 +202,13 @@ class ControlCenterHttpTests(unittest.TestCase):
         self.assertEqual(views.logo(assets)[1], "image/svg+xml")
         (assets / "logo_local.png").write_bytes(b"\x89PNG")
         self.assertEqual(views.logo(assets), (b"\x89PNG", "image/png"))
+        # the page serves the drawing that ships with it: checked on a copy of it, so the owner's own picture saved
+        # next to the real page (logo_local.png, git-ignored) never changes the result (2026-11-20)
+        shipped = Path(self.tmp.name) / "shipped"
+        shipped.mkdir()
+        (shipped / "logo.svg").write_bytes((cc.ASSETS / "logo.svg").read_bytes())
+        self.server.RequestHandlerClass = cc.make_handler(cc.Views(self.root), cc.Actions(self.root), self.token,
+                                                          self.port, assets=shipped)
         response, body = self.request("GET", "/logo")
         self.assertEqual((response.status, response.getheader("Content-Type")), (200, "image/svg+xml"))
         self.assertIn(b"<svg", body)
